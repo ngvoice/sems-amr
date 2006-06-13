@@ -146,14 +146,14 @@ void AmB2BSession::onOtherBye(const AmSipRequest& req)
     terminateLeg();
 }
 
-void AmB2BSession::onOtherError(const AmSipReply& reply)
+void AmB2BSession::onOtherReply(const AmSipReply& reply)
 {
-    terminateLeg();
+    if(reply.code >= 300)
+	terminateLeg();
 }
 
 void AmB2BSession::terminateLeg()
 {
-    //clear_other();
     setStopped();
     dlg.bye();
 }
@@ -203,6 +203,11 @@ void AmB2BCallerSession::onB2BEvent(B2BEvent* ev)
 
 	AmSipReply& reply = ((B2BSipReplyEvent*)ev)->reply;
 
+	if(other_id != reply.local_tag){
+	    DBG("Dialog missmatch!!\n");
+	    return;
+	}
+
 	DBG("reply received from other leg\n");
 
 	switch(callee_status){
@@ -221,9 +226,12 @@ void AmB2BCallerSession::onB2BEvent(B2BEvent* ev)
 		reinviteCaller(reply);
 	    }
 	    else {
-		
-		onOtherError(reply);
+		//DBG("received %i from other leg: other_id=%s; reply.local_tag=%s\n",
+		//    reply.code,other_id.c_str(),reply.local_tag.c_str());
+		terminateOtherLeg();
 	    }
+		
+	    onOtherReply(reply);
 	    break;
 
 	default:
