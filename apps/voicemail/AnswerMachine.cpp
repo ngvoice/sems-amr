@@ -48,6 +48,8 @@
 #define DEFAULT_MAIL_TMPL      string("default")
 #define DEFAULT_MAIL_TMPL_EXT  string("template")
 
+#define RECORD_TIMER 99
+
 EXPORT_SESSION_FACTORY(AnswerMachineFactory,MOD_NAME);
 
 AnswerMachineFactory::AnswerMachineFactory(const string& _app_name)
@@ -59,6 +61,7 @@ string AnswerMachineFactory::AnnouncePath;
 string AnswerMachineFactory::DefaultAnnounce;
 int    AnswerMachineFactory::MaxRecordTime;
 int    AnswerMachineFactory::AcceptDelay;
+AmDynInvokeFactory* AnswerMachineFactory::UserTimer=0;
 
 int AnswerMachineFactory::loadEmailTemplates(const string& path)
 {
@@ -132,6 +135,13 @@ int AnswerMachineFactory::onLoad()
     }
 
     AcceptDelay = DEFAULT_ACCEPT_DELAY;
+
+    UserTimer = AmPlugIn::instance()->getFactory4Di("user_timer");
+    if(!UserTimer){
+	
+	ERROR("could not load user_timer from session_timer plug-in\n");
+	return -1;
+    }
 
     return 0;
 }
@@ -207,6 +217,11 @@ AnswerMachineDialog::AnswerMachineDialog(const string& email,
       status(0)
 {
     email_dict["email"] = email;
+    user_timer = AnswerMachineFactory::UserTimer->getInstance();
+    if(!user_timer){
+	ERROR("could not get a user timer reference\n");
+	throw AmSession::Exception(500,"could not get a user timer reference");
+    }
 }
 
 AnswerMachineDialog::~AnswerMachineDialog()
@@ -225,12 +240,24 @@ void AnswerMachineDialog::process(AmEvent* event)
 	    switch(status){
 
 	    case 0:
-		a_beep.rewind();
-		playlist.addToPlaylist(new AmPlaylistItem(&a_beep,NULL));
+		playlist.addToPlaylist(new AmPlaylistItem(NULL,&a_msg));
+		
+		{AmArgArray di_args,ret;
+		di_args.push(RECORD_TIMER);
+		di_args.push(AnswerMachineFactory::MaxRecordTime);
+		di_args.push(getLocalTag().c_str());
+
+		user_timer->invoke("setTimer",di_args,ret);}
 		status = 1;
 		break;
 
 	    case 1:
+		a_beep.rewind();
+		playlist.addToPlaylist(new AmPlaylistItem(&a_beep,NULL));
+		status = 2;
+		break;
+
+	    case 2:
 		dlg.bye();
 		sendMailNotification();
 		setStopped();
@@ -247,6 +274,16 @@ void AnswerMachineDialog::process(AmEvent* event)
 	    DBG("Unknown event id %i\n",ae->event_id);
 	    break;
 	}
+
+	return;
+    }
+
+    AmPluginEvent* plugin_event = dynamic_cast<AmPluginEvent*>(event);
+    if(plugin_event && plugin_event->name == "timer_timeout" &&
+       plugin_event->data.get(0).asInt() == RECORD_TIMER) {
+
+	    // clear list
+	    playlist.close();
     }
     else
 	AmSession::process(event);
@@ -265,11 +302,11 @@ void AnswerMachineDialog::onSessionStart(const AmSipRequest& req)
 	throw string("AnswerMachine: couldn't open ") + 
 	    msg_filename + string(" for writing");
 
-    a_msg.setRecordTime(AnswerMachineFactory::MaxRecordTime*1000);
+    //a_msg.setRecordTime(AnswerMachineFactory::MaxRecordTime*1000);
     
     playlist.addToPlaylist(new AmPlaylistItem(&a_greeting,NULL));
     playlist.addToPlaylist(new AmPlaylistItem(&a_beep,NULL));
-    playlist.addToPlaylist(new AmPlaylistItem(NULL,&a_msg));
+    //playlist.addToPlaylist(new AmPlaylistItem(NULL,&a_msg));
 
     setInOut(&playlist,&playlist);
 
