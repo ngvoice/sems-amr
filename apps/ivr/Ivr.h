@@ -76,6 +76,7 @@ class IvrFactory: public AmSessionFactory
     void init_python_interpreter();
     void import_ivr_builtins();
 
+    void import_module(const char* modname);
     void import_object(PyObject* m, 
 		       char* name, 
 		       PyTypeObject* type);
@@ -109,6 +110,7 @@ public:
     AmDynInvoke* user_timer;
     AmPlaylist playlist;
 
+    IvrDialog();
     IvrDialog(AmDynInvoke* user_timer);
     ~IvrDialog();
 
@@ -116,11 +118,11 @@ public:
     void setPyPtrs(PyObject *mod, PyObject *dlg);
     
     void onSessionStart(const AmSipRequest& req);
-    void onBye(const AmSipRequest& req);
-    void onDtmf(int event, int duration_msec);
+/*     void onBye(const AmSipRequest& req); */
+/*     void onDtmf(int event, int duration_msec); */
 
-    void onOtherBye(const AmSipRequest& req);
-    void onOtherReply(const AmSipReply& r);
+/*     void onOtherBye(const AmSipRequest& req); */
+/*     void onOtherReply(const AmSipReply& r); */
 };
 
 #endif

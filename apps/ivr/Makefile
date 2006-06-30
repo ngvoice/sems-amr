@@ -28,8 +28,9 @@ PYTHON_DYNLOAD_MODULES = $(wildcard $(PYTHON_LIBDIR)/lib-dynload/*.so) \
 PYTHON_module_cflags = -I$(PYTHON_DIR)
 PYTHON_module_ldflags = -Xlinker --export-dynamic \
 			-L$(PYTHON_LIBDIR)/config \
-			-lpython$(PY_VER) \
-			#$(PYTHON_DYNLOAD_MODULES)
+			-lpython$(PY_VER) $(wildcard sip/*.o)
+#\
+#$(PYTHON_DYNLOAD_MODULES)
 
 ifeq ($(TTS), y)
 #

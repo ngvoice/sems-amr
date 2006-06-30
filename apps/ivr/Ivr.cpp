@@ -19,8 +19,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "IvrDialogBase.h"
-#include "IvrSipDialog.h"
+//#include "IvrDialogBase.h"
+//#include "IvrSipDialog.h"
 #include "IvrAudio.h"
 #include "Ivr.h"
 
@@ -32,6 +32,9 @@
 #include "AmSessionScheduler.h"
 //#include "AmSessionTimer.h"
 #include "AmPlugIn.h"
+
+#include "sip/sipAPIpy_ivr.h"
+#include "sip/sippy_ivrIvrDialog.h"
 
 #include <unistd.h>
 #include <pthread.h>
@@ -47,6 +50,7 @@ using std::set;
 
 EXPORT_SESSION_FACTORY(IvrFactory,MOD_NAME);
 
+PyMODINIT_FUNC initpy_ivr();
 
 struct PythonGIL
 {
@@ -74,6 +78,10 @@ extern "C" {
 	    return NULL;
 
 	if((level)<=log_level) {
+
+	    //if(level == L_ERR)
+	    //assert(0);
+
 	    if(log_stderr)
 		log_print( level, msg );
 	    else {
@@ -162,10 +170,10 @@ void IvrFactory::import_ivr_builtins()
     ivr_module = Py_InitModule("ivr",ivr_methods);
 
     // IvrSipDialog (= AmSipDialog)
-    import_object(ivr_module, "IvrSipDialog", &IvrSipDialogType);
+    //import_object(ivr_module, "IvrSipDialog", &IvrSipDialogType);
 
     // IvrDialogBase
-    import_object(ivr_module,"IvrDialogBase",&IvrDialogBaseType);
+    //import_object(ivr_module,"IvrDialogBase",&IvrDialogBaseType);
 
 
     // IvrAudioFile
@@ -178,13 +186,19 @@ void IvrFactory::import_ivr_builtins()
     // add log level for the log module
     PyModule_AddIntConstant(ivr_module, "SEMS_LOG_LEVEL",log_level);
 
-    PyObject* log_mod_name = PyString_FromString("log");
-    PyObject* log_mod = PyImport_Import(log_mod_name);
-    Py_DECREF(log_mod_name);
+    import_module("log");
+    initpy_ivr();
+}
 
-    if(!log_mod){
+void IvrFactory::import_module(const char* modname)
+{
+    PyObject* py_mod_name = PyString_FromString(modname);
+    PyObject* py_mod = PyImport_Import(py_mod_name);
+    Py_DECREF(py_mod_name);
+    
+    if(!py_mod){
 	PyErr_Print();
-	ERROR("IvrFactory: could not find the log python module.\n");
+	ERROR("IvrFactory: could not find python module '%s'.\n",modname);
 	ERROR("IvrFactory: please check your installation.\n");
 	return;
     }
@@ -216,27 +230,32 @@ IvrDialog* IvrFactory::newDlg(const string& name)
 	throw AmSession::Exception(500,"could not get a user timer reference");
     }
 	
-
-    IvrDialog* dlg = new IvrDialog(user_timer);
-
-    PyObject* c_dlg = PyCObject_FromVoidPtr(dlg,NULL);
-    PyObject* dlg_inst = PyObject_CallMethod(mod_desc.dlg_class,"__new__","OO",
-					     mod_desc.dlg_class,c_dlg);
-    Py_DECREF(c_dlg);
-
+    PyObject* dlg_inst = PyObject_Call(mod_desc.dlg_class,PyTuple_New(0),NULL);
     if(!dlg_inst){
-
-	delete dlg;
-
+	
 	PyErr_Print();
 	ERROR("IvrFactory: while loading \"%s\": could not create instance\n",
 	      name.c_str());
-	throw AmSession::Exception(500,"Internal error in IVR plug-in.\n");
+	throw AmSession::Exception(500,"Internal error in IVR plug-in.");
+	
+	return NULL;
+    }
+
+    int err=0;
+    IvrDialog* dlg = (IvrDialog*)sipForceConvertTo_IvrDialog(dlg_inst,&err);
+    if(!dlg || err){
+	
+	PyErr_Print();
+	ERROR("IvrFactory: while loading \"%s\": could not retrieve IvrDialog ptr.\n",
+	      name.c_str());
+	throw AmSession::Exception(500,"Internal error in IVR plug-in.");
+	Py_DECREF(dlg_inst);
 
 	return NULL;
-    }    
+    }
 
-    dlg->setPyPtrs(mod_desc.mod,dlg_inst);
+    // take the ownership over dlg
+    sipTransfer(dlg_inst,1);
 
     return dlg;
 }
@@ -268,7 +287,7 @@ bool IvrFactory::loadScript(const string& path)
     }
 
     dict = PyModule_GetDict(mod);
-    dlg_class = PyDict_GetItemString(dict, "IvrDialog");
+    dlg_class = PyDict_GetItemString(dict, "IvrScript");
 
     if(!dlg_class){
 
@@ -279,10 +298,11 @@ bool IvrFactory::loadScript(const string& path)
 
     Py_INCREF(dlg_class);
 
-    if(!PyObject_IsSubclass(dlg_class,(PyObject*)&IvrDialogBaseType)){
+    if(!PyObject_IsSubclass(dlg_class,(PyObject *)sipClass_IvrDialog)){
 
-	WARN("IvrFactory: in \"%s\": IvrDialog is not a subtype of IvrDialogBase\n",
-	      path.c_str());
+	WARN("IvrFactory: in \"%s\": IvrScript is not a "
+	     "subtype of IvrDialog\n", path.c_str());
+
 	goto error2;
     }
 
@@ -416,6 +436,15 @@ AmSession* IvrFactory::onInvite(const AmSipRequest& req)
 	return newDlg(req.user);
 }
 
+IvrDialog::IvrDialog()
+    : py_mod(NULL),
+      py_dlg(NULL),
+      playlist(this),
+      user_timer(NULL)
+{
+    sip_relay_only = false;
+}
+
 IvrDialog::IvrDialog(AmDynInvoke* user_timer)
     : py_mod(NULL), 
       py_dlg(NULL),
@@ -427,6 +456,8 @@ IvrDialog::IvrDialog(AmDynInvoke* user_timer)
 
 IvrDialog::~IvrDialog()
 {
+    DBG("IvrDialog::~IvrDialog()\n");
+
     PYLOCK;
     Py_XDECREF(py_mod);
     Py_XDECREF(py_dlg);
@@ -536,34 +567,9 @@ bool IvrDialog::callPyEventHandler(char* name, char* fmt, ...)
 
 void IvrDialog::onSessionStart(const AmSipRequest& req)
 {
-    callPyEventHandler("onSessionStart","s",req.hdrs.c_str());
+    DBG("IvrDialog::onSessionStart\n");
     setInOut(&playlist,&playlist);
     AmB2BCallerSession::onSessionStart(req);
-}
-
-void IvrDialog::onBye(const AmSipRequest& req)
-{
-    if(callPyEventHandler("onBye",NULL))
-	AmB2BSession::onBye(req);
-}
-
-void IvrDialog::onDtmf(int event, int duration_msec)
-{
-    if(callPyEventHandler("onDtmf","ii",event,duration_msec))
-	AmB2BSession::onDtmf(event,duration_msec);
-}
-
-void IvrDialog::onOtherBye(const AmSipRequest& req)
-{
-    if(callPyEventHandler("onOtherBye",NULL))
-	AmB2BSession::onOtherBye(req);
-}
-
-void IvrDialog::onOtherReply(const AmSipReply& r)
-{
-    if(callPyEventHandler("onOtherReply","is",
-			  r.code,r.reason.c_str()))
-	AmB2BSession::onOtherReply(r);
 }
 
 void IvrDialog::process(AmEvent* event) 
