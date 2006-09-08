@@ -1,0 +1,3 @@
+target = py_ivr
+sources = sippy_ivrcmodule.cpp sippy_ivrIvrDialog.cpp sippy_ivrAmSipDialog.cpp sippy_ivrAmSipReply.cpp sippy_ivrAmSipRequest.cpp sippy_ivrstring.cpp
+headers = sipAPIpy_ivr.h sippy_ivrIvrDialog.h sippy_ivrAmSipDialog.h sippy_ivrAmSipReply.h sippy_ivrAmSipRequest.h sippy_ivrstring.h
