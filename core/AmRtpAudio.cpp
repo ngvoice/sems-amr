@@ -39,6 +39,9 @@ AmRtpAudio::AmRtpAudio(AmSession* _s)
 
 bool AmRtpAudio::checkInterval(unsigned int ts)
 {
+    if(!fmt.get())
+	return false;
+
     if(!last_check_i){
 	send_int     = true;
 	last_check_i = true;

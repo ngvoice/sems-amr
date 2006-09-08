@@ -149,7 +149,7 @@ int AmPlugIn::loadPlugIn(const string& file)
     void* h_dl = dlopen(file.c_str(),RTLD_NOW | RTLD_GLOBAL);
 
     if(!h_dl){
-	ERROR("AmPlugIn::loadPlugIn: %s: %s\n",file.c_str(),dlerror());
+	ERROR("AmPlugIn::loadPlugIn: %s\n",dlerror());
 	return -1;
     }
 

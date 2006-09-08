@@ -106,12 +106,6 @@ protected:
     // B2BEvent handler
     virtual void onB2BEvent(B2BEvent* ev);
 
-    // Other leg received a BYE
-    virtual void onOtherBye(const AmSipRequest& req);
-
-    // INVITE from other leg has been replied
-    virtual void onOtherReply(const AmSipReply& reply);
-
     AmB2BSession()
 	: sip_relay_only(true)
     {}
@@ -121,6 +115,14 @@ protected:
     {}
 
     virtual ~AmB2BSession();
+
+ public:
+    // Other leg received a BYE
+    virtual void onOtherBye(const AmSipRequest& req);
+
+    // INVITE from other leg has been replied
+    virtual void onOtherReply(const AmSipReply& reply);
+
 };
 
 class AmB2BCalleeSession;
