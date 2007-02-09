@@ -1,6 +1,6 @@
-TARGET = py_ivr.so
-OFILES = sippy_ivrcmodule.o sippy_ivrIvrDialog.o sippy_ivrAmSipDialog.o sippy_ivrAmSipReply.o sippy_ivrAmSipRequest.o sippy_ivrstring.o
-HFILES = sipAPIpy_ivr.h sippy_ivrIvrDialog.h sippy_ivrAmSipDialog.h sippy_ivrAmSipReply.h sippy_ivrAmSipRequest.h sippy_ivrstring.h 
+TARGET = py_sems.so
+OFILES = sippy_semscmodule.o sippy_semsIvrDialog.o sippy_semsAmSipDialog.o sippy_semsAmSipReply.o sippy_semsAmSipRequest.o sippy_semsstring.o
+HFILES = sipAPIpy_sems.h sippy_semsIvrDialog.h sippy_semsAmSipDialog.h sippy_semsAmSipReply.h sippy_semsAmSipRequest.h sippy_semsstring.h 
 
 CC = gcc
 CXX = g++
@@ -39,9 +39,9 @@ install: $(TARGET)
 
 clean:
 	-rm -f $(TARGET)
-	-rm -f sippy_ivrcmodule.o
-	-rm -f sippy_ivrIvrDialog.o
-	-rm -f sippy_ivrAmSipDialog.o
-	-rm -f sippy_ivrAmSipReply.o
-	-rm -f sippy_ivrAmSipRequest.o
-	-rm -f sippy_ivrstring.o
+	-rm -f sippy_semscmodule.o
+	-rm -f sippy_semsIvrDialog.o
+	-rm -f sippy_semsAmSipDialog.o
+	-rm -f sippy_semsAmSipReply.o
+	-rm -f sippy_semsAmSipRequest.o
+	-rm -f sippy_semsstring.o

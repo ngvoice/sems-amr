@@ -1,4 +1,4 @@
-%Module py_ivr 0
+%Module py_sems 0
 
 %Include string.sip
 %Include AmSipRequest.sip

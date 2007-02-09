@@ -33,8 +33,8 @@
 //#include "AmSessionTimer.h"
 #include "AmPlugIn.h"
 
-#include "sip/sipAPIpy_ivr.h"
-#include "sip/sippy_ivrIvrDialog.h"
+#include "sip/sipAPIpy_sems.h"
+#include "sip/sippy_semsIvrDialog.h"
 
 #include <unistd.h>
 #include <pthread.h>
@@ -50,7 +50,7 @@ using std::set;
 
 EXPORT_SESSION_FACTORY(IvrFactory,MOD_NAME);
 
-PyMODINIT_FUNC initpy_ivr();
+PyMODINIT_FUNC initpy_sems();
 
 struct PythonGIL
 {
@@ -187,7 +187,7 @@ void IvrFactory::import_ivr_builtins()
     PyModule_AddIntConstant(ivr_module, "SEMS_LOG_LEVEL",log_level);
 
     import_module("log");
-    initpy_ivr();
+    initpy_sems();
 }
 
 void IvrFactory::import_module(const char* modname)
