@@ -1,6 +1,6 @@
 TARGET = py_sems.so
-OFILES = sippy_semscmodule.o sippy_semsIvrDialog.o sippy_semsAmSipDialog.o sippy_semsAmSipReply.o sippy_semsAmSipRequest.o sippy_semsstring.o
-HFILES = sipAPIpy_sems.h sippy_semsIvrDialog.h sippy_semsAmSipDialog.h sippy_semsAmSipReply.h sippy_semsAmSipRequest.h sippy_semsstring.h 
+OFILES = sippy_semscmodule.o sippy_semsPySemsDialog.o sippy_semsAmSipDialog.o sippy_semsAmSipReply.o sippy_semsAmSipRequest.o sippy_semsstring.o
+HFILES = sipAPIpy_sems.h sippy_semsPySemsDialog.h sippy_semsAmSipDialog.h sippy_semsAmSipReply.h sippy_semsAmSipRequest.h sippy_semsstring.h 
 
 CC = gcc
 CXX = g++
@@ -40,7 +40,7 @@ install: $(TARGET)
 clean:
 	-rm -f $(TARGET)
 	-rm -f sippy_semscmodule.o
-	-rm -f sippy_semsIvrDialog.o
+	-rm -f sippy_semsPySemsDialog.o
 	-rm -f sippy_semsAmSipDialog.o
 	-rm -f sippy_semsAmSipReply.o
 	-rm -f sippy_semsAmSipRequest.o

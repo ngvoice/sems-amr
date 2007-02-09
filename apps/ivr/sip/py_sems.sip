@@ -4,4 +4,4 @@
 %Include AmSipRequest.sip
 %Include AmSipReply.sip
 %Include AmSipDialog.sip
-%Include IvrDialog.sip
+%Include PySemsDialog.sip

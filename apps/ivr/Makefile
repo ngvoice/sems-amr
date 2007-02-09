@@ -1,4 +1,4 @@
-plug_in_name = ivr
+plug_in_name = py_sems
 
 COREPATH ?=../../core
 

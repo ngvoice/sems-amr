@@ -1,17 +1,17 @@
 
 
-class IvrDialog
+class PySemsDialog
 {
 %TypeHeaderCode
-#include "../Ivr.h"
+#include "../PySems.h"
 %End
 
 public:
 
     AmSipDialog dlg;
 
-    IvrDialog();
-    ~IvrDialog();
+    PySemsDialog();
+    ~PySemsDialog();
 
     int acceptAudio(const string& /* body */,
 		    const string& /* hdrs */,
@@ -30,5 +30,5 @@ public:
     virtual void onOtherReply(const AmSipReply& /* r */);
 
 private:
-    IvrDialog(const IvrDialog&);
+    PySemsDialog(const PySemsDialog&);
 };
