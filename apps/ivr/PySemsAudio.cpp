@@ -1,4 +1,4 @@
-#include "IvrAudio.h"
+#include "PySemsAudio.h"
 #include "AmAudio.h"
 #include "AmSession.h"
 
@@ -12,12 +12,12 @@ extern "C" cst_voice *register_cmu_us_kal();
 #endif //ivr_with_tts
 
 
-static PyObject* IvrAudioFile_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject* PySemsAudioFile_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    DBG("---------- IvrAudioFile_alloc -----------\n");
-    IvrAudioFile *self;
+    DBG("---------- PySemsAudioFile_alloc -----------\n");
+    PySemsAudioFile *self;
 
-    self = (IvrAudioFile *)type->tp_alloc(type, 0);
+    self = (PySemsAudioFile *)type->tp_alloc(type, 0);
 	
     if (self != NULL) {
 
@@ -38,9 +38,9 @@ static PyObject* IvrAudioFile_new(PyTypeObject *type, PyObject *args, PyObject *
     return (PyObject *)self;
 }
 
-static void IvrAudioFile_dealloc(IvrAudioFile* self)
+static void PySemsAudioFile_dealloc(PySemsAudioFile* self)
 {
-    DBG("---------- IvrAudioFile_dealloc -----------\n");
+    DBG("---------- PySemsAudioFile_dealloc -----------\n");
     delete self->af;
     self->af = NULL;
 
@@ -53,7 +53,7 @@ static void IvrAudioFile_dealloc(IvrAudioFile* self)
     self->ob_type->tp_free((PyObject*)self);
 }
 
-static PyObject* IvrAudioFile_open(IvrAudioFile* self, PyObject* args)
+static PyObject* PySemsAudioFile_open(PySemsAudioFile* self, PyObject* args)
 {
     int                   ivr_open_mode;
     char*                 filename;
@@ -95,7 +95,7 @@ static PyObject* IvrAudioFile_open(IvrAudioFile* self, PyObject* args)
     return Py_None;
 }
 
-static PyObject* IvrAudioFile_fpopen(IvrAudioFile* self, PyObject* args)
+static PyObject* PySemsAudioFile_fpopen(PySemsAudioFile* self, PyObject* args)
 {
     int                   ivr_open_mode;
     char*                 filename;
@@ -133,7 +133,7 @@ static PyObject* IvrAudioFile_fpopen(IvrAudioFile* self, PyObject* args)
     return Py_None;
 }
 
-static PyObject* IvrAudioFile_rewind(IvrAudioFile* self, PyObject* args)
+static PyObject* PySemsAudioFile_rewind(PySemsAudioFile* self, PyObject* args)
 {
     self->af->rewind();
     Py_INCREF(Py_None);
@@ -141,7 +141,7 @@ static PyObject* IvrAudioFile_rewind(IvrAudioFile* self, PyObject* args)
 }
 
 #ifdef IVR_WITH_TTS
-static PyObject* IvrAudioFile_tts(PyObject* cls, PyObject* args)
+static PyObject* PySemsAudioFile_tts(PyObject* cls, PyObject* args)
 {
     char* text;
     if(!PyArg_ParseTuple(args,"s",&text))
@@ -153,11 +153,11 @@ static PyObject* IvrAudioFile_tts(PyObject* cls, PyObject* args)
 
     if(tts_file == NULL){
 	PyErr_Print();
-	PyErr_SetString(PyExc_RuntimeError,"could not create new IvrAudioFile object");
+	PyErr_SetString(PyExc_RuntimeError,"could not create new PySemsAudioFile object");
 	return NULL;
     }
 
-    IvrAudioFile* self = (IvrAudioFile*)tts_file;
+    PySemsAudioFile* self = (PySemsAudioFile*)tts_file;
 
     *self->filename = string(TTS_CACHE_PATH) + AmSession::getNewId() + string(".wav");
     self->del_file = true;
@@ -173,19 +173,19 @@ static PyObject* IvrAudioFile_tts(PyObject* cls, PyObject* args)
 }
 #endif
     
-static PyObject* IvrAudioFile_close(IvrAudioFile* self, PyObject*)
+static PyObject* PySemsAudioFile_close(PySemsAudioFile* self, PyObject*)
 {
     self->af->close();
     Py_INCREF(Py_None);
     return Py_None;
 }
 
-static PyObject* IvrAudioFile_getDataSize(IvrAudioFile* self, PyObject*)
+static PyObject* PySemsAudioFile_getDataSize(PySemsAudioFile* self, PyObject*)
 {
     return PyInt_FromLong(self->af->getDataSize());
 }
 
-static PyObject* IvrAudioFile_setRecordTime(IvrAudioFile* self, PyObject* args)
+static PyObject* PySemsAudioFile_setRecordTime(PySemsAudioFile* self, PyObject* args)
 {
     int rec_time;
     if(!PyArg_ParseTuple(args,"i",&rec_time))
@@ -197,7 +197,7 @@ static PyObject* IvrAudioFile_setRecordTime(IvrAudioFile* self, PyObject* args)
     return Py_None;
 }
 
-static PyObject* IvrAudioFile_exportRaw(IvrAudioFile* self, PyObject*)
+static PyObject* PySemsAudioFile_exportRaw(PySemsAudioFile* self, PyObject*)
 {
     if(self->af->getMode() == AmAudioFile::Write)
 	self->af->on_close();
@@ -208,31 +208,31 @@ static PyObject* IvrAudioFile_exportRaw(IvrAudioFile* self, PyObject*)
 }
 
 
-static PyMethodDef IvrAudioFile_methods[] = {
-    {"open", (PyCFunction)IvrAudioFile_open, METH_VARARGS,
+static PyMethodDef PySemsAudioFile_methods[] = {
+    {"open", (PyCFunction)PySemsAudioFile_open, METH_VARARGS,
      "open the audio file"
     },
-    {"fpopen", (PyCFunction)IvrAudioFile_fpopen, METH_VARARGS,
+    {"fpopen", (PyCFunction)PySemsAudioFile_fpopen, METH_VARARGS,
      "open the audio file"
     },
-    {"close", (PyCFunction)IvrAudioFile_close, METH_NOARGS,
+    {"close", (PyCFunction)PySemsAudioFile_close, METH_NOARGS,
      "close the audio file"
     },
-    {"rewind", (PyCFunction)IvrAudioFile_rewind, METH_NOARGS,
+    {"rewind", (PyCFunction)PySemsAudioFile_rewind, METH_NOARGS,
      "rewind the audio file"
     },
-    {"getDataSize", (PyCFunction)IvrAudioFile_getDataSize, METH_NOARGS,
+    {"getDataSize", (PyCFunction)PySemsAudioFile_getDataSize, METH_NOARGS,
      "returns the recorded data size"
     },
-    {"setRecordTime", (PyCFunction)IvrAudioFile_setRecordTime, METH_VARARGS,
+    {"setRecordTime", (PyCFunction)PySemsAudioFile_setRecordTime, METH_VARARGS,
      "set the maximum record time in millisecond"
     },
-    {"exportRaw", (PyCFunction)IvrAudioFile_exportRaw, METH_NOARGS,
+    {"exportRaw", (PyCFunction)PySemsAudioFile_exportRaw, METH_NOARGS,
      "creates a new Python file with the actual file"
      " and eventually flushes headers (audio->on_stop)"
     },
 #ifdef IVR_WITH_TTS
-    {"tts", (PyCFunction)IvrAudioFile_tts, METH_CLASS | METH_VARARGS,
+    {"tts", (PyCFunction)PySemsAudioFile_tts, METH_CLASS | METH_VARARGS,
      "text to speech"
     },
 #endif
@@ -240,14 +240,14 @@ static PyMethodDef IvrAudioFile_methods[] = {
 };
 
 
-static PyObject* IvrAudioFile_getloop(IvrAudioFile* self, void*)
+static PyObject* PySemsAudioFile_getloop(PySemsAudioFile* self, void*)
 {
     PyObject* loop = self->af->loop.get() ? Py_True : Py_False;
     Py_INCREF(loop);
     return loop;
 }
 
-static int IvrAudioFile_setloop(IvrAudioFile* self, PyObject* value, void*)
+static int PySemsAudioFile_setloop(PySemsAudioFile* self, PyObject* value, void*)
 {
     if (value == NULL) {
 	PyErr_SetString(PyExc_TypeError, "Cannot delete the first attribute");
@@ -269,22 +269,22 @@ static int IvrAudioFile_setloop(IvrAudioFile* self, PyObject* value, void*)
     return 0;
 }
 
-static PyGetSetDef IvrAudioFile_getseters[] = {
+static PyGetSetDef PySemsAudioFile_getseters[] = {
     {"loop", 
-     (getter)IvrAudioFile_getloop, (setter)IvrAudioFile_setloop,
+     (getter)PySemsAudioFile_getloop, (setter)PySemsAudioFile_setloop,
      "repeat mode",
      NULL},
     {NULL}  /* Sentinel */
 };
     
-PyTypeObject IvrAudioFileType = {
+PyTypeObject PySemsAudioFileType = {
 	
     PyObject_HEAD_INIT(NULL)
     0,                         /*ob_size*/
-    "ivr.IvrAudioFile",        /*tp_name*/
-    sizeof(IvrAudioFile),      /*tp_basicsize*/
+    "ivr.PySemsAudioFile",        /*tp_name*/
+    sizeof(PySemsAudioFile),      /*tp_basicsize*/
     0,                         /*tp_itemsize*/
-    (destructor)IvrAudioFile_dealloc, /*tp_dealloc*/
+    (destructor)PySemsAudioFile_dealloc, /*tp_dealloc*/
     0,                         /*tp_print*/
     0,                         /*tp_getattr*/
     0,                         /*tp_setattr*/
@@ -307,9 +307,9 @@ PyTypeObject IvrAudioFileType = {
     0,		               /* tp_weaklistoffset */
     0,		               /* tp_iter */
     0,		               /* tp_iternext */
-    IvrAudioFile_methods,      /* tp_methods */
+    PySemsAudioFile_methods,      /* tp_methods */
     0,                         /* tp_members */
-    IvrAudioFile_getseters,    /* tp_getset */
+    PySemsAudioFile_getseters,    /* tp_getset */
     0,                         /* tp_base */
     0,                         /* tp_dict */
     0,                         /* tp_descr_get */
@@ -317,5 +317,5 @@ PyTypeObject IvrAudioFileType = {
     0,                         /* tp_dictoffset */
     0,                         /* tp_init */
     0,                         /* tp_alloc */
-    IvrAudioFile_new,          /* tp_new */
+    PySemsAudioFile_new,          /* tp_new */
 };

@@ -1,5 +1,5 @@
 /*
- * $Id: Ivr.h,v 1.15.2.1 2005/09/02 13:47:46 rco Exp $
+ * $Id: PySems.h,v 1.15.2.1 2005/09/02 13:47:46 rco Exp $
  * Copyright (C) 2002-2003 Fhg Fokus
  *
  * This file is part of sems, a free SIP media server.
@@ -38,24 +38,24 @@
 using std::string;
 using std::map;
 
-class IvrDialog;
+class PySemsDialog;
 
-struct IvrScriptDesc
+struct PySemsScriptDesc
 {
     PyObject* mod;
     PyObject* dlg_class;
 
-    IvrScriptDesc()
+    PySemsScriptDesc()
 	: mod(0), 
 	  dlg_class(0)
     {}
 
-    IvrScriptDesc(const IvrScriptDesc& d)
+    PySemsScriptDesc(const PySemsScriptDesc& d)
 	: mod(d.mod), 
 	  dlg_class(d.dlg_class)
     {}
 
-    IvrScriptDesc(PyObject* mod, 
+    PySemsScriptDesc(PyObject* mod, 
 		  PyObject* dlg_class)
 	: mod(mod),
 	  dlg_class(dlg_class)
@@ -63,13 +63,13 @@ struct IvrScriptDesc
 };
 
 
-class IvrFactory: public AmSessionFactory
+class PySemsFactory: public AmSessionFactory
 {
     PyObject* ivr_module;
     string script_path;
     string default_script;
 
-    map<string,IvrScriptDesc> mod_reg;
+    map<string,PySemsScriptDesc> mod_reg;
 
     AmDynInvokeFactory* user_timer_fact;
 
@@ -87,17 +87,17 @@ class IvrFactory: public AmSessionFactory
     void setScriptPath(const string& path);
     bool checkCfg();
 
-    IvrDialog* newDlg(const string& name);
+    PySemsDialog* newDlg(const string& name);
     
  public:
-    IvrFactory(const string& _app_name);
+    PySemsFactory(const string& _app_name);
 
     int onLoad();
     AmSession* onInvite(const AmSipRequest& req);
 };
 
 
-class IvrDialog : public AmB2BCallerSession
+class PySemsDialog : public AmB2BCallerSession
 {
     PyObject  *py_mod;
     PyObject  *py_dlg;
@@ -110,9 +110,9 @@ public:
     AmDynInvoke* user_timer;
     AmPlaylist playlist;
 
-    IvrDialog();
-    IvrDialog(AmDynInvoke* user_timer);
-    ~IvrDialog();
+    PySemsDialog();
+    PySemsDialog(AmDynInvoke* user_timer);
+    ~PySemsDialog();
 
     // must be called before everything else.
     void setPyPtrs(PyObject *mod, PyObject *dlg);

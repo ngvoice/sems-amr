@@ -1,5 +1,5 @@
-#ifndef IvrAudio_h
-#define IvrAudio_h
+#ifndef PySemsAudio_h
+#define PySemsAudio_h
 
 // Python stuff
 #include <Python.h>
@@ -26,8 +26,8 @@ typedef struct {
     bool       del_file;
 #endif
     
-} IvrAudioFile;
+} PySemsAudioFile;
 
-extern PyTypeObject IvrAudioFileType;
+extern PyTypeObject PySemsAudioFileType;
 
 #endif

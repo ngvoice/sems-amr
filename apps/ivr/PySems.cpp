@@ -1,5 +1,5 @@
 /*
- * $Id: Ivr.cpp,v 1.26.2.1 2005/09/02 13:47:46 rco Exp $
+ * $Id: PySems.cpp,v 1.26.2.1 2005/09/02 13:47:46 rco Exp $
  * Copyright (C) 2002-2003 Fhg Fokus
  *
  * This file is part of sems, a free SIP media server.
@@ -19,10 +19,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-//#include "IvrDialogBase.h"
-//#include "IvrSipDialog.h"
-#include "IvrAudio.h"
-#include "Ivr.h"
+#include "PySemsAudio.h"
+#include "PySems.h"
 
 #include "AmConfigReader.h"
 #include "AmConfig.h"
@@ -30,11 +28,10 @@
 #include "AmApi.h"
 #include "AmUtils.h"
 #include "AmSessionScheduler.h"
-//#include "AmSessionTimer.h"
 #include "AmPlugIn.h"
 
 #include "sip/sipAPIpy_sems.h"
-#include "sip/sippy_semsIvrDialog.h"
+#include "sip/sippy_semsPySemsDialog.h"
 
 #include <unistd.h>
 #include <pthread.h>
@@ -48,7 +45,7 @@ using std::set;
 #define PYFILE_REGEX "(.+)\\.(py|pyc|pyo)$"
 
 
-EXPORT_SESSION_FACTORY(IvrFactory,MOD_NAME);
+EXPORT_SESSION_FACTORY(PySemsFactory,MOD_NAME);
 
 PyMODINIT_FUNC initpy_sems();
 
@@ -125,13 +122,13 @@ extern "C" {
     };
 }
 
-IvrFactory::IvrFactory(const string& _app_name)
+PySemsFactory::PySemsFactory(const string& _app_name)
     : AmSessionFactory(_app_name),
       user_timer_fact(NULL)
 {
 }
 
-void IvrFactory::setScriptPath(const string& path)
+void PySemsFactory::setScriptPath(const string& path)
 {
     string python_path = script_path = path;
 
@@ -153,7 +150,7 @@ void IvrFactory::setScriptPath(const string& path)
 
 }
 
-void IvrFactory::import_object(PyObject* m, char* name, PyTypeObject* type)
+void PySemsFactory::import_object(PyObject* m, char* name, PyTypeObject* type)
 {
     if (PyType_Ready(type) < 0){
 	ERROR("PyType_Ready failed !\n");
@@ -163,21 +160,21 @@ void IvrFactory::import_object(PyObject* m, char* name, PyTypeObject* type)
     PyModule_AddObject(m, name, (PyObject *)type);
 }
 
-void IvrFactory::import_ivr_builtins()
+void PySemsFactory::import_ivr_builtins()
 {
     // ivr module - start
     PyImport_AddModule("ivr");
     ivr_module = Py_InitModule("ivr",ivr_methods);
 
-    // IvrSipDialog (= AmSipDialog)
-    //import_object(ivr_module, "IvrSipDialog", &IvrSipDialogType);
+    // PySemsSipDialog (= AmSipDialog)
+    //import_object(ivr_module, "PySemsSipDialog", &PySemsSipDialogType);
 
-    // IvrDialogBase
-    //import_object(ivr_module,"IvrDialogBase",&IvrDialogBaseType);
+    // PySemsDialogBase
+    //import_object(ivr_module,"PySemsDialogBase",&PySemsDialogBaseType);
 
 
-    // IvrAudioFile
-    import_object(ivr_module,"IvrAudioFile",&IvrAudioFileType);
+    // PySemsAudioFile
+    import_object(ivr_module,"PySemsAudioFile",&PySemsAudioFileType);
 
     PyModule_AddIntConstant(ivr_module, "AUDIO_READ",AUDIO_READ);
     PyModule_AddIntConstant(ivr_module, "AUDIO_WRITE",AUDIO_WRITE);
@@ -190,7 +187,7 @@ void IvrFactory::import_ivr_builtins()
     initpy_sems();
 }
 
-void IvrFactory::import_module(const char* modname)
+void PySemsFactory::import_module(const char* modname)
 {
     PyObject* py_mod_name = PyString_FromString(modname);
     PyObject* py_mod = PyImport_Import(py_mod_name);
@@ -198,13 +195,13 @@ void IvrFactory::import_module(const char* modname)
     
     if(!py_mod){
 	PyErr_Print();
-	ERROR("IvrFactory: could not find python module '%s'.\n",modname);
-	ERROR("IvrFactory: please check your installation.\n");
+	ERROR("PySemsFactory: could not find python module '%s'.\n",modname);
+	ERROR("PySemsFactory: please check your installation.\n");
 	return;
     }
 }
 
-void IvrFactory::init_python_interpreter()
+void PySemsFactory::init_python_interpreter()
 {
     Py_Initialize();
     PyEval_InitThreads();
@@ -212,17 +209,17 @@ void IvrFactory::init_python_interpreter()
     PyEval_ReleaseLock();
 }
 
-IvrDialog* IvrFactory::newDlg(const string& name)
+PySemsDialog* PySemsFactory::newDlg(const string& name)
 {
     PYLOCK;
 
-    map<string,IvrScriptDesc>::iterator mod_it = mod_reg.find(name);
+    map<string,PySemsScriptDesc>::iterator mod_it = mod_reg.find(name);
     if(mod_it == mod_reg.end()){
 	ERROR("Unknown script name '%s'\n", name.c_str());
 	throw AmSession::Exception(500,"Unknown Application");
     }
 
-    IvrScriptDesc& mod_desc = mod_it->second;
+    PySemsScriptDesc& mod_desc = mod_it->second;
 
     AmDynInvoke* user_timer = user_timer_fact->getInstance();
     if(!user_timer){
@@ -234,7 +231,7 @@ IvrDialog* IvrFactory::newDlg(const string& name)
     if(!dlg_inst){
 	
 	PyErr_Print();
-	ERROR("IvrFactory: while loading \"%s\": could not create instance\n",
+	ERROR("PySemsFactory: while loading \"%s\": could not create instance\n",
 	      name.c_str());
 	throw AmSession::Exception(500,"Internal error in IVR plug-in.");
 	
@@ -242,11 +239,11 @@ IvrDialog* IvrFactory::newDlg(const string& name)
     }
 
     int err=0;
-    IvrDialog* dlg = (IvrDialog*)sipForceConvertTo_IvrDialog(dlg_inst,&err);
+    PySemsDialog* dlg = (PySemsDialog*)sipForceConvertTo_PySemsDialog(dlg_inst,&err);
     if(!dlg || err){
 	
 	PyErr_Print();
-	ERROR("IvrFactory: while loading \"%s\": could not retrieve IvrDialog ptr.\n",
+	ERROR("PySemsFactory: while loading \"%s\": could not retrieve PySemsDialog ptr.\n",
 	      name.c_str());
 	throw AmSession::Exception(500,"Internal error in IVR plug-in.");
 	Py_DECREF(dlg_inst);
@@ -260,7 +257,7 @@ IvrDialog* IvrFactory::newDlg(const string& name)
     return dlg;
 }
 
-bool IvrFactory::loadScript(const string& path)
+bool PySemsFactory::loadScript(const string& path)
 {
     PYLOCK;
     
@@ -276,7 +273,7 @@ bool IvrFactory::loadScript(const string& path)
 
     if(!mod){
         PyErr_Print();
-        WARN("IvrFactory: Failed to load \"%s\"\n", path.c_str());
+        WARN("PySemsFactory: Failed to load \"%s\"\n", path.c_str());
 
 	dict = PyImport_GetModuleDict();
 	Py_INCREF(dict);
@@ -287,21 +284,21 @@ bool IvrFactory::loadScript(const string& path)
     }
 
     dict = PyModule_GetDict(mod);
-    dlg_class = PyDict_GetItemString(dict, "IvrScript");
+    dlg_class = PyDict_GetItemString(dict, "PySemsScript");
 
     if(!dlg_class){
 
 	PyErr_Print();
-	WARN("IvrFactory: class IvrDialog not found in \"%s\"\n", path.c_str());
+	WARN("PySemsFactory: class PySemsDialog not found in \"%s\"\n", path.c_str());
 	goto error1;
     }
 
     Py_INCREF(dlg_class);
 
-    if(!PyObject_IsSubclass(dlg_class,(PyObject *)sipClass_IvrDialog)){
+    if(!PyObject_IsSubclass(dlg_class,(PyObject *)sipClass_PySemsDialog)){
 
-	WARN("IvrFactory: in \"%s\": IvrScript is not a "
-	     "subtype of IvrDialog\n", path.c_str());
+	WARN("PySemsFactory: in \"%s\": PySemsScript is not a "
+	     "subtype of PySemsDialog\n", path.c_str());
 
 	goto error2;
     }
@@ -328,7 +325,7 @@ bool IvrFactory::loadScript(const string& path)
     PyObject_SetAttrString(mod,"config",config);
 
     mod_reg.insert(make_pair(path,
-			     IvrScriptDesc(mod,dlg_class)));
+			     PySemsScriptDesc(mod,dlg_class)));
 
     return true;
 
@@ -343,7 +340,7 @@ bool IvrFactory::loadScript(const string& path)
 /**
  * Loads python script path and default script file from configuration file
  */
-int IvrFactory::onLoad()
+int PySemsFactory::onLoad()
 {
     user_timer_fact = AmPlugIn::instance()->getFactory4Di("user_timer");
     if(!user_timer_fact){
@@ -385,7 +382,7 @@ int IvrFactory::onLoad()
     DIR* dir = opendir(script_path.c_str());
     if(!dir){
 	regfree(&reg);
-	ERROR("Ivr: script pre-loader (%s): %s\n",
+	ERROR("PySems: script pre-loader (%s): %s\n",
 	      script_path.c_str(),strerror(errno));
 	return -1;
     }
@@ -428,7 +425,7 @@ int IvrFactory::onLoad()
  * Load a script using user name from URI.
  * Note: there is no default script.
  */
-AmSession* IvrFactory::onInvite(const AmSipRequest& req)
+AmSession* PySemsFactory::onInvite(const AmSipRequest& req)
 {
     if(req.cmd != MOD_NAME)
 	return newDlg(req.cmd);
@@ -436,7 +433,7 @@ AmSession* IvrFactory::onInvite(const AmSipRequest& req)
 	return newDlg(req.user);
 }
 
-IvrDialog::IvrDialog()
+PySemsDialog::PySemsDialog()
     : py_mod(NULL),
       py_dlg(NULL),
       playlist(this),
@@ -445,7 +442,7 @@ IvrDialog::IvrDialog()
     sip_relay_only = false;
 }
 
-IvrDialog::IvrDialog(AmDynInvoke* user_timer)
+PySemsDialog::PySemsDialog(AmDynInvoke* user_timer)
     : py_mod(NULL), 
       py_dlg(NULL),
       playlist(this),
@@ -454,16 +451,16 @@ IvrDialog::IvrDialog(AmDynInvoke* user_timer)
     sip_relay_only = false;
 }
 
-IvrDialog::~IvrDialog()
+PySemsDialog::~PySemsDialog()
 {
-    DBG("IvrDialog::~IvrDialog()\n");
+    DBG("PySemsDialog::~PySemsDialog()\n");
 
     PYLOCK;
     Py_XDECREF(py_mod);
     Py_XDECREF(py_dlg);
 }
 
-void IvrDialog::setPyPtrs(PyObject *mod, PyObject *dlg)
+void PySemsDialog::setPyPtrs(PyObject *mod, PyObject *dlg)
 {
     assert(py_mod = mod);
     assert(py_dlg = dlg);
@@ -532,7 +529,7 @@ PyObject_VaCallMethod(PyObject *o, char *name, char *format, va_list va)
         return retval;
 }
 
-bool IvrDialog::callPyEventHandler(char* name, char* fmt, ...)
+bool PySemsDialog::callPyEventHandler(char* name, char* fmt, ...)
 {
     bool ret=false;
     va_list va;
@@ -565,16 +562,16 @@ bool IvrDialog::callPyEventHandler(char* name, char* fmt, ...)
     return ret;
 }
 
-void IvrDialog::onSessionStart(const AmSipRequest& req)
+void PySemsDialog::onSessionStart(const AmSipRequest& req)
 {
-    DBG("IvrDialog::onSessionStart\n");
+    DBG("PySemsDialog::onSessionStart\n");
     setInOut(&playlist,&playlist);
     AmB2BCallerSession::onSessionStart(req);
 }
 
-void IvrDialog::process(AmEvent* event) 
+void PySemsDialog::process(AmEvent* event) 
 {
-    DBG("IvrDialog::process\n");
+    DBG("PySemsDialog::process\n");
 
     AmAudioEvent* audio_event = dynamic_cast<AmAudioEvent*>(event);
     if(audio_event && audio_event->event_id == AmAudioEvent::noAudio){
