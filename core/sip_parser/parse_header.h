@@ -1,0 +1,106 @@
+/*
+ * $Id:$
+ *
+ * Copyright (C) 2007 Raphael Coeffic
+ *
+ * This file is part of sems, a free SIP media server.
+ *
+ * sems is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version
+ *
+ * For a license to use the ser software under conditions
+ * other than those described here, or to purchase support for this
+ * software, please contact iptel.org by e-mail at the following addresses:
+ *    info@iptel.org
+ *
+ * sems is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License 
+ * along with this program; if not, write to the Free Software 
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+#ifndef _parse_header_h
+#define _parse_header_h
+
+#include "cstring.h"
+
+#include <list>
+using std::list;
+
+struct sip_header
+{
+    //
+    // Header types
+    //
+    
+    enum {
+	H_UNPARSED=0,
+	
+	H_TO,
+	H_VIA,
+	H_FROM,
+	H_CSEQ,
+	H_ROUTE,
+	H_CALL_ID,
+	H_CONTACT,
+	H_RECORD_ROUTE,
+	H_CONTENT_TYPE,
+	H_CONTENT_LENGTH,
+	
+	H_OTHER
+    };
+
+    int     type;
+    cstring name;
+    cstring value;
+
+    sip_header()
+	: type(0),
+	 name(),value()
+    {}
+};
+
+struct sip_headers
+{
+    list<sip_header*> hdrs;
+
+    sip_header*        to;
+    sip_header*        from;
+    sip_header*        cseq;
+    list<sip_header*>  vias;
+    sip_header*        call_id;
+    sip_header*        contact;
+
+    list<sip_header*>  route;
+    list<sip_header*>  record_route;
+
+    sip_header*        content_type;
+    sip_header*        content_length;
+
+    cstring            body;
+
+    sip_headers()
+	:hdrs(),
+	 to(NULL),
+	 from(NULL),
+	 cseq(NULL),
+	 vias(),
+	 call_id(NULL),
+	 contact(NULL),
+	 route(),
+	 record_route(),
+	 content_type(NULL),
+	 content_length(NULL),
+	 body()
+    {}
+};
+
+int parse_headers(sip_headers* hdrs, char** c);
+
+#endif
