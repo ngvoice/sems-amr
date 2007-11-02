@@ -30,6 +30,23 @@
 #include "parse_uri.h"
 #include "log.h"
 
+sip_uri::~sip_uri()
+{
+    list<sip_avp*>::iterator it;
+    
+    for(it = params.begin();
+	it != params.end(); ++it) {
+
+	delete *it;
+    }
+
+    for(it = hdrs.begin();
+	it != hdrs.end(); ++it) {
+
+	delete *it;
+    }
+}
+
 
 static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 {
@@ -44,15 +61,11 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 	URI_HVALUE
     };
 
-    //DBG("parse_sip_uri(\"%.*s\")\n",len,beg);
-
     int st  = URI_HOST;
     char* c = beg;
     int escaped = 0;
 
     cstring tmp1, tmp2;
-    sip_uri_param param;
-    sip_uri_hdr   hdr;
 
     // Search for '@', so that we can decide
     // wether to start in URI_USER or URI_HOST state.
@@ -147,13 +160,11 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 
 	    case URI_PVALUE:
 		tmp2.len = c - tmp2.s;
-		param.name = tmp1;
-		param.value = tmp2;
-		uri->params.push_back(param);
+		uri->params.push_back(new sip_avp(tmp1,tmp2));
 
-		DBG("uri param: \"%.*s\"=\"%.*s\"\n",
-		    tmp1.len, tmp1.s,
-		    tmp2.len, tmp2.s);
+		//DBG("uri param: \"%.*s\"=\"%.*s\"\n",
+		//    tmp1.len, tmp1.s,
+		//    tmp2.len, tmp2.s);
 
 		tmp1.s = c+1;
 		st = URI_PNAME;
@@ -182,13 +193,11 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 
 	    case URI_PVALUE:
 		tmp2.len = c - tmp2.s;
-		param.name = tmp1;
-		param.value = tmp2;
-		uri->params.push_back(param);
+		uri->params.push_back(new sip_avp(tmp1,tmp2));
 
-		DBG("uri param: \"%.*s\"=\"%.*s\"\n",
-		    tmp1.len, tmp1.s,
-		    tmp2.len, tmp2.s);
+		//DBG("uri param: \"%.*s\"=\"%.*s\"\n",
+		//    tmp1.len, tmp1.s,
+		//    tmp2.len, tmp2.s);
 
 		tmp1.s = c+1;
 		st = URI_HNAME;
@@ -219,13 +228,11 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 
 	    case URI_HVALUE:
 		tmp2.len = c - tmp2.s;
-		hdr.name = tmp1;
-		hdr.value = tmp2;
-		uri->hdrs.push_back(hdr);
+		uri->hdrs.push_back(new sip_avp(tmp1,tmp2));
 
-		DBG("uri hdr: \"%.*s\"=\"%.*s\"\n",
-		    tmp1.len, tmp1.s,
-		    tmp2.len, tmp2.s);
+		//DBG("uri hdr: \"%.*s\"=\"%.*s\"\n",
+		//    tmp1.len, tmp1.s,
+		//    tmp2.len, tmp2.s);
 
 		tmp1.s = c+1;
 		st = URI_HNAME;
@@ -260,13 +267,11 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 
     case URI_PVALUE:
 	tmp2.len = c - tmp2.s;
-	param.name = tmp1;
-	param.value = tmp2;
-	uri->params.push_back(param);
+	uri->params.push_back(new sip_avp(tmp1,tmp2));
 	
-	DBG("uri param: \"%.*s\"=\"%.*s\"\n",
-	    tmp1.len, tmp1.s,
-	    tmp2.len, tmp2.s);
+	//DBG("uri param: \"%.*s\"=\"%.*s\"\n",
+	//    tmp1.len, tmp1.s,
+	//    tmp2.len, tmp2.s);
 	break;
 	
     case URI_HNAME:
@@ -275,13 +280,11 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 
     case URI_HVALUE:
 	tmp2.len = c - tmp2.s;
-	hdr.name = tmp1;
-	hdr.value = tmp2;
-	uri->hdrs.push_back(hdr);
+	uri->hdrs.push_back(new sip_avp(tmp1,tmp2));
 	
-	DBG("uri hdr: \"%.*s\"=\"%.*s\"\n",
-	    tmp1.len, tmp1.s,
-	    tmp2.len, tmp2.s);
+	//DBG("uri hdr: \"%.*s\"=\"%.*s\"\n",
+	//    tmp1.len, tmp1.s,
+	//    tmp2.len, tmp2.s);
 	break;
     }
 
@@ -339,7 +342,7 @@ int parse_uri(sip_uri* uri, char* beg, int len)
 	case SIP_P:
 	    switch(*c){
 	    case HCOLON:
-		DBG("scheme: sip\n");
+		//DBG("scheme: sip\n");
 		uri->scheme = sip_uri::SIP;
 		return parse_sip_uri(uri,c+1,len-(c+1-beg));
 	    case 's':
@@ -354,7 +357,7 @@ int parse_uri(sip_uri* uri, char* beg, int len)
 	case SIPS_S:
 	    switch(*c){
 	    case HCOLON:
-		DBG("scheme: sips\n");
+		//DBG("scheme: sips\n");
 		uri->scheme = sip_uri::SIPS;
 		return parse_sip_uri(uri,c+1,len-(c+1-beg));
 	    default:

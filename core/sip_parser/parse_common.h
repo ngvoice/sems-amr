@@ -28,6 +28,12 @@
 #ifndef _parse_common_h
 #define _parse_common_h
 
+#include "cstring.h"
+
+//
+// Constants
+//
+
 #define UNDEFINED_ERR     -1
 #define UNEXPECTED_EOT    -2
 #define UNEXPECTED_EOL    -3
@@ -73,6 +79,64 @@
 #define IS_USER(c) \
    (IS_UNRESERVED(c) || IS_USER_UNRESERVED(c)) // Escaped chars missing
 
+#define SIPVER_len 7 // "SIP" "/" 1*DIGIT 1*DIGIT
+
+
+//
+// Common states: (>100)
+//
+
+enum {
+    ST_CR=100,
+    ST_LF,
+    ST_CRLF,
+    ST_EoL_WSP // [CR] LF WSP
+};
+
+#define case_CR_LF \
+	    case CR:\
+		saved_st = st;\
+		st = ST_CR;\
+		break;\
+	    case LF:\
+		saved_st = st;\
+		st = ST_LF;\
+		break
+
+#define case_ST_CR(c) \
+	    case ST_CR:\
+	        if((c) == LF){\
+	    	    st = ST_CRLF;\
+	        }\
+	        else {\
+ 		    DBG("CR without LF\n");\
+ 		    return MALFORMED_SIP_MSG;\
+	        }\
+	        break
+
+//
+// Structs
+//
+
+struct sip_avp
+{
+    cstring name;
+    cstring value;
+
+    sip_avp()
+	: name(), value()
+    {}
+
+    sip_avp(const cstring& n,
+	    const cstring& v)
+	: name(n),value(v)
+    {}
+};
+
+
+//
+// Functions
+//
 
 inline int lower_cmp(char* l, char* r, int len)
 {
@@ -87,8 +151,6 @@ inline int lower_cmp(char* l, char* r, int len)
 
     return 0;
 }
-
-
 
 int parse_sip_version(char* beg, int len);
 

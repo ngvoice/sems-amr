@@ -29,21 +29,10 @@
 #define _parse_uri_h
 
 #include "cstring.h"
+#include "parse_common.h"
 
 #include <list>
 using std::list;
-
-struct sip_uri_param
-{
-    cstring name;
-    cstring value;
-};
-
-struct sip_uri_hdr
-{
-    cstring name;
-    cstring value;
-};
 
 struct sip_uri
 {
@@ -59,8 +48,10 @@ struct sip_uri
     cstring    host;
     cstring    port; // ?? short ??
 
-    list<sip_uri_param> params;
-    list<sip_uri_hdr>   hdrs;
+    list<sip_avp*> params;
+    list<sip_avp*> hdrs;
+
+    ~sip_uri();
 };
 
 int parse_uri(sip_uri* uri, char* beg, int len);

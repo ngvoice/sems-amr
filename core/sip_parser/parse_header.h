@@ -33,6 +33,12 @@
 #include <list>
 using std::list;
 
+struct sip_parsed_hdr
+{
+    virtual ~sip_parsed_hdr(){}
+};
+
+
 struct sip_header
 {
     //
@@ -60,15 +66,18 @@ struct sip_header
     cstring name;
     cstring value;
 
+    sip_parsed_hdr* p;
+
     sip_header()
-	: type(0),
-	 name(),value()
+	: type(H_UNPARSED),
+	 name(),value(),
+	 p(NULL)
     {}
 };
 
 struct sip_headers
 {
-    list<sip_header*> hdrs;
+    list<sip_header*>  hdrs;
 
     sip_header*        to;
     sip_header*        from;
@@ -99,6 +108,8 @@ struct sip_headers
 	 content_length(NULL),
 	 body()
     {}
+
+    ~sip_headers();
 };
 
 int parse_headers(sip_headers* hdrs, char** c);

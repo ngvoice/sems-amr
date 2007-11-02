@@ -35,8 +35,6 @@
 // SIP version constants
 //
 
-#define SIPVER_len 7 // "SIP" "/" 1*DIGIT 1*DIGIT
-
 char* SIP = "SIP";
 #define SIP_len 3
 
@@ -46,9 +44,6 @@ char* SUP_SIPVER = "2.0";
 
 int parse_sip_version(char* beg, int len)
 {
-    DBG("**parse_sip_version**\n");
-    DBG("sip_version = <%.*s>\n",len,beg);
-
     char* c = beg;
     char* end = c+len;
 
@@ -73,7 +68,7 @@ int parse_sip_version(char* beg, int len)
 	return MALFORMED_SIP_MSG;
     }
 
-    DBG("SIP-Version OK\n");
+    //DBG("SIP-Version OK\n");
     return 0;
 }
 

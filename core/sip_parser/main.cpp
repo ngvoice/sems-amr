@@ -56,9 +56,12 @@ int main()
 
     char* msg = 
 	"INVITE sip:bob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
- 	"Via: SIP/2.0/UDP bigbox3.site3.atlanta.com;branch=z9hG4bK77ef4c2312983.1\r\n"
+ 	"Via: SIP/2.0/UDP bigbox3.site3.atlanta.com  \r\n"
+	"  \t  ; branch=z9hG4bK77ef4c2312983.1\r\n"
  	"Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bKnashds8\r\n"
- 	" ;received=192.0.2.1\r\n"
+ 	" ;received=192.0.2.1,\r\n"
+	" SIP/2.0/UDP bigbox3.site3.atlanta.com\r\n"
+	" ;branch=z9hG4bK77ef4c2312983.1\r\n"
 	"Max-Forwards: 69\r\n"
 	"To: Bob <sip:bob@biloxi.com>\r\n"
 	"From: Alice <sip:alice@atlanta.com>;tag=1928301774\r\n"
@@ -79,7 +82,6 @@ int main()
     int err = 0;
     int msg_type = parse_msg_type(msg);
 
-
     switch(msg_type){
 
     case SIP_REQUEST:{
@@ -87,15 +89,33 @@ int main()
 	sip_request req;
 	req.msg_buf = msg;
 	
-	err = parse_request(&req); }
-	break;
+	err = parse_request(&req);
+	if(!err && !req.hdrs.vias.empty()){
 
+	    for(list<sip_header*>::iterator it = req.hdrs.vias.begin();
+		it != req.hdrs.vias.end(); ++it) {
+
+		sip_via via;
+		err = parse_via(&via,(*it)->value.s,
+				(*it)->value.len);
+
+		if(err)
+		    break;
+
+// 		DBG("via: proto=%i, val=%.*s\n", via.trans.type,
+// 		    via.trans.val.len, via.trans.val.s);
+	    }
+	}
+    }
+	break;
+	
     case SIP_REPLY:{
     
 	sip_reply rep;
 	rep.msg_buf = msg;
 
-	err = parse_reply(&rep); }
+	err = parse_reply(&rep); 
+    }
 
     default:
 	err = msg_type;

@@ -25,37 +25,45 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef _SIP_PARSER_H
-#define _SIP_PARSER_H
+#ifndef _parse_via_h
+#define _parse_via_h
 
-#include "parse_uri.h"
-#include "parse_common.h"
 #include "parse_header.h"
-#include "parse_request.h"
-#include "parse_via.h"
+#include "parse_common.h"
 
-//
-// SIP message types:
-//
-
-enum {
-    SIP_UNKNOWN=0,
-    SIP_REQUEST,
-    SIP_REPLY
-};
-
-
-struct sip_reply
+struct sip_transport
 {
-    char* msg_buf;
-    //char* msg_len;
+    enum {
+	UNPARSED=0,
+	UDP,
+	TCP,
+	TLS,
+	SCTP,
+	OTHER
+    };
 
-    int     code;
-    cstring reason;
-    
-    sip_headers hdrs;
+    int     type;
+    cstring val;
 };
 
-int parse_msg_type(char* c);
+struct sip_via_parm
+{
+    sip_transport trans;
+    cstring       host;
+    cstring       port; // ?? int/short ??
+
+    list<sip_avp*> params;
+
+    ~sip_via_parm();
+};
+
+struct sip_via: public sip_parsed_hdr
+{
+    list<sip_via_parm*> parms;
+
+    ~sip_via();
+};
+
+int parse_via(sip_via* via, char* beg, int len);
 
 #endif
