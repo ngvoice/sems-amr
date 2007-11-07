@@ -28,20 +28,12 @@
 
 #include "parse_header.h"
 #include "parse_common.h"
+#include "sip_parser.h"
+
 #include "log.h"
 
 #include <memory>
 using std::auto_ptr;
-
-sip_headers::~sip_headers()
-{
-    list<sip_header*>::iterator it;
-    for(it = hdrs.begin(); 
-	it != hdrs.end(); ++it) {
-
-	delete *it;
-    }
-}
 
 
 //
@@ -76,7 +68,19 @@ char* RECORD_ROUTE_lc = "record-route";
 char* CONTENT_LENGTH_lc = "content-length";
 
 
-static int parse_header_type(sip_headers* hdrs, sip_header* h)
+sip_header::sip_header()
+    : type(H_UNPARSED),
+      name(),value(),
+      p(NULL)
+{}
+
+sip_header::~sip_header()
+{
+    delete p;
+}
+
+
+static int parse_header_type(sip_msg* msg, sip_header* h)
 {
     h->type = sip_header::H_UNPARSED;
 
@@ -85,14 +89,14 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
     case TO_len:
 	if(!lower_cmp(h->name.s,TO_lc,TO_len)){
 	    h->type = sip_header::H_TO;
-	    hdrs->to = h;
+	    msg->to = h;
 	}
 	break;
 
     case VIA_len:
 	if(!lower_cmp(h->name.s,VIA_lc,VIA_len)){
 	    h->type = sip_header::H_VIA;
-	    hdrs->vias.push_back(h);
+	    msg->vias.push_back(h);
 	}
 	break;
 
@@ -103,14 +107,14 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
 	case 'F':
 	    if(!lower_cmp(h->name.s+1,FROM_lc+1,FROM_len-1)){
 		h->type = sip_header::H_FROM;
-		hdrs->from = h;
+		msg->from = h;
 	    }
 	    break;
 	case 'c':
 	case 'C':
 	    if(!lower_cmp(h->name.s+1,CSEQ_lc+1,CSEQ_len-1)){
 		h->type = sip_header::H_CSEQ;
-		hdrs->cseq = h;
+		msg->cseq = h;
 	    }
 	    break;
 	default:
@@ -122,7 +126,7 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
     case ROUTE_len:
 	if(!lower_cmp(h->name.s+1,ROUTE_lc+1,ROUTE_len-1)){
 	    h->type = sip_header::H_ROUTE;
-	    hdrs->route.push_back(h);
+	    msg->route.push_back(h);
 	}
 	break;
 
@@ -136,7 +140,7 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
 	    case 'A':
 		if(!lower_cmp(h->name.s+2,CALL_ID_lc+2,CALL_ID_len-2)){
 		    h->type = sip_header::H_CALL_ID;
-		    hdrs->call_id = h;
+		    msg->call_id = h;
 		}
 		break;
 
@@ -144,7 +148,7 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
 	    case 'O':
 		if(!lower_cmp(h->name.s+2,CONTACT_lc+2,CONTACT_len-2)){
 		    h->type = sip_header::H_CONTACT;
-		    hdrs->contact = h;
+		    msg->contact = h;
 		}
 		break;
 
@@ -167,14 +171,14 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
 	case 'C':
 	    if(!lower_cmp(h->name.s,CONTENT_TYPE_lc,CONTENT_TYPE_len)){
 		h->type = sip_header::H_CONTENT_TYPE;
-		hdrs->content_type = h;
+		msg->content_type = h;
 	    }
 	    break;
 	case 'r':
 	case 'R':
 	    if(!lower_cmp(h->name.s,RECORD_ROUTE_lc,RECORD_ROUTE_len)){
 		h->type = sip_header::H_RECORD_ROUTE;
-		hdrs->record_route.push_back(h);
+		msg->record_route.push_back(h);
 	    }
 	    break;
 	}
@@ -183,7 +187,7 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
     case CONTENT_LENGTH_len:
 	if(!lower_cmp(h->name.s,CONTENT_LENGTH_lc,CONTENT_LENGTH_len)){
 	    h->type = sip_header::H_CONTENT_LENGTH;
-	    hdrs->content_length = h;
+	    msg->content_length = h;
 	}
 	break;
 
@@ -195,13 +199,13 @@ static int parse_header_type(sip_headers* hdrs, sip_header* h)
     return h->type;
 }
 
-inline void add_parsed_header(sip_headers* hdrs, sip_header* hdr)
+inline void add_parsed_header(sip_msg* msg, sip_header* hdr)
 {
-    parse_header_type(hdrs,hdr);
-    hdrs->hdrs.push_back(hdr);
+    parse_header_type(msg,hdr);
+    msg->hdrs.push_back(hdr);
 }
 
-int parse_headers(sip_headers* hdrs, char** c)
+int parse_headers(sip_msg* msg, char** c)
 {
     //
     // Header states
@@ -228,14 +232,7 @@ int parse_headers(sip_headers* hdrs, char** c)
 	case H_NAME:
 	    switch(**c){
 
-	    case CR:
-		saved_st = st;
-		st = ST_CR;
-		break;
-	    case LF:
-		saved_st = st;
-		st = ST_LF;
-		break;
+	    case_CR_LF;
 
 	    case HCOLON:
 		st = H_VALUE_SWS;
@@ -320,7 +317,7 @@ int parse_headers(sip_headers* hdrs, char** c)
 			hdr->name.len,hdr->name.s,
 			hdr->value.len,hdr->value.s);
 
-		    add_parsed_header(hdrs,hdr.release());
+		    add_parsed_header(msg,hdr.release());
 		    hdr.reset(new sip_header());
 		    begin = *c;
 		    saved_st = H_NAME;
@@ -337,135 +334,38 @@ int parse_headers(sip_headers* hdrs, char** c)
 	    st = saved_st;
 	    break;
 	}
-
-
-#if 0
-	switch(**c){
-	case '\0':
-	    switch(st){
-
-	    case H_VALUE:
-		if(*((*c)-1) != LF){
-		    hdr->value.set(begin, *c-begin);
-		    add_parsed_header(hdrs,hdr.release());
-		    hdr.reset(new sip_header());
-		}
-		return 0;
-
-	    case H_NAME:
-		if(*c-begin == 0){
-		    return 0;
-		}
-		//go to default
-
-	    default:
-		DBG("Incomplete header\n");
-		return UNEXPECTED_EOT;
-
-	    }
-	    break;
-
-	case HCOLON:
-	    switch(st){
-	    case H_NAME:
-		st = H_VALUE_SWS;
-		hdr->name.set(begin,*c-begin);
-		break;
-	    case H_HCOLON:
-		st = H_VALUE_SWS;
-		begin = *c+1;
-	    }
-	    break;
-
-	case HTAB:
-	case SP:
-	    switch(st){
-
-	    case H_NAME:
-		st = H_HCOLON;
-		hdr->name.set(begin,*c-begin);
-		break;
-
-	    case H_HCOLON:// skip SP
-	    case H_VALUE_SWS:
-	    case H_VALUE:
-		break;
-
-	    default:
-		DBG("Bug!! no idea what to do... (st=%i) <%s>\n",st,*c);
-		return UNDEFINED_ERR;
-		break;
-
-	    }
-	    break;
-
-	case CR:
- 	    if(*(*c+1) != LF){
- 		DBG("CR without LF\n");
- 		return MALFORMED_SIP_MSG;
- 	    }
- 	    cr = true;
-	    break;
-
-	case LF:
-
-	    if((st == H_NAME) && ((*c-(cr?1:0))-begin == 0)){
-		DBG("Detected end of headers\n");
-		(*c)++;
-		return 0;
-	    }
-
-	    if(st<H_VALUE_SWS){
-		DBG("Malformed header: <%.*s>\n",(*c-(cr?1:0))-begin,begin);
-		begin = ++(*c);
-		st = H_NAME;
-		cr = false;
-		continue;
-	    }
-	    
-	    if(IS_WSP(*(*c+1))){
-		(*c)+=2;
-		cr = false;
-		continue;
-	    }
-
-	    hdr->value.set(begin,(*c-(cr?1:0))-begin);
-	    add_parsed_header(hdrs,hdr.release());
-	    hdr.reset(new sip_header());
-
-	    cr = false;
-	    begin = *c+1;
-	    st = H_NAME;
-	    break;
-
-	default:
-	    switch(st){
-	    case H_VALUE_SWS:
-		st = H_VALUE;
-		begin = *c;
-		break;
-
-	    case H_HCOLON:
-		DBG("Missing ':' after header name\n");
-		return MALFORMED_SIP_MSG;
-	    }
-	    break;
-	}
-#endif
     }
 
-    if( (st == H_VALUE) &&
-	(*c - begin > 0) ){
-	
-	hdr->value.set(begin,(*c-(st==ST_CRLF?2:1))-begin);
-	
-	DBG("hdr: \"%.*s: %.*s\"\n",
-	    hdr->name.len,hdr->name.s,
-	    hdr->value.len,hdr->value.s);
-	
-	add_parsed_header(hdrs,hdr.release());
+    switch(st){
 
-	return 0;
+    case H_VALUE:
+	if(*c - begin > 0){
+	
+	    hdr->value.set(begin,(*c-(st==ST_CRLF?2:1))-begin);
+	    
+	    DBG("hdr: \"%.*s: %.*s\"\n",
+		hdr->name.len,hdr->name.s,
+		hdr->value.len,hdr->value.s);
+	    
+	    add_parsed_header(msg,hdr.release());
+	    
+	    return 0;
+	}
+	break;
+
+    case ST_LF:
+    case ST_CRLF:
+	switch(saved_st){
+	    
+	case H_NAME:
+	    if((*c-(st==ST_CRLF?2:1))-begin == 0){
+		DBG("Detected end of headers\n");
+		return 0;
+	    }
+	    DBG("Illegal CR or LF in header name\n");
+	    return MALFORMED_SIP_MSG;
+	}
+	break;
     }
     
     DBG("Incomplete header\n");

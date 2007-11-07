@@ -29,10 +29,11 @@
 #define _parse_uri_h
 
 #include "cstring.h"
-#include "parse_common.h"
 
 #include <list>
 using std::list;
+
+struct sip_avp;
 
 struct sip_uri
 {

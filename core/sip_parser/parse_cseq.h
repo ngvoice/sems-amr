@@ -25,38 +25,18 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef _parse_request_h
-#define _parse_request_h
+
+#ifndef _parse_cseq_h
+#define _parse_cseq_h
 
 #include "parse_header.h"
-#include "parse_uri.h"
 
-struct sip_request
+struct sip_cseq: public sip_parsed_hdr
 {
-    //
-    // Request methods
-    //
-    
-    enum {
-	OTHER_METHOD=0,
-	INVITE,
-	ACK,
-	OPTIONS,
-	BYE,
-	CANCEL,
-	REGISTER
-    };
-
-    char* msg_buf;
-    //char* msg_len;
-
-    int      method;
-    sip_uri  ruri;
-    
-    sip_headers hdrs;
+    cstring number;
+    cstring method;
 };
 
-int parse_method(int* method, char* beg, int len);
-int parse_request(sip_request* req);
+int parse_cseq(sip_cseq* cseq, char* beg, int len);
 
 #endif

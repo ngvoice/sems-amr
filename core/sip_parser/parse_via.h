@@ -29,7 +29,8 @@
 #define _parse_via_h
 
 #include "parse_header.h"
-#include "parse_common.h"
+
+struct sip_avp;
 
 struct sip_transport
 {
@@ -60,6 +61,7 @@ struct sip_via_parm
 struct sip_via: public sip_parsed_hdr
 {
     list<sip_via_parm*> parms;
+    //sip_via_parm*       first;
 
     ~sip_via();
 };

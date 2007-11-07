@@ -30,6 +30,9 @@
 
 #include "cstring.h"
 
+#include <list>
+using std::list;
+
 //
 // Constants
 //
@@ -153,5 +156,7 @@ inline int lower_cmp(char* l, char* r, int len)
 }
 
 int parse_sip_version(char* beg, int len);
+
+int parse_gen_params(list<sip_avp*>* params, char** c, int len, char stop_char);
 
 #endif

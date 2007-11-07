@@ -28,11 +28,15 @@
 #ifndef _SIP_PARSER_H
 #define _SIP_PARSER_H
 
+#include "cstring.h"
 #include "parse_uri.h"
-#include "parse_common.h"
-#include "parse_header.h"
-#include "parse_request.h"
-#include "parse_via.h"
+
+#include <list>
+using std::list;
+
+struct sip_request;
+struct sip_reply;
+struct sip_header;
 
 //
 // SIP message types:
@@ -45,17 +49,69 @@ enum {
 };
 
 
-struct sip_reply
+struct sip_request
 {
-    char* msg_buf;
-    //char* msg_len;
-
-    int     code;
-    cstring reason;
+    //
+    // Request methods
+    //
     
-    sip_headers hdrs;
+    enum {
+	OTHER_METHOD=0,
+	INVITE,
+	ACK,
+	OPTIONS,
+	BYE,
+	CANCEL,
+	REGISTER
+    };
+
+    int      method;
+    sip_uri  ruri;
 };
 
-int parse_msg_type(char* c);
+
+struct sip_reply
+{
+    int     code;
+    cstring reason;
+};
+
+
+struct sip_msg
+{
+    char*   buf;
+    int     len;
+
+    int     type; // Request or Reply?
+    
+    union {
+	sip_request* request;
+	sip_reply*   reply;
+    }u;
+
+    list<sip_header*>  hdrs;
+
+    sip_header*        to;
+    sip_header*        from;
+    sip_header*        cseq;
+    list<sip_header*>  vias;
+    sip_header*        call_id;
+    sip_header*        contact;
+
+    list<sip_header*>  route;
+    list<sip_header*>  record_route;
+
+    sip_header*        content_type;
+    sip_header*        content_length;
+
+    cstring            body;
+
+    sip_msg(char* msg_buf, int msg_len);
+
+    ~sip_msg();
+};
+
+int parse_method(int* method, char* beg, int len);
+int parse_sip_msg(sip_msg* msg);
 
 #endif

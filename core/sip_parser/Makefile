@@ -5,10 +5,11 @@ SRCS = main.cpp \
 	log.cpp \
 	sip_parser.cpp \
 	parse_uri.cpp \
-	parse_request.cpp \
 	parse_header.cpp \
 	parse_common.cpp \
-	parse_via.cpp
+	parse_via.cpp \
+	parse_from_to.cpp \
+	parse_cseq.cpp 
 
 OBJS = $(SRCS:.cpp=.o)
 DEPS = $(SRCS:.cpp=.d)
@@ -17,11 +18,15 @@ CXXFLAGS += -g
 LDFLAGS  += -g
 CPPFLAGS += -D_DEBUG
 
-.PHONY: all
-all: deps sip_parser
+all: 
+	-@$(MAKE) deps && \
+	  $(MAKE) sip_parser
 
-.PHONY: deps
+clean:
+	rm -f *.o *.d $(NAME)
+
 deps: $(DEPS)
+
 
 $(NAME): $(OBJS)
 	$(CXX) -o $@ $(LDFLAGS) $(OBJS)
@@ -33,4 +38,6 @@ $(NAME): $(OBJS)
 	$(CXX) -MM -MT '$@ $(@:.d=.o)' $< $(CPPFLAGS) $(CXXFLAGS) > $@
 
 
+ifeq '$(MAKECMDGOALS)' '$(NAME)'
 include $(DEPS)
+endif

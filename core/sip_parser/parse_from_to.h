@@ -25,55 +25,32 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef _parse_header_h
-#define _parse_header_h
+#ifndef _parse_from_to_h
+#define _parse_from_to_h
 
-#include "cstring.h"
+#include "parse_header.h"
+#include "parse_uri.h"
 
-#include <list>
-using std::list;
-
-struct sip_parsed_hdr
+struct sip_nameaddr
 {
-    virtual ~sip_parsed_hdr(){}
-};
-
-
-struct sip_header
-{
-    //
-    // Header types
-    //
-    
-    enum {
-	H_UNPARSED=0,
-	
-	H_TO,
-	H_VIA,
-	H_FROM,
-	H_CSEQ,
-	H_ROUTE,
-	H_CALL_ID,
-	H_CONTACT,
-	H_RECORD_ROUTE,
-	H_CONTENT_TYPE,
-	H_CONTENT_LENGTH,
-	
-	H_OTHER
-    };
-
-    int     type;
     cstring name;
-    cstring value;
+    cstring addr;
 
-    sip_parsed_hdr* p;
-
-    sip_header();
-    ~sip_header();
+    sip_uri uri;
 };
 
-struct sip_msg;
+struct sip_from_to: public sip_parsed_hdr
+{
+    sip_nameaddr   nameaddr;
+    list<sip_avp*> params;
 
-int parse_headers(sip_msg* msg, char** c);
+    sip_from_to(): 
+	sip_parsed_hdr(),params()
+    {}
+
+    ~sip_from_to();
+};
+
+int parse_from_to(sip_from_to* ft, char* beg, int len);
 
 #endif
