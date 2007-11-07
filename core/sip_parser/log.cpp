@@ -1,5 +1,5 @@
 /*
- * $Id: log.cpp 323 2007-05-02 21:55:55Z sayer $
+ * $Id$
  *
  * Copyright (C) 2002-2003 Fhg Fokus
  *

@@ -1,5 +1,5 @@
 /*
- * $Id: log.h 319 2007-05-02 16:10:10Z skeller $
+ * $Id$
  *
  * Copyright (C) 2002-2003 Fhg Fokus
  *
