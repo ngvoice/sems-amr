@@ -1,5 +1,5 @@
 /*
- * $Id: parse_cseq.h 549 2007-11-07 16:12:10Z rco $
+ * $Id$
  *
  * Copyright (C) 2007 Raphael Coeffic
  *
