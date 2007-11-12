@@ -233,13 +233,67 @@ int parse_nameaddr(sip_nameaddr* na, char** c, int len)
 
 int parse_from_to(sip_from_to* ft, char* beg, int len)
 {
+    enum {
+	FTP_BEG,
+
+	FTP_TAG1,
+	FTP_TAG2,
+	FTP_TAG3,
+
+	FTP_OTHER
+    };
+
     char* c = beg;
     char* end = c+len;
 
     int ret = parse_nameaddr(&ft->nameaddr,&c,len);
-
     if(ret) return ret;
-    ret = parse_gen_params(&ft->params,&c, end-c, 0);
 
+    ret = parse_gen_params(&ft->params,&c, end-c, 0);
+    
+    if(!ft->params.empty()){
+
+	list<sip_avp*>::iterator it = ft->params.begin();
+	for(;it!=ft->params.end();++it){
+
+	    char* c = (*it)->name.s;
+	    char* end = c + (*it)->name.len;
+	    int st = FTP_BEG;
+	    
+	    for(;c!=end;c++){
+
+#define case_FT_PARAM(st1,ch1,ch2,st2)\
+	    case st1:\
+		switch(*c){\
+		case ch1:\
+		case ch2:\
+		    st = st2;\
+		    break;\
+		default:\
+		    st = FTP_OTHER;\
+		}\
+		break
+
+		switch(st){
+		    case_FT_PARAM(FTP_BEG, 't','T',FTP_TAG1);
+		    case_FT_PARAM(FTP_TAG1,'t','T',FTP_TAG2);
+		    case_FT_PARAM(FTP_TAG2,'t','T',FTP_TAG3);
+
+		case FTP_OTHER:
+		    goto next_param;
+		}
+	    }
+
+	    switch(st){
+	    case FTP_TAG3:
+		ft->tag = (*it)->value;
+		break;
+	    }
+
+	next_param:
+	    continue;
+	}
+    }
+    
     return ret;
 }

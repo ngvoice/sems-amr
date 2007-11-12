@@ -68,7 +68,10 @@ struct sip_request
 	REGISTER
     };
 
+    cstring  method_str;
     int      method;
+
+    cstring  ruri_str;
     sip_uri  ruri;
 };
 
@@ -97,10 +100,13 @@ struct sip_msg
     
     sip_header*        to;
     sip_header*        from;
+
     sip_header*        cseq;
+
     sip_header*        via1;
     sip_via_parm*      via_p1;
-    sip_header*        call_id;
+
+    sip_header*        callid;
     sip_header*        contact;
     list<sip_header*>  route;
     list<sip_header*>  record_route;

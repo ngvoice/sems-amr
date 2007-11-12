@@ -28,7 +28,16 @@
 #include "hash_table.h"
 #include "hash.h"
 
+#include "sip_parser.h"
+#include "parse_header.h"
+#include "parse_cseq.h"
+#include "parse_via.h"
+#include "parse_from_to.h"
+#include "sip_trans.h"
+
 #include "log.h"
+
+#include <assert.h>
 
 #define TABLE_POWER   10
 #define TABLE_ENTRIES (1<<TABLE_POWER)
@@ -61,10 +70,210 @@ void trans_bucket::unlock()
 }
 
 
-bool trans_bucket::is_retr(sip_msg* msg)
+sip_trans* trans_bucket::match_request(sip_msg* msg)
+{
+//     assert(msg && msg->cseq && msg->callid);
+//     sip_cseq* cseq  = dynamic_cast<sip_cseq*>(msg->cseq->p);
+//     assert(cseq);
+
+    //this should have been checked before
+    assert(msg->via_p1);
+
+    if(elmts.empty())
+	return NULL;
+
+    bool do_3261_match = false;
+    sip_trans* t = NULL;
+
+    // Try first RFC 3261 matching
+    if(msg->via_p1->branch.len > MAGIC_BRANCH_LEN){
+
+// 	do_3261_match = !memcmp(msg->via_p1->branch.s,
+// 				MAGIC_BRANCH_COOKIE,
+// 				MAGIC_BRANCH_LEN);
+    }
+
+    if(do_3261_match){
+	
+	char* branch = msg->via_p1->branch.s + MAGIC_BRANCH_LEN;
+	int   len = msg->via_p1->branch.len - MAGIC_BRANCH_LEN;
+	
+	trans_list::iterator it = elmts.begin();
+	for(;it!=elmts.end();++it) {
+	    
+	    if( ((*it)->type != TT_UAS) || 
+		((*it)->msg->type != SIP_REQUEST)){
+		continue;
+	    }
+
+	    if( (msg->u.request->method != (*it)->msg->u.request->method) &&
+		( (msg->u.request->method != sip_request::ACK) ||
+		  ((*it)->msg->u.request->method != sip_request::INVITE) ) )
+		continue;
+
+	    if((*it)->msg->via_p1->branch.len != len + MAGIC_BRANCH_LEN)
+		continue;
+
+	    if((*it)->msg->via_p1->host.len != 
+	       msg->via_p1->host.len)
+		continue;
+
+	    if((*it)->msg->via_p1->port.len != 
+	       msg->via_p1->port.len)
+		continue;
+
+	    if(memcmp((*it)->msg->via_p1->branch.s + MAGIC_BRANCH_LEN,
+		      branch,len))
+		continue;
+
+	    if(memcmp((*it)->msg->via_p1->branch.s + MAGIC_BRANCH_LEN,
+		      branch,len))
+		continue;
+
+	    if(memcmp((*it)->msg->via_p1->host.s,
+		      msg->via_p1->host.s,msg->via_p1->host.len))
+		continue;
+
+	    if(memcmp((*it)->msg->via_p1->port.s,
+		      msg->via_p1->port.s,msg->via_p1->port.len))
+		continue;
+
+	    // found matching transaction
+	    t = *it; 
+	    break;
+	}
+    }
+    else {
+
+	// Pre-3261 matching
+
+	sip_from_to* from = dynamic_cast<sip_from_to*>(msg->from->p);
+	sip_from_to* to = dynamic_cast<sip_from_to*>(msg->to->p);
+	sip_cseq* cseq = dynamic_cast<sip_cseq*>(msg->cseq->p);
+
+	assert(from && to && cseq);
+
+	trans_list::iterator it = elmts.begin();
+	for(;it!=elmts.end();++it) {
+
+	    
+	    //Request matching:
+	    // Request-URI
+	    // From-tag
+	    // Call-ID
+	    // Cseq
+	    // top Via
+	    // To-tag
+	    
+	    //ACK matching:
+	    // Request-URI
+	    // From-tag
+	    // Call-ID
+	    // Cseq (number only)
+	    // top Via
+	    // + To-tag of reply
+	    
+	    if( ((*it)->type != TT_UAS) || 
+		((*it)->msg->type != SIP_REQUEST))
+		continue;
+
+	    if( (msg->u.request->method != (*it)->msg->u.request->method) &&
+		( (msg->u.request->method != sip_request::ACK) ||
+		  ((*it)->msg->u.request->method != sip_request::INVITE) ) )
+		continue;
+
+	    sip_from_to* it_from = dynamic_cast<sip_from_to*>((*it)->msg->from->p);
+	    if(from->tag.len != it_from->tag.len)
+		continue;
+
+	    sip_cseq* it_cseq = dynamic_cast<sip_cseq*>((*it)->msg->cseq->p);
+	    if(cseq->number.len != it_cseq->number.len)
+		continue;
+
+	    if(memcmp(from->tag.s,it_from->tag.s,from->tag.len))
+		continue;
+
+	    if(memcmp(cseq->number.s,it_cseq->number.s,cseq->number.len))
+		continue;
+
+	    
+	    if(msg->u.request->method == sip_request::ACK){
+		
+		// ACKs must include To-tag from previous reply
+		if(to->tag.len != (*it)->to_tag.len)
+		    continue;
+
+		if(memcmp(to->tag.s,(*it)->to_tag.s,to->tag.len))
+		    continue;
+
+		if((*it)->reply_status < 300){
+
+		    // 2xx ACK matching
+
+		    //TODO: additional work for dialog matching???
+		    //      R-URI should match reply Contact ...
+		    break;
+		}
+	    }
+	    else { 
+		// non-ACK
+		sip_from_to* it_to = dynamic_cast<sip_from_to*>((*it)->msg->to->p);
+		if(to->tag.len != it_to->tag.len)
+		    continue;
+
+		if(memcmp(to->tag.s,it_to->tag.s,to->tag.len))
+		    continue;
+	    }
+
+	    // non-ACK and non-2xx ACK matching
+
+	    if((*it)->msg->u.request->ruri_str.len != 
+	       msg->u.request->ruri_str.len )
+		continue;
+	    
+	    if(memcmp(msg->u.request->ruri_str.s,
+		      (*it)->msg->u.request->ruri_str.s,
+		      msg->u.request->ruri_str.len))
+		continue;
+	    
+	    //TODO: missing top-Via matching
+	    
+	    // found matching transaction
+	    t = *it;
+	    break;
+	}
+    }
+
+    return t;
+}
+
+sip_trans* trans_bucket::match_reply(sip_msg* msg)
 {
     ERROR("NYI\n");
-    return false;
+    return NULL;
+}
+
+void trans_bucket::add_trans(sip_msg* msg, int ttype)
+{
+    sip_trans* t = new sip_trans();
+
+    t->msg  = msg;
+    t->type = ttype;
+
+    t->reply_status = 1000;//TODO: change that to something useful
+
+    if(msg->u.request->method == sip_request::INVITE){
+	
+	if(t->type == TT_UAS)
+	    t->state = TS_PROCEEDING;
+	else
+	    t->state = TS_CALLING;
+    }
+    else {
+	t->state = TS_TRYING;
+    }
+
+    elmts.push_back(t);
 }
 
 inline unsigned int hash(const cstring& ci, const cstring& cs)

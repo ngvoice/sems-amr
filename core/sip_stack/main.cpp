@@ -39,6 +39,7 @@
 #include "msg_hdrs.h"
 
 #include "hash_table.h"
+#include "sip_trans.h"
 
 #include "log.h"
 
@@ -50,16 +51,16 @@
 // Parser functions:
 //
 
-
+#define SERVER
 
 int main()
 {
     log_level  = 3;
     log_stderr = 1;
 
-#if 0
+#ifndef SERVER
     char* buf = 
-	"INVITE sip:b\nob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
+	"INVITE sip:bob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
  	"Via: SIP/2.0/UDP bigbox3.site3.atlanta.com;branch=z9hG4bK77ef4c2312983.1\r\n"
  	"Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bKnashds8\r\n"
  	" ;received=192.0.2.1\r\n"
@@ -81,7 +82,7 @@ int main()
 	"a=rtpmap:0 PCMU/8000";
 
     int buf_len = strlen(buf);
-    sip_msg msg(buf,buf_len);
+    sip_msg* msg = new sip_msg(buf,buf_len);
 
 #else
     
@@ -128,103 +129,49 @@ int main()
 	}
 	
 
-	sip_msg msg(buf,buf_len);
-	memcpy(&msg.recved,&from_addr,from_addr_len);
-	msg.recved_len = from_addr_len;
+	sip_msg* msg = new sip_msg(buf,buf_len);
+	memcpy(&msg->recved,&from_addr,from_addr_len);
+	msg->recved_len = from_addr_len;
 #endif
 
 
     int err = 0;
     
-    err = parse_sip_msg(&msg);
+    err = parse_sip_msg(msg);
 
-    if(!err && msg.via_p1){
+    if(!err && msg->callid){
 
-	DBG("via: proto=%i, val=%.*s\n", msg.via_p1->trans.type,
-	    msg.via_p1->trans.val.len, msg.via_p1->trans.val.s);
-    }
+	assert(get_cseq(msg));
 
-    if(!err && msg.from){
-
-	sip_from_to f;
-	err = parse_from_to(&f,
-			    msg.from->value.s,
-			    msg.from->value.len);
-
-	if(err) 
-	    goto parse_end;
-
-	DBG("From header: name-addr=\"%.*s <%.*s>\"\n",
-	    f.nameaddr.name.len,f.nameaddr.name.s,
-	    f.nameaddr.addr.len,f.nameaddr.addr.s);
-
-	sip_uri fu;
-	err = parse_uri(&fu,f.nameaddr.addr.s,f.nameaddr.addr.len);
-	if(err){
-	    DBG("parse_uri returned %i\n",err);
-	    goto parse_end;
+	trans_bucket& bucket = get_trans_bucket(msg->callid->value, get_cseq(msg)->number);
+	bucket.lock();
+	sip_trans* t = bucket.match_request(msg);
+	if(!t){
+	    DBG("Found new transaction\n");
+	    bucket.add_trans(msg,TT_UAS);
 	}
-
-	list<sip_avp*>::iterator it = f.params.begin();
-	for(;it != f.params.end(); ++it) {
-		
-	    DBG("From header param: \"%.*s=%.*s\"\n",
-		(*it)->name.len,(*it)->name.s,
-		(*it)->value.len,(*it)->value.s);
+	else {
+	    DBG("It's a retransmission\n");
 	}
-    }
-
-    if(!err && msg.to){
-
-	sip_from_to t;
-	err = parse_from_to(&t,
-			    msg.to->value.s,
-			    msg.to->value.len);
-
-	if(err){
-	    DBG("parse_uri returned %i\n",err);
-	    goto parse_end;
-	}
-
-	DBG("To header: name-addr=\"%.*s <%.*s>\"\n",
-	    t.nameaddr.name.len,t.nameaddr.name.s,
-	    t.nameaddr.addr.len,t.nameaddr.addr.s);
-
-	list<sip_avp*>::iterator it = t.params.begin();
-	for(it = t.params.begin();it != t.params.end(); ++it) {
-		
-	    DBG("To header param: \"%.*s=%.*s\"\n",
-		(*it)->name.len,(*it)->name.s,
-		(*it)->value.len,(*it)->value.s);
-	}
-
-    }
-
-    if(!err && msg.cseq){
-
-	sip_cseq cseq;
-	err = parse_cseq(&cseq,msg.cseq->value.s,msg.cseq->value.len);
-	if(err)
-	    goto parse_end;
-
-	DBG("Cseq header: '%.*s' '%.*s'\n",
-	    cseq.number.len,cseq.number.s,
-	    cseq.method.len,cseq.method.s);
+	bucket.unlock();
     }
 
  parse_end:
     INFO("parse_sip_msg returned %i\n",err);
     if(err){
-	DBG("Message was: \"%.*s\"\n",msg.len,msg.buf);
+	DBG("Message was: \"%.*s\"\n",msg->len,msg->buf);
     }
 
-    if(msg.type == SIP_REQUEST){
+#ifdef SERVER
+
+#if 0
+    if(msg->type == SIP_REQUEST){
 
 	sip_msg reply;
 	reply.type = SIP_REPLY;
 	
 	int len = status_line_len(cstring("Bad Request"));
-	len += copy_hdrs_len(msg.hdrs);
+	len += copy_hdrs_len(msg->hdrs);
 
 	len += 2; // CRLF
 
@@ -233,7 +180,7 @@ int main()
 
 	char* c = reply.buf;
 	status_line_wr(&reply,&c,400,cstring("Bad Request"));
-	copy_hdrs_wr(&reply,&c,msg.hdrs);
+	copy_hdrs_wr(&reply,&c,msg->hdrs);
 	
 	*(c++) = CR;
 	*(c++) = LF;
@@ -241,17 +188,19 @@ int main()
 	DBG("reply msg: \"%.*s\"\n",reply.len,reply.buf);
 
 	sendto(sd,reply.buf,reply.len,0,
-	       (sockaddr*)&msg.recved,msg.recved_len);
+	       (sockaddr*)&msg->recved,msg->recved_len);
 
 
     }
-
-#if 1
-
+#endif
+    
+    delete msg;
     }
+#else
+    delete msg;
 
 #endif
-
+    
 
     return 0;
 }

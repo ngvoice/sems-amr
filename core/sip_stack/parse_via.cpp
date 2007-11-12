@@ -223,8 +223,7 @@ static int parse_by(cstring* host, cstring* port, char** c, int len)
 		break;
 
 	    case ';':
-		host->set(beg,*c - beg);
-		return 0;
+		goto end_by;
 
 	    case SP:
 	    case HTAB:
@@ -261,7 +260,7 @@ static int parse_by(cstring* host, cstring* port, char** c, int len)
 		break;
 
 	    case ';':
-		return 0;
+		goto end_by;
 
 	    case SP:
 	    case HTAB:
@@ -299,8 +298,7 @@ static int parse_by(cstring* host, cstring* port, char** c, int len)
 	    case SP:
 	    case HTAB:
 	    case ';':
-		port->set(beg,*c-beg);
-		return 0;
+		goto end_by;
 	    }
 	    break;
 
@@ -314,21 +312,104 @@ static int parse_by(cstring* host, cstring* port, char** c, int len)
 		host->set(beg,*c - (st==ST_CRLF?2:1) - beg);
 		break;
 	    case BY_PORT:
-		port->set(beg,*c - (st==ST_CRLF?2:1) - beg);
-		return 0;
+		goto end_by;
 	    }
 	    st = saved_st;
 	    break;
 	}
     }
 
-    DBG("st = %i\n",st);
-    return UNDEFINED_ERR;
+ end_by:
+    switch(st){
+    case BY_HOST:
+	host->set(beg,*c-beg);
+	break;
+    case BY_PORT:
+	port->set(beg,*c-beg);
+	break;
+    case ST_LF:
+    case ST_CRLF:
+	switch(saved_st){
+	case BY_PORT:
+	    port->set(beg,*c - (st==ST_CRLF?2:1) - beg);
+	    break;
+	}
+	break;
+
+    case BY_COLON:
+	break;
+
+    default:
+	DBG("Unexpected end state: st = %i\n",st);
+	return UNDEFINED_ERR;
+    }
+
+    return 0;
 }
 
-inline int parse_via_params(list<sip_avp*>* params, char** c, int len)
+inline int parse_via_params(sip_via_parm* parm, char** c, int len)
 {
-    return parse_gen_params(params,c,len,',');
+    enum {
+	VP_BEG=0,
+
+	VP_BRANCH1,
+	VP_BRANCH2,
+	VP_BRANCH3,
+	VP_BRANCH4,
+	VP_BRANCH5,
+	VP_BRANCH6,
+
+	VP_OTHER
+    };
+
+    int ret = parse_gen_params(&parm->params,c,len,',');
+    if(ret) return ret;
+
+    list<sip_avp*>::iterator it = parm->params.begin();
+    for(;it != parm->params.end();++it){
+	
+	char* c   = (*it)->name.s;
+	char* end = c + (*it)->name.len;
+	int   st  = VP_BEG;
+
+	for(;c!=end;c++){
+
+#define case_VIA_PARAM(st1,ch1,ch2,st2)\
+	    case st1:\
+		switch(*c){\
+		case ch1:\
+		case ch2:\
+		    st = st2;\
+		    break;\
+		default:\
+		    st = VP_OTHER;\
+		}\
+		break
+
+	    switch(st){
+		case_VIA_PARAM(VP_BEG,    'b','B',VP_BRANCH1);
+		case_VIA_PARAM(VP_BRANCH1,'r','R',VP_BRANCH2);
+		case_VIA_PARAM(VP_BRANCH2,'a','A',VP_BRANCH3);
+		case_VIA_PARAM(VP_BRANCH3,'n','N',VP_BRANCH4);
+		case_VIA_PARAM(VP_BRANCH4,'c','C',VP_BRANCH5);
+		case_VIA_PARAM(VP_BRANCH5,'h','H',VP_BRANCH6);
+
+	    case VP_OTHER:
+		goto next_param;
+	    }
+	}
+
+	switch(st){
+	case VP_BRANCH6:
+	    parm->branch = (*it)->value;
+	    break;
+	}
+	
+    next_param:
+	continue; // makes compiler happy
+    }
+    
+    return ret;
 }
 
 
@@ -375,12 +456,12 @@ int parse_via(sip_via* via, char* beg, int len)
 		ret = parse_by(&parm->host,&parm->port, &c, end-c);
 		if(ret) return ret;
 
-		ret = parse_via_params(&parm->params,&c,end-c);
+		ret = parse_via_params(parm.get(),&c,end-c);
 		if(ret) return ret;
 
 		via->parms.push_back(parm.release());
 		parm.reset(new sip_via_parm());
-
+		
 		st = V_PARM_SEP;
 		c--;
 		break;

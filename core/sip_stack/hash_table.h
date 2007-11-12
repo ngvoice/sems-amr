@@ -55,7 +55,15 @@ public:
     void lock();
     void unlock();
     
-    bool is_retr(sip_msg* msg);
+    // Match a request to UAS transactions
+    // in this bucket
+    sip_trans* match_request(sip_msg* msg);
+
+    // Match a reply to UAC transactions
+    // in this bucket
+    sip_trans* match_reply(sip_msg* msg);
+
+    void add_trans(sip_msg* msg, int ttype);
 };
 
 trans_bucket& get_trans_bucket(const cstring& callid, const cstring& cseq_num);

@@ -42,24 +42,44 @@ enum {
 enum {
 
     //
-    // UAS Transaction states
+    // Transaction states
     //
-    TS_TRYING,     // !INV
-    TS_PROCEEDING, // INV, !INV
-    TS_COMPLETED,  // INV, !INV
-    TS_CONFIRMED,  // INV
-    TS_TERMINATED  // INV, !INV
+
+    TS_TRYING,     // UAC:!INV;     UAS:!INV
+    TS_CALLING,    // UAC:INV
+    TS_PROCEEDING, // UAC:INV,!INV; UAS:INV,!INV
+    TS_COMPLETED,  // UAC:INV,!INV; UAS:INV,!INV
+    TS_CONFIRMED,  //               UAS:INV
+    TS_TERMINATED  // UAC:INV,!INV; UAS:INV,!INV
 };
 
 
 struct sip_trans
 {
     // Transaction type
-    int type; 
+    int type;
     
-    // Depending on type, this
-    // could be a request or a reply
+    // Received message:
+    //  depending on type, this
+    //  could be a request or a reply
     sip_msg* msg;
+
+    // In UAS transactions:
+    // - to_tag included in reply.
+    //   (useful for ACK matching)
+    //
+    // In UAC transactions:
+    // - to_tag received from UAS.
+    //   (useful for building ACK)
+    //
+    cstring to_tag;
+
+    // reply code of last
+    // sent/received reply
+    int reply_status;
+
+    //Transaction state
+    int state;
 };
 
 #endif

@@ -141,7 +141,7 @@ static int parse_header_type(sip_msg* msg, sip_header* h)
 	    case 'A':
 		if(!lower_cmp(h->name.s+2,CALL_ID_lc+2,CALL_ID_len-2)){
 		    h->type = sip_header::H_CALL_ID;
-		    msg->call_id = h;
+		    msg->callid = h;
 		}
 		break;
 

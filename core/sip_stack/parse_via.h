@@ -49,11 +49,13 @@ struct sip_transport
 
 struct sip_via_parm
 {
-    sip_transport trans;
-    cstring       host;
-    cstring       port; // ?? int/short ??
+    sip_transport  trans;
+    cstring        host;
+    cstring        port; // ?? int/short ??
 
     list<sip_avp*> params;
+
+    cstring        branch;
 
     ~sip_via_parm();
 };
@@ -61,11 +63,13 @@ struct sip_via_parm
 struct sip_via: public sip_parsed_hdr
 {
     list<sip_via_parm*> parms;
-    //sip_via_parm*       first;
 
     ~sip_via();
 };
 
 int parse_via(sip_via* via, char* beg, int len);
+
+#define MAGIC_BRANCH_COOKIE "z9hG4bK"
+#define MAGIC_BRANCH_LEN    7
 
 #endif

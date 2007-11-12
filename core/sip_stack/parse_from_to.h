@@ -44,6 +44,8 @@ struct sip_from_to: public sip_parsed_hdr
     sip_nameaddr   nameaddr;
     list<sip_avp*> params;
 
+    cstring tag;
+
     sip_from_to(): 
 	sip_parsed_hdr(),params()
     {}

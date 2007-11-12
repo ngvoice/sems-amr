@@ -30,6 +30,8 @@
 #include "parse_header.h"
 #include "parse_common.h"
 #include "parse_via.h"
+#include "parse_cseq.h"
+#include "parse_from_to.h"
 
 #include "log.h"
 
@@ -43,7 +45,7 @@ sip_msg::sip_msg(char* msg_buf, int msg_len)
       from(NULL),
       cseq(NULL),
       via1(NULL),via_p1(NULL),
-      call_id(NULL),
+      callid(NULL),
       contact(NULL),
       route(),
       record_route(),
@@ -69,7 +71,7 @@ sip_msg::sip_msg()
       from(NULL),
       cseq(NULL),
       via1(NULL),via_p1(NULL),
-      call_id(NULL),
+      callid(NULL),
       contact(NULL),
       route(),
       record_route(),
@@ -300,6 +302,7 @@ static int parse_first_line(sip_msg* msg, char** c)
 	case FL_RURI:
 	    switch(**c){
 	    case SP:
+		msg->u.request->ruri_str.set(beg, *c-beg); 
 		err = parse_uri(&msg->u.request->ruri, beg, *c-beg);
 		if(err)
 		    return err;
@@ -383,26 +386,99 @@ int parse_sip_msg(sip_msg* msg)
     char* c = msg->buf;
 
     int err_fl = parse_first_line(msg,&c);
-    int err_hdrs=0;
 
-    if(err_fl != UNEXPECTED_EOT)
-	err_hdrs = parse_headers(msg,&c);
+    if(err_fl == UNEXPECTED_EOT)
+	return err_fl;
+
+    int err_hdrs = parse_headers(msg,&c);
     
-    if(msg->via1){
-	auto_ptr<sip_via> via(new sip_via());
-	
-	int err = parse_via(via.get(),msg->via1->value.s,
-			    msg->via1->value.len);
-	    
-	if(!err){
-	    if(!via->parms.empty()){
-		msg->via_p1 = *via->parms.begin();
-		msg->via1->p = via.release();
-	    }
-	    else
-		return MALFORMED_SIP_MSG;
-	}
+    if(!msg->via1){
+	DBG("Missing via header\n");
+	return MALFORMED_SIP_MSG;
     }
-    
+
+    auto_ptr<sip_via> via(new sip_via());
+    if(!parse_via(via.get(), 
+		  msg->via1->value.s,
+		  msg->via1->value.len) && 
+       !via->parms.empty() ) {
+
+	msg->via_p1 = *via->parms.begin();
+	msg->via1->p = via.release();
+
+	DBG("first via: proto=<%i>, addr=<%.*s:%.*s>, branch=<%.*s>\n", 
+	    msg->via_p1->trans.type, 
+	    msg->via_p1->host.len,
+	    msg->via_p1->host.s,
+	    (msg->via_p1->port.len ? msg->via_p1->port.len : 4),
+	    (msg->via_p1->port.len ? msg->via_p1->port.s : "5060"),
+	    msg->via_p1->branch.len,
+	    msg->via_p1->branch.s );
+
+    }
+    else
+	return MALFORMED_SIP_MSG;
+
+
+    if(!msg->cseq){
+	DBG("Missing cseq header\n");
+	return MALFORMED_SIP_MSG;
+    }
+
+    auto_ptr<sip_cseq> cseq(new sip_cseq());
+    if(!parse_cseq(cseq.get(),
+		   msg->cseq->value.s,
+		   msg->cseq->value.len) &&
+       cseq->number.len &&
+       cseq->method.len ) {
+	
+	DBG("Cseq header: '%.*s' '%.*s'\n",
+	    cseq->number.len,cseq->number.s,
+	    cseq->method.len,cseq->method.s);
+
+	msg->cseq->p = cseq.release();
+    }
+    else
+	return MALFORMED_SIP_MSG;
+
+
+    if(!msg->from){
+	DBG("Missing from header\n");
+	return MALFORMED_SIP_MSG;
+    }
+
+    auto_ptr<sip_from_to> from(new sip_from_to());
+    if(!parse_from_to(from.get(),
+		      msg->from->value.s,
+		      msg->from->value.len)) {
+
+	DBG("From header: name-addr=\"%.*s <%.*s>\"\n",
+	    from->nameaddr.name.len,from->nameaddr.name.s,
+	    from->nameaddr.addr.len,from->nameaddr.addr.s);
+
+	msg->from->p = from.release();
+    }
+    else
+	return MALFORMED_SIP_MSG;
+
+    if(!msg->to){
+	DBG("Missing to header\n");
+	return MALFORMED_SIP_MSG;
+    }
+
+    auto_ptr<sip_from_to> to(new sip_from_to());
+    if(!parse_from_to(to.get(),
+		      msg->to->value.s,
+		      msg->to->value.len)) {
+
+	DBG("To header: name-addr=\"%.*s <%.*s>\"\n",
+	    to->nameaddr.name.len,to->nameaddr.name.s,
+	    to->nameaddr.addr.len,to->nameaddr.addr.s);
+
+	msg->to->p = to.release();
+    }
+    else
+	return MALFORMED_SIP_MSG;
+
     return err_fl || err_hdrs;
 }

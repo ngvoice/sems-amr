@@ -30,6 +30,7 @@
 #define _parse_cseq_h
 
 #include "parse_header.h"
+#include "sip_parser.h"
 
 struct sip_cseq: public sip_parsed_hdr
 {
@@ -38,5 +39,10 @@ struct sip_cseq: public sip_parsed_hdr
 };
 
 int parse_cseq(sip_cseq* cseq, char* beg, int len);
+
+inline sip_cseq* get_cseq(sip_msg* msg)
+{
+    return dynamic_cast<sip_cseq*>(msg->cseq->p);
+}
 
 #endif
