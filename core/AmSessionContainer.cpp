@@ -274,14 +274,16 @@ bool AmSessionContainer::postEvent(const string& callid,
 
   as_mut.lock();
   AmSession* s = getSession(callid,remote_tag);
-  as_mut.unlock();
     
   if(!s){
+    as_mut.unlock();
     delete event;
     return false;
   }
     
   s->postEvent(event);
+  as_mut.unlock();
+
   return true;
 }
 
@@ -291,12 +293,13 @@ bool AmSessionContainer::postEvent(const string& local_tag,
   //     DBG("postEvent: local_tag = %s\n",local_tag.c_str());
   as_mut.lock();
   AmSession* s = getSession(local_tag);
-  as_mut.unlock();
 
   if (s  != NULL) {
     s->postEvent(event);
+    as_mut.unlock();
     return true;
   }    
+  as_mut.unlock();
 	
   // try session factories
   AmSessionFactory* sf = AmPlugIn::instance()->getFactory4App(local_tag);
