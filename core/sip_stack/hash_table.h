@@ -68,4 +68,6 @@ public:
 
 trans_bucket& get_trans_bucket(const cstring& callid, const cstring& cseq_num);
 
+unsigned int hash(const cstring& ci, const cstring& cs);
+
 #endif

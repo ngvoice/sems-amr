@@ -278,7 +278,7 @@ sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
     return t;
 }
 
-inline unsigned int hash(const cstring& ci, const cstring& cs)
+unsigned int hash(const cstring& ci, const cstring& cs)
 {
     unsigned int h=0;
 

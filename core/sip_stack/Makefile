@@ -17,14 +17,15 @@ SRCS = main.cpp \
 	trans_layer.cpp \
 	transport.cpp \
 	udp_trsp.cpp \
-	AmThread.cpp
+	AmThread.cpp \
+	AmUtils.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 DEPS = $(SRCS:.cpp=.d)
 
 CXXFLAGS += -g
 LDFLAGS  += -lpthread -g
-CPPFLAGS += -D_DEBUG -I..
+CPPFLAGS += -D_DEBUG
 
 all: 
 	-@$(MAKE) deps && \

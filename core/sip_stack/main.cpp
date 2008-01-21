@@ -25,35 +25,12 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "sip_parser.h"
-
-#include "parse_uri.h"
-#include "parse_common.h"
-#include "parse_header.h"
-
-#include "parse_via.h"
-#include "parse_from_to.h"
-#include "parse_cseq.h"
-
-#include "msg_fline.h"
-#include "msg_hdrs.h"
-
-#include "hash_table.h"
-#include "sip_trans.h"
-
 #include "trans_layer.h"
 #include "udp_trsp.h"
 
 #include "log.h"
 
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <errno.h>
-#include <assert.h>
-
-//
-// Parser functions:
-//
+#include "MyCtrlInterface.h"
 
 #define SERVER
 

@@ -6,11 +6,14 @@
 #include "sip_trans.h"
 #include "log.h"
 
+#include "AmUtils.h"
+#include "../AmSipMsg.h"
+
 /** 
  * Singleton pointer.
  * @see instance()
  */
-trans_layer* trans_layer::_instance;
+trans_layer* trans_layer::_instance = NULL;
 
 
 trans_layer::trans_layer()
@@ -31,7 +34,7 @@ trans_layer* trans_layer::instance()
 
 void trans_layer::send_msg(sip_msg* msg)
 {
-    
+    // NYI
 }
 
 
@@ -55,21 +58,74 @@ void trans_layer::received_msg(sip_msg* msg)
 	DBG("Call-ID or CSeq header missing: dropping message\n");
 	DROP_MSG;
     }
-    
+
     trans_bucket& bucket = get_trans_bucket(msg->callid->value, get_cseq(msg)->number);
-    
+    sip_trans* t = NULL;
+
     bucket.lock();
-    sip_trans* t = bucket.match_request(msg);
-    if(!t){
-	DBG("Found new transaction\n");
-	t = bucket.add_trans(msg,TT_UAS);
-    }
-    else {
-	DBG("It's a retransmission\n");
-    }
-    bucket.unlock();
+
+    switch(msg->type){
+    case SIP_REQUEST: 
+	
+	if(t = bucket.match_request(msg)){
+	    if(msg->u.request->method != t->msg->u.request->method){
+
+		// ACK matched INVITE transaction
+
+		// TODO: - update transaction state
+		//       - absorb ACK
+	    }
+	    else {
+		DBG("Found retransmission\n");
+	    }
+	}
+	else {
+
+	    // It's a new transaction:
+	    //  let's create it and pass to
+	    //  the UA. 
+	    //
+	    // Forget the msg: it is now 
+	    //  owned by the transaction
+
+	    t = bucket.add_trans(msg, TT_UAS);
+	    
+	    // TODO: create AmSipRequest and pass it upstream.
+
+	    AmSipRequest req;
+
+	    req.serKey = int2hex(hash(msg->callid->value, get_cseq(msg)->number)) 
+		+ ":" + long2hex((unsigned long)t);
+
+	    // TODO: other fields
+
+	    bucket.unlock();
+
+	    return;
+	}
+	break;
     
-    //FIXME
+    case SIP_REPLY:
+
+	if(t = bucket.match_reply(msg)){
+
+	    // Reply matched UAC transaction
+	    // TODO: - update transaction state
+	    //       - maybe retransmit ACK???
+	}
+	else {
+	    // Anything we should do???
+	}
+	break;
+	
+
+    default:
+	ERROR("Got unknown message type: Bug?\n");
+	break;
+    }
+
+ unlock_drop:
+    bucket.unlock();
     DROP_MSG;
 }
 
