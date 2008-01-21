@@ -128,7 +128,7 @@ AmAudioRtpFormat::~AmAudioRtpFormat()
 }
 
 AmAudioFormat::AmAudioFormat()
-  : channels(-1), rate(-1), codec(0),
+  : channels(-1), rate(-1), codec(NULL),
     frame_length(20), frame_size(160), frame_encoded_size(320)
 {
 
@@ -229,6 +229,7 @@ void AmAudioFormat::destroyCodec()
     (*codec->destroy)(h_codec);
     h_codec = 0;
   }
+  codec = NULL;
 }
 
 amci_subtype_t*  AmAudioFileFormat::getSubtype()
@@ -589,6 +590,7 @@ int AmAudioFile::fpopen(const string& filename, OpenMode mode, FILE* n_fp)
       f_fmt->setSubtypeId(fd.subtype);
       f_fmt->channels = fd.channels;
       f_fmt->rate = fd.rate;
+      data_size = fd.data_size;
     }
     begin = ftell(fp);
   }

@@ -32,9 +32,11 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <set>
 using std::string;
 using std::map;
 using std::vector;
+using std::set;
 
 class AmPluginFactory;
 class AmSessionFactory;
@@ -42,6 +44,7 @@ class AmSessionEventHandlerFactory;
 class AmDynInvokeFactory;
 class AmSIPEventHandler;
 class AmLoggingFacility;
+class AmCtrlInterface;
 
 struct amci_exports_t;
 struct amci_codec_t;
@@ -72,23 +75,29 @@ class AmPlugIn
   map<string,AmSessionFactory*>  name2app;
 
   map<string,AmSessionEventHandlerFactory*> name2seh;
+  map<string,AmPluginFactory*> name2base;
   map<string,AmDynInvokeFactory*> name2di;
   map<string,AmSIPEventHandler*> name2sipeh;
   map<string,AmLoggingFacility*> name2logfac;
+  AmCtrlInterface *ctrlIface;
 
   int dynamic_pl; // range: 96->127, see RFC 1890
+  set<string> excluded_payloads;  // don't load these payloads (named)
     
   AmPlugIn();
   ~AmPlugIn();
 
   /** @return -1 if failed, else 0. */
   int loadPlugIn(const string& file);
+
   int loadAudioPlugIn(amci_exports_t* exports);
   int loadAppPlugIn(AmPluginFactory* cb);
   int loadSehPlugIn(AmPluginFactory* cb);
+  int loadBasePlugIn(AmPluginFactory* cb);
   int loadDiPlugIn(AmPluginFactory* cb);
   int loadSIPehPlugIn(AmPluginFactory* f);
   int loadLogFacPlugIn(AmPluginFactory* f);
+  int loadCtrlFacPlugIn(AmPluginFactory* f);
 
   int addCodec(amci_codec_t* c);
   int addPayload(amci_payload_t* p);
@@ -97,6 +106,8 @@ class AmPlugIn
  public:
 
   static AmPlugIn* instance();
+
+  void init();
 
   /** 
    * Loads all plug-ins from the directory given as parameter. 

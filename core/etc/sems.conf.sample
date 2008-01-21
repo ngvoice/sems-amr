@@ -1,0 +1,230 @@
+# $Id$
+#
+# sems.conf.sample
+#
+# Sip Express Media Server (sems)
+# 
+# sample configuration file
+# 
+#
+# whitespaces (spaces and tabs) are ignored
+# comments start with a "#" and may be used inline
+# 
+# example: option=value # i like this option
+#
+
+# parameter: plugin_config_path=<path>
+#
+# - in this path configuration files of the applications 
+#   (e.g. announcement.conf) are searched
+plugin_config_path=/usr/local/etc/sems/etc/
+
+# optional parameter: fork={yes|no}
+# 
+# - specifies if sems should run in daemon mode (background)
+#   (fork=no is the same as -E)
+fork=yes
+
+# optional parameter: stderr={yes|no}
+#
+# - debug mode: do not fork and log to stderr
+#   (stderr=yes is the same as -E)
+stderr=no
+
+# optional parameter: loglevel={0|1|2|3}
+#
+# - sets log level (error=0, warning=1, info=2, debug=3)
+#   (same as -D)
+loglevel=2
+
+# optional parameter: default_application
+# - this application is executed if the application is 
+#   not explicitely set with P-App-Name header/appname 
+#   parameter of unix command.
+#   
+# example:
+# default_application = conference
+
+# optional parameter: plugin_path=<path>
+# 
+# - sets the path to the plug-ins
+# - may be absolute or relative to CWD
+plugin_path=/usr/local/lib/sems/plug-in/
+
+# optional parameter: load_plugins=<modules list>
+# 
+# semicolon-separated list of modules to load
+# If empty, all modules in plugin_path are loaded.
+#
+# example for announcement with g711 and ilbc codecs only 
+# load_plugins=wav;ilbc;announcement
+
+# optional parameter: exclude_plugins=<modules list>
+#
+# semicolon-separated list of modules to exclude from loading
+# ('blacklist'). This has only effect it load_plugins is empty.
+# If empty, all modules in plugin_path are loaded.
+#
+exclude_plugins=binrpcctrl;
+
+
+# optional parameter: exclude_payloads=<payload list>
+#
+# semicolon-separated list of payloads to exclude from loading
+# ('blacklist'). 
+# 
+# For example, to only use low bandwidth codecs:
+#  exclude_payloads=PCMU;PCMA;G726-40;G726-32;G721;L16
+# or, to use only codecs which are not CPU-intensive:
+#  exclude_payloads=iLBC;speex;
+# only use G711 (exclude everything else):
+#  exclude_payloads=iLBC;speex;G726-40;G726-32;G721;G726-24;G726-16;GSM;L16
+
+# optional parameter: smtp_server=<hostname>
+#
+# - sets address of smtp server
+smtp_server=mail
+
+# optional parameter: smtp_port=<port>
+#
+# - sets port of smtp server
+smtp_port=25
+
+# optional parameter: rtp_low_port=<port>
+#
+# - sets lowest for RTP used port
+rtp_low_port=10000
+
+# optional parameter: rtp_high_port=<port>
+#
+# - sets highest for RTP used port 
+rtp_high_port=60000
+
+# optional parameter: media_processor_threads=<num_value>
+# 
+# - controls how many threads should be created that
+#   process media - on single-processor systems set this 
+#   parameter to 1 (default), on MP systems to a higher
+#   value
+media_processor_threads=1
+
+# optional parameter: listen=<ip_address>|<device>
+# 
+# - this informs SEMS about the interface where its SER is 
+#   bound to. SEMS needs this information to correctly set 
+#   the contact header in outgoing calls and registrations. 
+#   Should be set to equal the 'listen' configuration option
+#   in ser_sems.cfg.
+#   If not set, this defaults to the interface SEMS binds to.
+# Examples: 
+#  listen=10.0.0.34
+#  listen=eth0
+
+# optional parameter: sip_port=<port_number>
+#
+# - this informs SEMS about the port where its SER is 
+#   bound to. SEMS needs this information to correctly set 
+#   the contact header in outgoing calls and registrations. 
+#   Should be set to equal the 'port' configuration option
+#   in ser_sems.cfg.
+#   This does not need to be set if outgoing calls and 
+#   registrations from SEMS are not used.
+#  
+#   default: 5060
+#
+#sip_port=5060
+
+# optional parameter: outbound_proxy=uri
+#
+# - this sets a next hop for calls and registrations outgoing 
+#   from SEMS. This does not apply to requests in a dialog that 
+#   is initiated by someone else and incoming to SEMS, as in 
+#   this case the next_hop is taken by SEMS from the incoming 
+#   request that established the dialog.
+#   If this is not set (default setting), then for dialogs 
+#   initiated by SEMS the r-uri is resolved and the request 
+#   is sent there directly.
+#   This is resolved by the SIP stack with DNS if a name is given.
+#   Warning: If the value set here can not be resolved, no 
+#            requests will be sent out at all!
+#  
+#   default: empty
+#
+#   example:
+#   outbound_proxy=sip:proxy.mydomain.net
+#
+#outbound_proxy=sip:192.168.0.1
+
+# optional parameter: dead_rtp_time=<unsigned int>
+#
+# - if != 0, after this time (in seconds) of no RTP
+#   a session is considered dead and stopped. If set
+#   to 0 no check is done for rtp timeout.
+#
+#   default=300 (5 minutes)
+#
+# Examples:
+#    # disable RTP timeout
+#    dead_rtp_time=0  
+#    # RTP timeout after 10 seconds
+#    dead_rtp_time=10  
+
+# optional parameter: use_default_signature={yes|no}
+#
+# - use a Server/User-Agent header with the SEMS server 
+#   signature and version.
+#   Set server_signature=0 in ser_sems.cfg if you use it.   
+#
+#   default=no
+#
+# use_default_signature=no
+
+# optional parameter: signature=<signature string>
+#
+# - use a Server/User-Agent header with a custom user agent
+#   signature.
+#   Overridden by default signature if 
+#   use_default_signature is set.
+#   Set server_signature=0 in ser_sems.cfg if you use it.   
+#
+#
+# signature="SEMS media server 1.0"
+
+# optional parameter: single_codec_in_ok={yes|no}
+#
+# - use single codec in 200 OK response
+#
+#   default=no
+#
+# single_codec_in_ok=no
+
+# optional parameter: codec_order=codec_name_1,codec_name2,...
+#
+# - Codec order used when sending INVITE requests.  Codecs in codec_order
+#   will be on the top of the list followed by other supported codecs
+#   (if any).
+#
+#   default=empty
+#
+# codec_order=iLBC,GSM
+
+# optional parameter: ignore_rtpxheaders={yes|no}
+#
+# - if this is set to yes, RTP extension headers (e.g. when using ZRTP)
+#   are ignored. If set to no, the whole RTP packets with extension 
+#   headers will be ignored and a debug message is printed on every 
+#   received packet.
+#
+#   default=no
+#
+# ignore_rtpxheaders=yes
+
+# optional parameter: dtmf_detector={spandsp|internal}
+#
+# sets inband DTMF detector to use. spandsp support must be compiled in
+# for this to have effect if dtmf_detector=spandsp.
+#  
+# default: internal
+#
+#dtmf_detector=spandsp
+

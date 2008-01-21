@@ -33,7 +33,7 @@
 #include "AmEventQueue.h"
 #include "AmRtpAudio.h"
 #include "AmDtmfDetector.h"
-#include "AmSipRequest.h"
+#include "AmSipMsg.h"
 #include "AmSipDialog.h"
 #include "AmSipEvent.h"
 #include "AmApi.h"
@@ -353,6 +353,8 @@ public:
   void postDtmfEvent(AmDtmfEvent *);
 
   void processDtmfEvents();
+
+  void setInbandDetector(Dtmf::InbandDetectorType t);
   bool isDtmfDetectionEnabled() { return m_dtmfDetectionEnabled; }
   void setDtmfDetectionEnabled(bool e) { m_dtmfDetectionEnabled = e; }
   void putDtmfAudio(const unsigned char *buf, int size, int user_ts);

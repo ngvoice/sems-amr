@@ -29,6 +29,7 @@
 #define _AmConfig_h_
 
 #include "AmSdp.h"
+#include "AmDtmfDetector.h"
 
 #include <string>
 #include <map>
@@ -48,14 +49,6 @@ struct AmConfig
   static string ConfigurationFile;
   /** Path to the plug-in configuration files. */
   static string ModConfigPath;
-  /** Name of our unix socket file for requests. */
-  static string SocketName;
-  /** Name of our unix socket file for replies. */
-  static string ReplySocketName;
-  /** Name of the Ser unix socket file. */
-  static string SerSocketName;
-  /** Send method: 'fifo' or 'unix_socket' */
-  static string SendMethod;
   /** After server start, IP of the SMTP server. */
   static string SmtpServerAddress;
   /** SMTP server port. */
@@ -64,6 +57,10 @@ struct AmConfig
   static string PlugInPath;
   /** semicolon separated list of plugins to load */
   static string LoadPlugins;
+  /** semicolon separated list of plugins to exclude from loading */
+  static string ExcludePlugins;
+  /** semicolon separated list of payloads to exclude from loading */
+  static string ExcludePayloads;  
   //static unsigned int MaxRecordTime;
   /** run the programm in daemon mode? */
   static int DaemonMode;
@@ -100,6 +97,8 @@ struct AmConfig
 
   /** Ignore RTP Extension headers? */
   static bool IgnoreRTPXHdrs;
+
+  static Dtmf::InbandDetectorType DefaultDTMFDetector;
 
   /** Init function. Resolves SMTP server address. */
   static int init();

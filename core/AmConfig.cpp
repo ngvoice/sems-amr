@@ -39,14 +39,12 @@
 
 string       AmConfig::ConfigurationFile       = CONFIG_FILE;
 string       AmConfig::ModConfigPath           = MOD_CFG_PATH;
-string       AmConfig::SocketName              = "";
-string       AmConfig::ReplySocketName         = "";
-string       AmConfig::SerSocketName           = "";
-string       AmConfig::SendMethod              = SEND_METHOD;
 string       AmConfig::SmtpServerAddress       = SMTP_ADDRESS_IP;
 unsigned int AmConfig::SmtpServerPort          = SMTP_PORT;
 string       AmConfig::PlugInPath              = PLUG_IN_PATH;
 string       AmConfig::LoadPlugins             = "";
+string       AmConfig::ExcludePlugins          = "";
+string       AmConfig::ExcludePayloads         = "";
 int          AmConfig::DaemonMode              = DEFAULT_DAEMON_MODE;
 string       AmConfig::LocalIP                 = "";
 string       AmConfig::PrefixSep               = PREFIX_SEPARATOR;
@@ -63,6 +61,9 @@ bool         AmConfig::IgnoreRTPXHdrs          = false;
 string       AmConfig::DefaultApplication      = "";
 
 vector <string> AmConfig::CodecOrder;
+
+Dtmf::InbandDetectorType 
+AmConfig::DefaultDTMFDetector     = Dtmf::SEMSInternal;
 
 AmSessionTimerConfig AmConfig::defaultSessionTimerConfig;
 
@@ -186,20 +187,17 @@ int AmConfig::readConfiguration()
   // outbound_proxy
   OutboundProxy = cfg.getParameter("outbound_proxy");
   
-  // socket_name
-  SocketName = cfg.getParameter("socket_name");
-
-  // reply socket_name
-  ReplySocketName = cfg.getParameter("reply_socket_name");
-
-  // ser_fifo_name
-  SerSocketName = cfg.getParameter("ser_socket_name");
-
   // plugin_path
   PlugInPath = cfg.getParameter("plugin_path");
 
   // load_plugins
   LoadPlugins = cfg.getParameter("load_plugins");
+
+  // exclude_plugins
+  ExcludePlugins = cfg.getParameter("exclude_plugins");
+
+  // exclude_plugins
+  ExcludePayloads = cfg.getParameter("exclude_payloads");
 
   // user_agent
   if (cfg.getParameter("use_default_signature")=="yes")
@@ -279,6 +277,15 @@ int AmConfig::readConfiguration()
     if(!setDeadRtpTime(cfg.getParameter("dead_rtp_time"))){
       ERROR("invalid dead_rtp_time value specified");
       return -1;
+    }
+  }
+
+  if(cfg.hasParameter("dtmf_detector")){
+    if (cfg.getParameter("dtmf_detector") == "spandsp") {
+#ifndef USE_SPANDSP
+      WARN("spandsp support not compiled in.\n");
+#endif
+      DefaultDTMFDetector = Dtmf::SpanDSP;
     }
   }
 

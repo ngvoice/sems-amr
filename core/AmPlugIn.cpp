@@ -29,9 +29,10 @@
 #include "AmPlugIn.h"
 #include "AmConfig.h"
 #include "AmApi.h"
-#include "AmInterfaceHandler.h"
 #include "AmUtils.h"
 #include "AmSdp.h"
+#include "AmSipDispatcher.h"
+#include "AmServer.h"
 
 #include "amci/amci.h"
 #include "amci/codecs.h"
@@ -42,6 +43,9 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <errno.h>
+
+#include <set>
+using std::set;
 
 static unsigned int pcm16_bytes2samples(long h_codec, unsigned int num_bytes)
 {
@@ -97,12 +101,9 @@ amci_payload_t _payload_tevent = {
 AmPlugIn* AmPlugIn::_instance=0;
 
 AmPlugIn::AmPlugIn()
-  : dynamic_pl(DYNAMIC_PAYLOAD_TYPE_START) 
+  : dynamic_pl(DYNAMIC_PAYLOAD_TYPE_START),   
+    ctrlIface(NULL)
 {
-  DBG("adding built-in codecs...\n");
-  addCodec(&_codec_pcm16);
-  addCodec(&_codec_tevent);
-  addPayload(&_payload_tevent);
 }
 
 AmPlugIn::~AmPlugIn()
@@ -117,6 +118,20 @@ AmPlugIn* AmPlugIn::instance()
     _instance = new AmPlugIn();
 
   return _instance;
+}
+
+void AmPlugIn::init() {
+  vector<string> excluded_payloads_v = 
+    explode(AmConfig::ExcludePayloads, ";");
+  for (vector<string>::iterator it = 
+	 excluded_payloads_v.begin(); 
+       it != excluded_payloads_v.end();it++)
+    excluded_payloads.insert(*it);
+
+  DBG("adding built-in codecs...\n");
+  addCodec(&_codec_pcm16);
+  addCodec(&_codec_tevent);
+  addPayload(&_payload_tevent);
 }
 
 
@@ -135,35 +150,49 @@ int AmPlugIn::load(const string& directory, const string& plugins)
   if (!plugins.length()) {
     DBG("AmPlugIn: loading modules in directory '%s':\n", directory.c_str());
 
+    vector<string> excluded_plugins = explode(AmConfig::ExcludePlugins, ";");
+    set<string> excluded_plugins_s; 
+    for (vector<string>::iterator it = excluded_plugins.begin(); 
+	 it != excluded_plugins.end();it++)
+      excluded_plugins_s.insert(*it);
+
     while( ((entry = readdir(dir)) != NULL) && (err == 0) ){
+      string plugin_name = string(entry->d_name);
 
-      string plugin_file = directory + "/" + string(entry->d_name);
-
-      if( plugin_file.find(".so",plugin_file.length()-3) == string::npos ){
+      if(plugin_name.find(".so",plugin_name.length()-3) == string::npos ){
+        continue;
+      }
+      
+      if (excluded_plugins_s.find(plugin_name.substr(0, plugin_name.length()-3)) 
+	  != excluded_plugins_s.end()) {
+	DBG("skipping excluded plugin %s\n", plugin_name.c_str());
 	continue;
       }
+      
+      string plugin_file = directory + "/" + plugin_name;
 
       DBG("loading %s ...\n",plugin_file.c_str());
-      if( (err = loadPlugIn(plugin_file)) < 0 )
-	ERROR("while loading plug-in '%s'\n",plugin_file.c_str());
+      if( (err = loadPlugIn(plugin_file)) < 0 ) {
+        ERROR("while loading plug-in '%s'\n",plugin_file.c_str());
+        return -1;
+      }
     }
   } else {
     DBG("AmPlugIn: loading modules '%s':\n", plugins.c_str());
 
     vector<string> plugins_list = explode(plugins, ";");
     for (vector<string>::iterator it = plugins_list.begin(); 
-	 it != plugins_list.end(); it++) {
+       it != plugins_list.end(); it++) {
       string plugin_file = *it;
-      if(plugin_file.find(".so",plugin_file.length()-3) 
-	 == string::npos )
-	plugin_file+=".so";
-			
+      if(plugin_file.find(".so",plugin_file.length()-3) == string::npos )
+        plugin_file+=".so";
+
       plugin_file = directory + "/"  + plugin_file;
       DBG("loading %s...\n",plugin_file.c_str());
       if( (err = loadPlugIn(plugin_file)) < 0 ) {
-	ERROR("while loading plug-in '%s'\n",plugin_file.c_str());
-	// be strict here: if plugin not loaded, stop!
-	return err; 
+        ERROR("while loading plug-in '%s'\n",plugin_file.c_str());
+        // be strict here: if plugin not loaded, stop!
+        return err; 
       }
     }
   }
@@ -173,13 +202,23 @@ int AmPlugIn::load(const string& directory, const string& plugins)
 
   DBG("AmPlugIn: Initializing plugins...\n");
 
+  // initialize base components
+  for(map<string,AmPluginFactory*>::iterator it = name2base.begin();
+      it != name2base.end(); it++){
+    err = it->second->onLoad();
+    if(err)
+      return err;
+  }
+
+  // initialize session event handlers
   for(map<string,AmSessionEventHandlerFactory*>::iterator it = name2seh.begin();
       it != name2seh.end(); it++){
     err = it->second->onLoad();
     if(err)
-      break;
+      return err;
   }
 
+  // initialize DI component plugins
   for(map<string,AmDynInvokeFactory*>::iterator it = name2di.begin();
       it != name2di.end(); it++){
     err = it->second->onLoad();
@@ -192,9 +231,10 @@ int AmPlugIn::load(const string& directory, const string& plugins)
       it != name2sipeh.end(); it++){
     err = it->second->onLoad();
     if(err)
-      break;
+      return err;
     // register for receiving replys 
-    AmReplyHandler::get()->registerReplyHandler(it->second);
+    //AmReplyHandler::get()->registerReplyHandler(it->second);
+    AmSipDispatcher::instance()->registerReplyHandler(it->second);
   }
 
   // init logging facilities
@@ -202,7 +242,7 @@ int AmPlugIn::load(const string& directory, const string& plugins)
       it != name2logfac.end(); it++){
     err = it->second->onLoad();
     if(err)
-      break;
+      return err;
     // register for receiving logging messages
     register_logging_fac(it->second);
   }
@@ -214,14 +254,21 @@ int AmPlugIn::load(const string& directory, const string& plugins)
 
     err = it->second->onLoad();
     if(err)
-      break;
+      return err;
   }
 
-  if (!err) {
-    DBG("AmPlugIn: Initialized plugins.\n");
+  if (ctrlIface) {
+    if ((err = ctrlIface->onLoad())) {
+      ERROR("failed to initialize control interface.\n");
+      return err;
+    } else {
+      AmServer::instance()->regIface(ctrlIface);
+    }
   }
 
-  return err;
+  DBG("AmPlugIn: Initialized plugins.\n");
+
+  return 0;
 }
 
 int AmPlugIn::loadPlugIn(const string& file)
@@ -253,6 +300,11 @@ int AmPlugIn::loadPlugIn(const string& file)
       goto error;
     has_sym=true;
   }
+  if((fc = (FactoryCreate)dlsym(h_dl,FACTORY_PLUGIN_EXPORT_STR)) != NULL){
+    if(loadBasePlugIn((AmPluginFactory*)fc()))
+      goto error;
+    has_sym=true;
+  }
   if((fc = (FactoryCreate)dlsym(h_dl,FACTORY_PLUGIN_CLASS_EXPORT_STR)) != NULL){
     if(loadDiPlugIn((AmPluginFactory*)fc()))
       goto error;
@@ -269,6 +321,14 @@ int AmPlugIn::loadPlugIn(const string& file)
     if(loadLogFacPlugIn((AmPluginFactory*)fc()))
       goto error;
     has_sym=true;
+  }
+
+  // try load a control plugin
+  if ((fc = (FactoryCreate)dlsym(h_dl,FACTORY_CONTROL_INTERFACE_EXPORT_STR))) {
+    if (loadCtrlFacPlugIn((AmPluginFactory*)fc()))
+      goto error;
+    assert(! has_sym);
+    has_sym = true;
   }
 
   if(!has_sym){
@@ -462,6 +522,12 @@ int AmPlugIn::loadSehPlugIn(AmPluginFactory* f)
   return -1;
 }
 
+int AmPlugIn::loadBasePlugIn(AmPluginFactory* f)
+{
+  name2base.insert(std::make_pair(f->getName(),f));
+  return 0;
+}
+
 int AmPlugIn::loadDiPlugIn(AmPluginFactory* f)
 {
   AmDynInvokeFactory* sf = dynamic_cast<AmDynInvokeFactory*>(f);
@@ -530,6 +596,28 @@ int AmPlugIn::loadLogFacPlugIn(AmPluginFactory* f)
   return -1;
 }
 
+int AmPlugIn::loadCtrlFacPlugIn(AmPluginFactory* f)
+{
+  AmCtrlInterface *_ctrlIface = dynamic_cast<AmCtrlInterface *>(f);
+  if (! _ctrlIface) {
+    ERROR("invalid control interface plugin.\n");
+    return -1;
+  }
+  if (ctrlIface) {
+    ERROR("one control interface already loaded (`%s'): can not load a "
+      "second one (`%s').\n", (ctrlIface->getName()).c_str(), 
+      (_ctrlIface->getName()).c_str());
+    return -1;
+  }
+  ctrlIface = _ctrlIface->instance();
+  if (! ctrlIface) {
+    ERROR("BUG: failed to retrieve a control interface instance.\n");
+    return -1;
+  }
+  ctrlIface->registerInterfaceHandler(AmSipDispatcher::instance());
+  return 0;
+}
+
 int AmPlugIn::addCodec(amci_codec_t* c)
 {
   if(codecs.find(c->id) != codecs.end()){
@@ -543,10 +631,18 @@ int AmPlugIn::addCodec(amci_codec_t* c)
 
 int AmPlugIn::addPayload(amci_payload_t* p)
 {
+  if (excluded_payloads.find(p->name) != 
+      excluded_payloads.end()) {
+    DBG("Not enabling excluded payload '%s'\n", 
+	p->name);
+    return 0;
+  }
+
   amci_codec_t* c;
   unsigned int i, id;
   if( !(c = codec(p->codec_id)) ){
-    ERROR("in payload '%s': codec id (%i) not supported\n",p->name,p->codec_id);
+    ERROR("in payload '%s': codec id (%i) not supported\n",
+	  p->name, p->codec_id);
     return -1;
   }
   if(p->payload_id != -1){

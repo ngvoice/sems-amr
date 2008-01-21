@@ -68,13 +68,14 @@ void * AmThread::_start(void * _t)
   DBG("Thread %lu is starting.\n", (unsigned long int) _this->_pid);
   _this->_stopped.set(false);
   _this->run();
+
+  DBG("Thread %lu is ending.\n", (unsigned long int) _this->_pid);
   _this->_stopped.set(true);
     
   //thread_nr_mut.lock();
   //INFO("threads = %i\n",--thread_nr);
   //thread_nr_mut.unlock();
 
-  DBG("Thread %lu is ending.\n", (unsigned long int) _this->_pid);
   return NULL;
 }
 
@@ -123,6 +124,9 @@ void AmThread::start(bool realtime)
 
   int res;
   _pid = 0;
+  // unless placed here, a call seq like run(); join(); will not wait to join
+  // b/c creating the thread can take too long
+  this->_stopped.set(false);
   res = pthread_create(&_td,&attr,_start,this);
   pthread_attr_destroy(&attr);
   if (res != 0) {

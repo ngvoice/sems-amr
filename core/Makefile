@@ -10,7 +10,7 @@ AUDIO_FILES=$(notdir $(wildcard wav/*.wav))
 
 
 .PHONY: all
-all:
+all: ../Makefile.defs
 	-@$(MAKE) deps    && \
 	  $(MAKE) $(NAME) && \
 	  $(MAKE) modules
@@ -41,7 +41,21 @@ fulldoc:
 
 include ../Makefile.defs
 
-LDFLAGS += -lstdc++
+LDFLAGS += -lstdc++ 
+
+ifdef USE_SPANDSP
+ifdef LIBSPANDSP_STATIC
+LDFLAGS += $(LIBSPANDSP_LDIR)libspandsp.a
+else
+LDFLAGS += -lspandsp
+endif
+endif
+
+
+ifdef USE_SPANDSP
+CPPFLAGS += -DUSE_SPANDSP -D__STDC_LIMIT_MACROS
+endif
+
 
 # implicit rules
 %.o : %.cpp %.d
@@ -66,7 +80,7 @@ install-cfg: $(cfg-prefix)/$(cfg-dir)
 		sed -e "s#/usr/.*lib/sems/audio/#$(audio-target)#g" \
 			-e "s#/usr/.*lib/sems/plug-in/#$(modules-target)#g" \
 			-e "s#/usr/.*etc/sems#$(cfg-target)#g" \
-			< sems.conf.sample > $(cfg-prefix)/$(cfg-dir)sems.conf.default
+			< etc/sems.conf.sample > $(cfg-prefix)/$(cfg-dir)sems.conf.default
 		chmod 644 $(cfg-prefix)/$(cfg-dir)sems.conf.default
 		if [ ! -f $(cfg-prefix)/$(cfg-dir)sems.conf ]; then \
 			cp -f $(cfg-prefix)/$(cfg-dir)sems.conf.default \
