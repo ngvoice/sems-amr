@@ -72,9 +72,9 @@ void trans_bucket::unlock()
 
 sip_trans* trans_bucket::match_request(sip_msg* msg)
 {
-//     assert(msg && msg->cseq && msg->callid);
-//     sip_cseq* cseq  = dynamic_cast<sip_cseq*>(msg->cseq->p);
-//     assert(cseq);
+    // assert(msg && msg->cseq && msg->callid);
+    // sip_cseq* cseq  = dynamic_cast<sip_cseq*>(msg->cseq->p);
+    // assert(cseq);
 
     //this should have been checked before
     assert(msg->via_p1);
@@ -88,9 +88,9 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
     // Try first RFC 3261 matching
     if(msg->via_p1->branch.len > MAGIC_BRANCH_LEN){
 
-// 	do_3261_match = !memcmp(msg->via_p1->branch.s,
-// 				MAGIC_BRANCH_COOKIE,
-// 				MAGIC_BRANCH_LEN);
+	do_3261_match = !memcmp(msg->via_p1->branch.s,
+				MAGIC_BRANCH_COOKIE,
+				MAGIC_BRANCH_LEN);
     }
 
     if(do_3261_match){
@@ -253,7 +253,7 @@ sip_trans* trans_bucket::match_reply(sip_msg* msg)
     return NULL;
 }
 
-void trans_bucket::add_trans(sip_msg* msg, int ttype)
+sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
 {
     sip_trans* t = new sip_trans();
 
@@ -274,6 +274,8 @@ void trans_bucket::add_trans(sip_msg* msg, int ttype)
     }
 
     elmts.push_back(t);
+    
+    return t;
 }
 
 inline unsigned int hash(const cstring& ci, const cstring& cs)

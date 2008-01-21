@@ -13,14 +13,18 @@ SRCS = main.cpp \
 	msg_fline.cpp \
 	msg_hdrs.cpp \
 	hash_table.cpp \
-	hash.cpp
+	hash.cpp \
+	trans_layer.cpp \
+	transport.cpp \
+	udp_trsp.cpp \
+	AmThread.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 DEPS = $(SRCS:.cpp=.d)
 
 CXXFLAGS += -g
-LDFLAGS  += -g
-CPPFLAGS += -D_DEBUG
+LDFLAGS  += -lpthread -g
+CPPFLAGS += -D_DEBUG -I..
 
 all: 
 	-@$(MAKE) deps && \

@@ -63,7 +63,7 @@ public:
     // in this bucket
     sip_trans* match_reply(sip_msg* msg);
 
-    void add_trans(sip_msg* msg, int ttype);
+    sip_trans* add_trans(sip_msg* msg, int ttype);
 };
 
 trans_bucket& get_trans_bucket(const cstring& callid, const cstring& cseq_num);

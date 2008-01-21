@@ -41,11 +41,15 @@
 #include "hash_table.h"
 #include "sip_trans.h"
 
+#include "trans_layer.h"
+#include "udp_trsp.h"
+
 #include "log.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
+#include <assert.h>
 
 //
 // Parser functions:
@@ -57,6 +61,8 @@ int main()
 {
     log_level  = 3;
     log_stderr = 1;
+
+    trans_layer* tl = trans_layer::instance();
 
 #ifndef SERVER
     char* buf = 
@@ -83,84 +89,19 @@ int main()
 
     int buf_len = strlen(buf);
     sip_msg* msg = new sip_msg(buf,buf_len);
+    
+    tl->received_msg(msg);
 
 #else
     
-    int sd;
-    if((sd = socket(PF_INET,SOCK_DGRAM,0)) == -1){
-	ERROR("socket: %s\n",strerror(errno));
-	return -1;
-    } 
-
-    sockaddr_in addr;
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(5060);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if(bind(sd,(const struct sockaddr*)&addr,
-	     sizeof(struct sockaddr_in))) {
-
-	DBG("bind: %s\n",strerror(errno));		
-	close(sd);
-	return -1;
-    }
+    udp_trsp* udp_server = new udp_trsp(tl);
     
-    int true_opt = 1;
-    if(setsockopt(sd, SOL_SOCKET, SO_REUSEADDR,
-		  (void*)&true_opt, sizeof (true_opt)) == -1) {
-	
-	ERROR("%s\n",strerror(errno));
-	close(sd);
-	return -1;
-    }
-
-    char buf[65536];
-    int buf_len;
-
-    while(true){
-
-	sockaddr_storage from_addr;
-	socklen_t        from_addr_len = sizeof(sockaddr_storage);
-	buf_len = recvfrom(sd,buf,65535,MSG_TRUNC,(sockaddr*)&from_addr,&from_addr_len);
-	if(buf_len > 65535){
-	    ERROR("Message was too big (>65535)\n");
-	    continue;
-	}
-	
-
-	sip_msg* msg = new sip_msg(buf,buf_len);
-	memcpy(&msg->recved,&from_addr,from_addr_len);
-	msg->recved_len = from_addr_len;
+    udp_server->bind("",5060);
+    udp_server->start();
+    
 #endif
 
 
-    int err = 0;
-    
-    err = parse_sip_msg(msg);
-
-    if(!err && msg->callid){
-
-	assert(get_cseq(msg));
-
-	trans_bucket& bucket = get_trans_bucket(msg->callid->value, get_cseq(msg)->number);
-	bucket.lock();
-	sip_trans* t = bucket.match_request(msg);
-	if(!t){
-	    DBG("Found new transaction\n");
-	    bucket.add_trans(msg,TT_UAS);
-	}
-	else {
-	    DBG("It's a retransmission\n");
-	}
-	bucket.unlock();
-    }
-
- parse_end:
-    INFO("parse_sip_msg returned %i\n",err);
-    if(err){
-	DBG("Message was: \"%.*s\"\n",msg->len,msg->buf);
-    }
 
 #ifdef SERVER
 
@@ -193,9 +134,9 @@ int main()
 
     }
 #endif
+
+    //FIXME: enter udp_server loop
     
-    delete msg;
-    }
 #else
     delete msg;
 
