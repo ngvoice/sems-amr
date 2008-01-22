@@ -61,7 +61,8 @@ sip_msg::sip_msg(char* msg_buf, int msg_len)
     buf[msg_len] = '\0';
     len = msg_len;
 
-    memset(&recved,0,sizeof(sockaddr_storage));
+    memset(&local_ip,0,sizeof(sockaddr_storage));
+    memset(&remote_ip,0,sizeof(sockaddr_storage));
 }
 
 sip_msg::sip_msg()
@@ -82,7 +83,8 @@ sip_msg::sip_msg()
     u.request = 0;
     u.reply   = 0;
 
-    memset(&recved,0,sizeof(sockaddr_storage));
+    memset(&local_ip,0,sizeof(sockaddr_storage));
+    memset(&remote_ip,0,sizeof(sockaddr_storage));
 }
 
 sip_msg::~sip_msg()
@@ -283,6 +285,7 @@ static int parse_first_line(sip_msg* msg, char** c)
 	    case SP:
 		msg->type = SIP_REQUEST;
 		msg->u.request = new sip_request;
+		msg->u.request->method_str.set(beg,*c-beg);
 		err = parse_method(&msg->u.request->method,beg,*c-beg);
 		if(err)
 		    return err;
@@ -391,7 +394,7 @@ int parse_sip_msg(sip_msg* msg)
 	return err_fl;
 
     int err_hdrs = parse_headers(msg,&c);
-    
+
     if(!msg->via1){
 	DBG("Missing via header\n");
 	return MALFORMED_SIP_MSG;
@@ -429,11 +432,11 @@ int parse_sip_msg(sip_msg* msg)
     if(!parse_cseq(cseq.get(),
 		   msg->cseq->value.s,
 		   msg->cseq->value.len) &&
-       cseq->number.len &&
+       cseq->str.len &&
        cseq->method.len ) {
 	
 	DBG("Cseq header: '%.*s' '%.*s'\n",
-	    cseq->number.len,cseq->number.s,
+	    cseq->str.len,cseq->str.s,
 	    cseq->method.len,cseq->method.s);
 
 	msg->cseq->p = cseq.release();
@@ -479,6 +482,10 @@ int parse_sip_msg(sip_msg* msg)
     }
     else
 	return MALFORMED_SIP_MSG;
+
+    if(!(err_fl || err_hdrs)){
+	msg->body.set(c,msg->len - (c - msg->buf));
+    }
 
     return err_fl || err_hdrs;
 }

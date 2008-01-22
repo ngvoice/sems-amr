@@ -66,7 +66,6 @@ void * AmThread::_start(void * _t)
   AmThread* _this = (AmThread*)_t;
   _this->_pid = (pid_t) _this->_td;
   DBG("Thread %lu is starting.\n", (unsigned long int) _this->_pid);
-  _this->_stopped.set(false);
   _this->run();
   _this->_stopped.set(true);
     
@@ -132,6 +131,9 @@ void AmThread::start(bool realtime)
   //     thread_nr_mut.lock();
   //     INFO("threads = %i\n",++thread_nr);
   //     thread_nr_mut.unlock();
+
+  _stopped.set(false);
+
   DBG("Thread %lu is just created.\n", (unsigned long int) _pid);
 }
 

@@ -34,8 +34,9 @@
 
 struct sip_cseq: public sip_parsed_hdr
 {
-    cstring number;
-    cstring method;
+    cstring      str;
+    unsigned int num;
+    cstring      method;
 };
 
 int parse_cseq(sip_cseq* cseq, char* beg, int len);

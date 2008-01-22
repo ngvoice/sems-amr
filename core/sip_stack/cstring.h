@@ -58,4 +58,7 @@ struct cstring
     }
 };
 
+#define c2stlstr(str) \
+          string(str.s,str.len)
+
 #endif

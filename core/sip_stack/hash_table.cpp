@@ -187,13 +187,13 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 		continue;
 
 	    sip_cseq* it_cseq = dynamic_cast<sip_cseq*>((*it)->msg->cseq->p);
-	    if(cseq->number.len != it_cseq->number.len)
+	    if(cseq->str.len != it_cseq->str.len)
 		continue;
 
 	    if(memcmp(from->tag.s,it_from->tag.s,from->tag.len))
 		continue;
 
-	    if(memcmp(cseq->number.s,it_cseq->number.s,cseq->number.len))
+	    if(memcmp(cseq->str.s,it_cseq->str.s,cseq->str.len))
 		continue;
 
 	    
@@ -260,7 +260,7 @@ sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
     t->msg  = msg;
     t->type = ttype;
 
-    t->reply_status = 1000;//TODO: change that to something useful
+    t->reply_status = 0;
 
     if(msg->u.request->method == sip_request::INVITE){
 	
@@ -276,6 +276,18 @@ sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
     elmts.push_back(t);
     
     return t;
+}
+
+void trans_bucket::remove_trans(sip_trans* t)
+{
+    trans_list::iterator it = elmts.begin();
+    for(;it!=elmts.end();++it) {
+	if(*it == t){
+	    elmts.erase(it);
+	    delete t;
+	    break;
+	}
+    }
 }
 
 unsigned int hash(const cstring& ci, const cstring& cs)

@@ -56,13 +56,14 @@ int parse_cseq(sip_cseq* cseq, char* beg, int len)
 	    case SP:
 	    case HTAB:
 		st = C_NUM_SWS;
-		cseq->number.set(beg, c-beg);
+		cseq->str.set(beg, c-beg);
 		break;
 		
 	    default:
 		if(!IS_DIGIT(*c)){
 		    return MALFORMED_SIP_MSG;
 		}
+		cseq->num = cseq->num*10 + *c - '0';
 		break;
 	    }
 	    break;
@@ -101,7 +102,7 @@ int parse_cseq(sip_cseq* cseq, char* beg, int len)
 	case ST_CRLF:
 	    switch(saved_st){
 	    case C_NUM:
-		cseq->number.set(beg,c-(st==ST_CRLF?2:1)-beg);
+		cseq->str.set(beg,c-(st==ST_CRLF?2:1)-beg);
 		break;
 	    case C_METHOD:
 		cseq->method.set(beg,c-beg);

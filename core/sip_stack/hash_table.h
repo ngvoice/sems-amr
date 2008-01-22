@@ -64,6 +64,8 @@ public:
     sip_trans* match_reply(sip_msg* msg);
 
     sip_trans* add_trans(sip_msg* msg, int ttype);
+
+    void remove_trans(sip_trans* t);
 };
 
 trans_bucket& get_trans_bucket(const cstring& callid, const cstring& cseq_num);

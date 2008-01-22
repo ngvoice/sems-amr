@@ -75,9 +75,10 @@ int main()
     
     udp_server->bind("",5060);
     udp_server->start();
+
+    udp_server->join();
     
 #endif
-
 
 
 #ifdef SERVER

@@ -15,6 +15,9 @@ class udp_trsp: public transport
     // socket descriptor
     int sd;
 
+    // bound port number
+    int _port;
+
  protected:
     /** @see AmThread */
     void run();

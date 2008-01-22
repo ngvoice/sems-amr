@@ -7,6 +7,7 @@ struct sip_msg;
 struct sip_trans;
 
 class MyCtrlInterface;
+class trans_bucket;
 
 class trans_layer
 {
@@ -27,13 +28,20 @@ class trans_layer
 
     /**
      * Implements the state changes for the UAC state machine
+     * @return -1 if errors
+     * @return transaction state if successfull
      */
-    int update_uac_trans(sip_trans* t, sip_msg* msg);
+    int update_uac_trans(trans_bucket& bucket, sip_trans* t, sip_msg* msg);
 
     /**
      * Implements the state changes for the UAS state machine
      */
-    int update_uas_trans(sip_trans* t, sip_msg* msg);
+    int update_uas_trans(trans_bucket& bucket, sip_trans* t, sip_msg* msg);
+
+    /**
+     * Retransmits last reply (if possible).
+     */
+    void retransmit_reply(sip_trans* t);
 
  public:
 

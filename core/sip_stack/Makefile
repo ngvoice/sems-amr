@@ -18,7 +18,8 @@ SRCS = main.cpp \
 	transport.cpp \
 	udp_trsp.cpp \
 	AmThread.cpp \
-	AmUtils.cpp
+	AmUtils.cpp \
+	MyCtrlInterface.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 DEPS = $(SRCS:.cpp=.d)

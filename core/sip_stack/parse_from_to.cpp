@@ -276,8 +276,8 @@ int parse_from_to(sip_from_to* ft, char* beg, int len)
 
 		switch(st){
 		    case_FT_PARAM(FTP_BEG, 't','T',FTP_TAG1);
-		    case_FT_PARAM(FTP_TAG1,'t','T',FTP_TAG2);
-		    case_FT_PARAM(FTP_TAG2,'t','T',FTP_TAG3);
+		    case_FT_PARAM(FTP_TAG1,'a','A',FTP_TAG2);
+		    case_FT_PARAM(FTP_TAG2,'g','G',FTP_TAG3);
 
 		case FTP_OTHER:
 		    goto next_param;
