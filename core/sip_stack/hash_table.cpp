@@ -306,7 +306,7 @@ unsigned int hash(const cstring& ci, const cstring& cs)
     unsigned int h=0;
 
     h = hashlittle(ci.s,ci.len,h);
-    h = hashlittle(cs.s,ci.len,h);
+    h = hashlittle(cs.s,cs.len,h);
 
     return h & (H_TABLE_ENTRIES-1);
 }

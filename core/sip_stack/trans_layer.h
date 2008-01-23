@@ -41,7 +41,8 @@ class trans_layer
     /**
      * Implements the state changes for the UAS state machine
      */
-    int update_uas_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg);
+    int update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg* msg);
+    int update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_code);
 
     /**
      * Retransmits last reply (if possible).

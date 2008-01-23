@@ -75,6 +75,13 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	return -1;
     }
 
+    if(update_uas_reply(bucket,t,reply_code)<0){
+      
+      ERROR("Invalid state change\n");
+      return -1;
+    }
+
+
     sip_msg* req = t->msg;
 
     bool have_to_tag = true;
@@ -210,7 +217,7 @@ void trans_layer::received_msg(sip_msg* msg)
 		// ACK matched INVITE transaction
 		DBG("ACK matched INVITE transaction\n");
 		
-		if(update_uas_trans(bucket,t,msg)<0){
+		if(update_uas_request(bucket,t,msg)<0){
 		    DBG("trans_layer::update_uas_trans() failed!\n");
 		    // Anyway, there is nothing we can do...
 		}
@@ -271,89 +278,80 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
     return -1;
 }
 
-int trans_layer::update_uas_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
+int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_code)
 {
-    assert(t && (t->type == TT_UAS));
-
-    switch(msg->type){
-	
-    case SIP_REQUEST:
-	if(msg->u.request->method != sip_request::ACK){
-	    ERROR("Bug? Recvd non-ACK for existing UAS transaction\n");
-	    return -1;
-	}
-	
-	switch(t->state){
-	    
-	case TS_COMPLETED:
-	    t->state = TS_CONFIRMED;
-	    // TODO: remove G and H timer.
-	    // TODO: set I timer.
-
-	    // drop through
-	case TS_CONFIRMED:
-	    return t->state;
-	    
-	case TS_TERMINATED:
-	    // remove transaction
-	    bucket->remove_trans(t);
-	    return TS_REMOVED;
-	    
-	default:
-	    DBG("Bug? Unknown state at this point: %i\n",t->state);
-	}
-	break;
-
-    case SIP_REPLY:
-	if(t->reply_status >= 200){
-	    ERROR("Trying to send a reply whereby reply_status >= 300\n");
-	    return -1;
-	}
-
-	t->reply_status = msg->u.reply->code;
-	
-	if(t->reply_status >= 300){
-	    // error reply
-	    t->state = TS_COMPLETED;
-	    
-	    
-	    if(t->msg->u.request->method == sip_request::INVITE){
-		//TODO: set G timer ?
-	    }
-	    else {
-		//TODO: set J timer ?
-	    }
-	}
-	else if(t->reply_status >= 200) {
-
-	    if(t->msg->u.request->method == sip_request::INVITE){
-		// final reply
-		t->state = TS_TERMINATED;
-		
-		// Instead of destroying the transaction
-		// we handle the 2xx reply retransmission
-		// by setting proper timer.
-		
-		// TODO: set ? timer
-	    }
-	    else {
-		t->state = TS_COMPLETED;
-		//TODO: set J timer
-	    }
-	}
-	else {
-	    // provisional reply
-	    t->state = TS_PROCEEDING;
-	}
-	
-	return t->state;
-
-    default:
-	ERROR("Bug? Unknown request type\n");
-	break;
-    }
-
+  if(t->reply_status >= 200){
+    ERROR("Trying to send a reply whereby reply_status >= 300\n");
     return -1;
+  }
+
+  t->reply_status = reply_code;
+
+  if(t->reply_status >= 300){
+    // error reply
+    t->state = TS_COMPLETED;
+	    
+	    
+    if(t->msg->u.request->method == sip_request::INVITE){
+      //TODO: set G timer ?
+    }
+    else {
+      //TODO: set J timer ?
+    }
+  }
+  else if(t->reply_status >= 200) {
+
+    if(t->msg->u.request->method == sip_request::INVITE){
+      // final reply
+      t->state = TS_TERMINATED;
+		
+      // Instead of destroying the transaction
+      // we handle the 2xx reply retransmission
+      // by setting proper timer.
+		
+      // TODO: set ? timer
+    }
+    else {
+      t->state = TS_COMPLETED;
+      //TODO: set J timer
+    }
+  }
+  else {
+    // provisional reply
+    t->state = TS_PROCEEDING;
+  }
+	
+  return t->state;
+}
+
+int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
+{
+  if(msg->u.request->method != sip_request::ACK){
+    ERROR("Bug? Recvd non-ACK for existing UAS transaction\n");
+    return -1;
+  }
+	
+  switch(t->state){
+	    
+  case TS_COMPLETED:
+    t->state = TS_CONFIRMED;
+    // TODO: remove G and H timer.
+    // TODO: set I timer.
+
+    // drop through
+  case TS_CONFIRMED:
+    return t->state;
+	    
+  case TS_TERMINATED:
+    // remove transaction
+    bucket->remove_trans(t);
+    return TS_REMOVED;
+	    
+  default:
+    DBG("Bug? Unknown state at this point: %i\n",t->state);
+  }
+
+  return -1;
 }
 
 void trans_layer::retransmit_reply(sip_trans* t)

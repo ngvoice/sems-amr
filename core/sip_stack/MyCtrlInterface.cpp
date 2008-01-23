@@ -84,8 +84,8 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     AmSipReply reply;
     
     reply.method = req.method;
-    reply.code = 404;
-    reply.reason = "User not found";
+    reply.code = 200;
+    reply.reason = "OK";
     reply.serKey = req.serKey;
     reply.local_tag = "12345";
     
