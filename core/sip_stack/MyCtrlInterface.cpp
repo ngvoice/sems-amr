@@ -35,7 +35,7 @@ MyCtrlInterface::MyCtrlInterface()
 
 int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
 {
-    
+  
 }
 
 int MyCtrlInterface::send(const AmSipReply &rep)
@@ -81,6 +81,7 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     DBG("hdrs = <%s>\n",req.hdrs.c_str());
     DBG("body = <%s>\n",req.body.c_str());
 
+    // Debug code - begin
     AmSipReply reply;
     
     reply.method = req.method;
@@ -93,6 +94,7 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     if(err){
 	DBG("send failed with err code %i\n",err);
     }
+    // Debug code - end
 }
 
 void MyCtrlInterface::handleSipMsg(AmSipReply &rep)
