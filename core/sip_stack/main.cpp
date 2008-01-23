@@ -40,7 +40,9 @@ int main()
     log_stderr = 1;
 
     trans_layer* tl = trans_layer::instance();
-
+    udp_trsp* udp_server = new udp_trsp(tl);
+    MyCtrlInterface::instance();
+    
 #ifndef SERVER
     char* buf = 
 	"INVITE sip:bob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
@@ -71,11 +73,8 @@ int main()
 
 #else
     
-    udp_trsp* udp_server = new udp_trsp(tl);
-    
     udp_server->bind("",5060);
     udp_server->start();
-
     udp_server->join();
     
 #endif

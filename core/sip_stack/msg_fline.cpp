@@ -46,8 +46,7 @@ inline void status_code_wr(char** c, int code)
 }
 
 
-void status_line_wr(sip_msg* msg, char** c,
-		    int status_code,
+void status_line_wr(char** c, int status_code,
 		    const cstring& reason)
 {
     memcpy(*c,"SIP/2.0 ",8);

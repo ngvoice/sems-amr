@@ -3,11 +3,15 @@
 
 //#include "AmApi.h"
 
+#include "cstring.h"
+
 struct sip_msg;
 struct sip_trans;
 
 class MyCtrlInterface;
 class trans_bucket;
+class udp_trsp;
+class sip_ua;
 
 class trans_layer
 {
@@ -17,7 +21,8 @@ class trans_layer
      */
     static trans_layer* _instance;
 
-    MyCtrlInterface* ctrl;
+    sip_ua*   ua;
+    udp_trsp* transport;
     
     
     /** Avoid external instantiation. @see instance(). */
@@ -31,12 +36,12 @@ class trans_layer
      * @return -1 if errors
      * @return transaction state if successfull
      */
-    int update_uac_trans(trans_bucket& bucket, sip_trans* t, sip_msg* msg);
+    int update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg);
 
     /**
      * Implements the state changes for the UAS state machine
      */
-    int update_uas_trans(trans_bucket& bucket, sip_trans* t, sip_msg* msg);
+    int update_uas_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg);
 
     /**
      * Retransmits last reply (if possible).
@@ -47,11 +52,27 @@ class trans_layer
 
     static trans_layer* instance();
 
+    /**
+     * Register a SIP UA.
+     * This method MUST be called ONCE.
+     */
+    void register_ua(sip_ua* ua);
+
+    /**
+     * Register a transport instance.
+     * This method MUST be called ONCE.
+     */
+    void register_transport(udp_trsp* trsp);
 
     /**
      * From Control Interface.
      */
-    void send_msg(sip_msg* msg);
+    int send_reply(trans_bucket* bucket, sip_trans* t,
+		   int reply_code, const cstring& reason,
+		   const cstring& to_tag, const cstring& hdrs, 
+		   const cstring& body);
+
+    int send_request(sip_msg* msg);
 
     /**
      * From Transport Layer

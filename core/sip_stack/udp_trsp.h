@@ -7,7 +7,7 @@
  * Maximum message length for UDP
  * not including terminating '\0'
  */
-#define MAX_UDP_MSGLEN 65536
+#define MAX_UDP_MSGLEN 65535
 
 
 class udp_trsp: public transport

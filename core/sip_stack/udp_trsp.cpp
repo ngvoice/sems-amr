@@ -34,6 +34,7 @@ union control_data {
 udp_trsp::udp_trsp(trans_layer* tl)
     : transport(tl), sd(0)
 {
+    tl->register_transport(this);
 }
 
 udp_trsp::~udp_trsp()
@@ -80,7 +81,7 @@ void udp_trsp::run()
 
 	sip_msg* s_msg = new sip_msg(buf,buf_len);
 
-	memcpy(&s_msg->remote_ip,&msg.msg_name,sizeof(sockaddr_storage));
+	memcpy(&s_msg->remote_ip,msg.msg_name,msg.msg_namelen);
 	//msg->remote_ip_len = sizeof(sockaddr_storage);
 
 	for (cmsgptr = CMSG_FIRSTHDR(&msg);
@@ -162,6 +163,15 @@ int udp_trsp::bind(const string& address, int port)
 /** @see transport */
 int udp_trsp::send(const sockaddr_storage* sa, const char* msg, const int msg_len)
 {
-    // NYI
-    return -1;
+    int err = sendto(sd,msg,msg_len,0,(const struct sockaddr*)sa,sizeof(sockaddr_storage));
+    if(err < 0){
+	ERROR("sendto: %s\n",strerror(errno));
+	return err;
+    }
+    else if(err != msg_len){
+	ERROR("sendto: sent %i instead of %i bytes\n",err,msg_len);
+	return -1;
+    }
+
+    return 0;
 }

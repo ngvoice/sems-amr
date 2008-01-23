@@ -27,8 +27,6 @@
 
 
 #include "msg_hdrs.h"
-#include "parse_header.h"
-#include "parse_common.h"
 
 
 int copy_hdrs_len(const list<sip_header*>& hdrs)
@@ -45,7 +43,7 @@ int copy_hdrs_len(const list<sip_header*>& hdrs)
     return ret;
 }
 
-void copy_hdrs_wr(sip_msg* msg, char** c, 
+void copy_hdrs_wr(sip_msg* msg, char** c,
 		  const list<sip_header*>& hdrs)
 {
     list<sip_header*>::const_iterator it = hdrs.begin();
@@ -64,3 +62,4 @@ void copy_hdrs_wr(sip_msg* msg, char** c,
 	*((*c)++) = LF;
     }
 }
+

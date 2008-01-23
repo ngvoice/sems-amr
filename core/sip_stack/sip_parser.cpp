@@ -158,13 +158,13 @@ int parse_method(int* method, char* beg, int len)
     //case BYE_len:
 	switch(*c){
 	case 'A':
-	    if(!memcmp(c+1,ACKm-1,ACK_len-1)){
+	    if(!memcmp(c+1,ACKm+1,ACK_len-1)){
 		DBG("Found ACK\n");
 		*method = sip_request::ACK;
 	    }
 	    break;
 	case 'B':
-	    if(!memcmp(c+1,BYEm-1,BYE_len-1)){
+	    if(!memcmp(c+1,BYEm+1,BYE_len-1)){
 		DBG("Found BYE\n");
 		*method = sip_request::BYE;
 	    }
@@ -172,14 +172,14 @@ int parse_method(int* method, char* beg, int len)
 	}
 
     case OPTIONS_len:
-	if(!memcmp(c+1,OPTIONSm-1,OPTIONS_len-1)){
+	if(!memcmp(c+1,OPTIONSm+1,OPTIONS_len-1)){
 	    DBG("Found OPTIONS\n");
 	    *method = sip_request::OPTIONS;
 	}
 	break;
 
     case REGISTER_len:
-	if(!memcmp(c+1,REGISTERm-1,REGISTER_len-1)){
+	if(!memcmp(c+1,REGISTERm+1,REGISTER_len-1)){
 	    DBG("Found REGISTER\n");
 	    *method = sip_request::REGISTER;
 	}

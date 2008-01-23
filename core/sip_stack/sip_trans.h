@@ -80,8 +80,25 @@ struct sip_trans
     // sent/received reply
     int reply_status;
 
-    //Transaction state
+    // Transaction state
     int state;
+
+    // Retransmission buffer
+    char* retr_buf;
+
+    // Length of the retransmission buffer
+    int   retr_len;
+
+    sip_trans()
+	: msg(0),
+	 retr_buf(0),
+	 retr_len(0)
+    {}
+
+    ~sip_trans() {
+	delete msg;
+	delete [] retr_buf;
+    }
 };
 
 #endif

@@ -39,14 +39,29 @@ using std::list;
 struct sip_trans;
 struct sip_msg;
 
+
+#define H_TABLE_POWER   10
+#define H_TABLE_ENTRIES (1<<H_TABLE_POWER)
+
+
 class trans_bucket
 {
-
-    pthread_mutex_t m;
-
 public:
     typedef list<sip_trans*> trans_list;
 
+private:
+    pthread_mutex_t m;
+
+    /**
+     * Finds a transaction ptr in this bucket.
+     * This is used to check if the transaction
+     * still exists.
+     *
+     * @return iterator pointing at the transaction.
+     */
+    trans_list::iterator find_trans(sip_trans* t);
+
+public:
     trans_list elmts;
 
     trans_bucket();
@@ -65,10 +80,24 @@ public:
 
     sip_trans* add_trans(sip_msg* msg, int ttype);
 
+    /**
+     * Searches for a transaction ptr in this bucket.
+     * This is used to check if the transaction
+     * still exists.
+     *
+     * @return true if the transaction still exists.
+     */
+    bool exist(sip_trans* t);
+    
+    /**
+     * Remove a transaction from this bucket,
+     * if it was still present.
+     */
     void remove_trans(sip_trans* t);
 };
 
-trans_bucket& get_trans_bucket(const cstring& callid, const cstring& cseq_num);
+trans_bucket* get_trans_bucket(const cstring& callid, const cstring& cseq_num);
+trans_bucket* get_trans_bucket(unsigned int h);
 
 unsigned int hash(const cstring& ci, const cstring& cs);
 

@@ -39,13 +39,10 @@
 
 #include <assert.h>
 
-#define TABLE_POWER   10
-#define TABLE_ENTRIES (1<<TABLE_POWER)
-
 //
 // Global transaction table
 //
-trans_bucket _trans_table[TABLE_ENTRIES];
+trans_bucket _trans_table[H_TABLE_ENTRIES];
 
 
 
@@ -278,15 +275,29 @@ sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
     return t;
 }
 
-void trans_bucket::remove_trans(sip_trans* t)
+trans_bucket::trans_list::iterator trans_bucket::find_trans(sip_trans* t)
 {
     trans_list::iterator it = elmts.begin();
-    for(;it!=elmts.end();++it) {
-	if(*it == t){
-	    elmts.erase(it);
-	    delete t;
+    for(;it!=elmts.end();++it)
+	if(*it == t)
 	    break;
-	}
+    
+    return it;
+}
+
+bool trans_bucket::exist(sip_trans* t)
+{
+    return find_trans(t) != elmts.end();
+}
+
+void trans_bucket::remove_trans(sip_trans* t)
+{
+    trans_list::iterator it = find_trans(t);
+
+    if(it != elmts.end()){
+	elmts.erase(it);
+	delete t;
+	DBG("~sip_trans()\n");
     }
 }
 
@@ -297,11 +308,17 @@ unsigned int hash(const cstring& ci, const cstring& cs)
     h = hashlittle(ci.s,ci.len,h);
     h = hashlittle(cs.s,ci.len,h);
 
-    return h & (TABLE_ENTRIES-1);
+    return h & (H_TABLE_ENTRIES-1);
 }
 
 
-trans_bucket& get_trans_bucket(const cstring& callid, const cstring& cseq_num)
+trans_bucket* get_trans_bucket(const cstring& callid, const cstring& cseq_num)
 {
-    return _trans_table[hash(callid,cseq_num)];
+    return &_trans_table[hash(callid,cseq_num)];
+}
+
+trans_bucket* get_trans_bucket(unsigned int h)
+{
+    assert(h < H_TABLE_ENTRIES);
+    return &_trans_table[h];
 }

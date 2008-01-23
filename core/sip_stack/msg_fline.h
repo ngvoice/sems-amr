@@ -58,8 +58,7 @@ inline int status_line_len(const cstring& reason)
 	+ 4; // 2*SP + CRLF
 }
 
-void status_line_wr(sip_msg* msg, char** c,
-		    int status_code,
+void status_line_wr(char** c, int status_code,
 		    const cstring& reason);
 
 

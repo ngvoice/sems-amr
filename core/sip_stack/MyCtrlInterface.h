@@ -1,20 +1,30 @@
 #ifndef _MyCtrlInterface_h_
 #define _MyCtrlInterface_h_
 
+#include "sip_ua.h"
+
 #include <string>
 using std::string;
 
 class AmSipRequest;
 class AmSipReply;
 
-class MyCtrlInterface
+class trans_layer;
+class trans_bucket;
+struct sip_msg;
+
+class MyCtrlInterface: public sip_ua
 {
     static MyCtrlInterface* _instance;
 
-    MyCtrlInterface(){}
+    trans_layer* tl;
+
+    MyCtrlInterface();
     ~MyCtrlInterface(){}
 
   public:
+
+    static MyCtrlInterface* instance();
 
     /**
      * From AmCtrlInterface
@@ -32,7 +42,12 @@ class MyCtrlInterface
     void handleSipMsg(AmSipReply &rep);
 
 
-    static MyCtrlInterface* instance();
+    /**
+     * From sip_ua
+     */
+    void handle_sip_request(trans_bucket* bucket, sip_msg* msg);
+    void handle_sip_reply(sip_msg* msg);
+    
 };
 
 

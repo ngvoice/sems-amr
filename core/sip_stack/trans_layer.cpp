@@ -5,6 +5,9 @@
 #include "parse_cseq.h"
 #include "parse_from_to.h"
 #include "sip_trans.h"
+#include "msg_fline.h"
+#include "msg_hdrs.h"
+#include "udp_trsp.h"
 #include "log.h"
 
 #include "MyCtrlInterface.h"
@@ -20,15 +23,6 @@
 trans_layer* trans_layer::_instance = NULL;
 
 
-trans_layer::trans_layer()
-{
-    ctrl = MyCtrlInterface::instance();
-}
-
-trans_layer::~trans_layer()
-{}
-
-
 trans_layer* trans_layer::instance()
 {
     if(!_instance)
@@ -38,11 +32,147 @@ trans_layer* trans_layer::instance()
 }
 
 
-void trans_layer::send_msg(sip_msg* msg)
+trans_layer::trans_layer()
+    : ua(NULL),
+      transport(NULL)
 {
-    // NYI
 }
 
+trans_layer::~trans_layer()
+{}
+
+
+void trans_layer::register_ua(sip_ua* ua)
+{
+    this->ua = ua;
+}
+
+void trans_layer::register_transport(udp_trsp* trsp)
+{
+    transport = trsp;
+}
+
+
+
+int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
+			    int reply_code, const cstring& reason,
+			    const cstring& to_tag, const cstring& hdrs, 
+			    const cstring& body)
+{
+    //
+    // Fields to copy (from RFC 3261):
+    //  - From
+    //  - Call-ID
+    //  - CSeq
+    //  - Vias (same order)
+    //  - To (+ tag if not yet present in request)    
+    //
+    
+    bucket->lock();
+    if(!bucket->exist(t)){
+	bucket->unlock();
+	ERROR("Invalid transaction key: transaction does not exist\n");
+	return -1;
+    }
+
+    sip_msg* req = t->msg;
+
+    bool have_to_tag = true;
+    int reply_len = status_line_len(reason);
+
+    for(list<sip_header*>::iterator it = req->hdrs.begin();
+	it != req->hdrs.end(); ++it) {
+
+	switch((*it)->type){
+
+	case sip_header::H_TO:
+	    if(! ((sip_from_to*)(*it)->p)->tag.len ) {
+
+		// To-tag not present in request
+		have_to_tag = false;
+
+		reply_len += 5/* ';tag=' */
+		    + to_tag.len; 
+	    }
+	    else {
+		t->to_tag = ((sip_from_to*)(*it)->p)->tag;
+	    }
+	    // fall-through-trap
+	case sip_header::H_FROM:
+	case sip_header::H_CALL_ID:
+	case sip_header::H_CSEQ:
+	case sip_header::H_VIA:
+	    reply_len += copy_hdr_len(*it);
+	    break;
+	}
+    }
+
+    char* reply_buf = new char[reply_len];
+    char* c = reply_buf;
+
+    status_line_wr(&c,reply_code,reason);
+
+    for(list<sip_header*>::iterator it = req->hdrs.begin();
+	it != req->hdrs.end(); ++it) {
+
+	switch((*it)->type){
+
+	case sip_header::H_TO:
+	    memcpy(c,(*it)->name.s,(*it)->name.len);
+	    c += (*it)->name.len;
+	    
+	    *(c++) = ':';
+	    *(c++) = SP;
+	    
+	    memcpy(c,(*it)->value.s,(*it)->value.len);
+	    c += (*it)->value.len;
+	    
+	    if(!have_to_tag){
+
+		memcpy(c,";tag=",5);
+		c += 5;
+
+		t->to_tag.s = c;
+		t->to_tag.len = to_tag.len;
+
+		memcpy(c,to_tag.s,to_tag.len);
+		c += to_tag.len;
+	    }
+
+	    *(c++) = CR;
+	    *(c++) = LF;
+	    break;
+
+	case sip_header::H_FROM:
+	case sip_header::H_CALL_ID:
+	case sip_header::H_CSEQ:
+	case sip_header::H_VIA:
+	    copy_hdr_wr(&c,*it);
+	    break;
+	}
+    }
+
+    assert(transport);
+    int err = transport->send(&req->remote_ip,reply_buf,reply_len);
+
+    if((err < 0) || (reply_code < 200)){
+	delete [] reply_buf;
+    }
+    else {
+	t->retr_buf = reply_buf;
+	t->retr_len = reply_len;
+    }
+    
+    bucket->unlock();
+
+    return err;
+}
+
+int trans_layer::send_request(sip_msg* msg)
+{
+    // NYI
+    return -1;
+}
 
 void trans_layer::received_msg(sip_msg* msg)
 {
@@ -66,15 +196,15 @@ void trans_layer::received_msg(sip_msg* msg)
 	DROP_MSG;
     }
 
-    trans_bucket& bucket = get_trans_bucket(msg->callid->value, get_cseq(msg)->str);
+    trans_bucket* bucket = get_trans_bucket(msg->callid->value, get_cseq(msg)->str);
     sip_trans* t = NULL;
 
-    bucket.lock();
+    bucket->lock();
 
     switch(msg->type){
     case SIP_REQUEST: 
 	
-	if(t = bucket.match_request(msg)){
+	if(t = bucket->match_request(msg)){
 	    if(msg->u.request->method != t->msg->u.request->method){
 
 		// ACK matched INVITE transaction
@@ -84,7 +214,8 @@ void trans_layer::received_msg(sip_msg* msg)
 		    DBG("trans_layer::update_uas_trans() failed!\n");
 		    // Anyway, there is nothing we can do...
 		}
-		
+		DBG("t->state = %i\n",t->state);
+
 		// should we forward the ACK to SEMS-App upstream?
 	    }
 	    else {
@@ -94,49 +225,25 @@ void trans_layer::received_msg(sip_msg* msg)
 	}
 	else {
 
-	    // It's a new transaction:
-	    //  let's create it and pass to
+	    // New transaction:
+	    //  let's pass the request to
 	    //  the UA. 
 	    //
-	    // Forget the msg: it is now 
-	    //  owned by the transaction
+	    // Forget the msg: it will 
+	    //  owned by the new transaction
 
-	    t = bucket.add_trans(msg, TT_UAS);
-	    
-	    assert(msg->from && msg->from->p);
-	    assert(msg->to && msg->to->p);
-	    
-	    AmSipRequest req;
+	    bucket->unlock();
 
-	    req.serKey = int2hex(hash(msg->callid->value, get_cseq(msg)->str)) 
-		+ ":" + long2hex((unsigned long)t);
+	    assert(ua);
+	    ua->handle_sip_request(bucket,msg);
 
-	    req.cmd      = "sems";
-	    req.method   = c2stlstr(msg->u.request->method_str);
-	    req.user     = c2stlstr(msg->u.request->ruri.user);
-	    req.domain   = c2stlstr(msg->u.request->ruri.host);
-	    req.dstip    = get_addr_str(((sockaddr_in*)(&msg->local_ip))->sin_addr); //FIXME: IPv6
-	    req.port     = int2str(ntohs(((sockaddr_in*)(&msg->local_ip))->sin_port));
-	    req.r_uri    = c2stlstr(msg->u.request->ruri_str);
-	    req.from_uri = c2stlstr(((sip_from_to*)msg->from->p)->nameaddr.addr);
-	    req.from     = c2stlstr(msg->from->value);
-	    req.to       = c2stlstr(msg->to->value);
-	    req.callid   = c2stlstr(msg->callid->value);
-	    req.from_tag = c2stlstr(((sip_from_to*)msg->from->p)->tag);
-	    req.to_tag   = c2stlstr(((sip_from_to*)msg->to->p)->tag);
-	    req.cseq     = get_cseq(msg)->num;
-	    req.body     = c2stlstr(msg->body);
-
-	    bucket.unlock();
-
-	    ctrl->handleSipMsg(req);
 	    return;
 	}
 	break;
     
     case SIP_REPLY:
 
-	if(t = bucket.match_reply(msg)){
+	if(t = bucket->match_reply(msg)){
 
 	    // Reply matched UAC transaction
 	    // TODO: - update transaction state
@@ -154,17 +261,17 @@ void trans_layer::received_msg(sip_msg* msg)
     }
 
  unlock_drop:
-    bucket.unlock();
+    bucket->unlock();
     DROP_MSG;
 }
 
 
-int trans_layer::update_uac_trans(trans_bucket& bucket, sip_trans* t, sip_msg* msg)
+int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
 {
     return -1;
 }
 
-int trans_layer::update_uas_trans(trans_bucket& bucket, sip_trans* t, sip_msg* msg)
+int trans_layer::update_uas_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
 {
     assert(t && (t->type == TT_UAS));
 
@@ -189,7 +296,7 @@ int trans_layer::update_uas_trans(trans_bucket& bucket, sip_trans* t, sip_msg* m
 	    
 	case TS_TERMINATED:
 	    // remove transaction
-	    bucket.remove_trans(t);
+	    bucket->remove_trans(t);
 	    return TS_REMOVED;
 	    
 	default:

@@ -28,16 +28,37 @@
 #ifndef _msg_hdrs_h
 #define _msg_hdrs_h
 
+#include "parse_header.h"
+#include "parse_common.h"
+
+inline int copy_hdr_len(sip_header* hdr)
+{
+    return hdr->name.len + hdr->value.len
+	+ 4/* ': ' + CRLF */;
+}
+
+inline void copy_hdr_wr(char** c, sip_header* hdr)
+{
+    memcpy(*c,hdr->name.s,hdr->name.len);
+    *c += hdr->name.len;
+    
+    *((*c)++) = ':';
+    *((*c)++) = SP;
+    
+    memcpy(*c,hdr->value.s,hdr->value.len);
+    *c += hdr->value.len;
+    
+    *((*c)++) = CR;
+    *((*c)++) = LF;
+}
+
+
 #include <list>
 using std::list;
 
-struct sip_header;
-struct sip_msg;
 
-int copy_hdrs_len(const list<sip_header*>& hdrs);
-
-void copy_hdrs_wr(sip_msg* msg, char** c, 
-		  const list<sip_header*>& hdrs);
+int  copy_hdrs_len(const list<sip_header*>& hdrs);
+void copy_hdrs_wr(char** c, const list<sip_header*>& hdrs);
 
 
 #endif
