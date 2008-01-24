@@ -35,7 +35,49 @@ MyCtrlInterface::MyCtrlInterface()
 
 int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
 {
-  
+    sip_msg* msg = new sip_msg();
+    
+    msg->type = SIP_REQUEST;
+    msg->u.request = new sip_request();
+
+    msg->u.request->method_str = stl2cstr(req.method);
+    // TODO: parse method and set msg->u.request.method
+    msg->u.request->ruri_str = stl2cstr(req.r_uri);
+
+    // To
+    // From
+    // Call-ID
+    // CSeq
+    // Contact
+    // Max-Forwards
+    
+    string from = req.from;
+    if(!req.from_tag.empty())
+	from += ";tag=" + req.from_tag;
+
+    msg->from = new sip_header(0,"From",stl2cstr(from));
+    msg->hdrs.push_back(msg->from);
+
+    msg->to = new sip_header(0,"To",stl2cstr(req.to));
+    msg->hdrs.push_back(msg->to);
+
+    msg->callid = new sip_header(0,"Call-ID",stl2cstr(req.callid));
+    msg->hdrs.push_back(msg->callid);
+
+    string cseq = int2str(req.cseq) + " " + req.method;
+    msg->cseq = new sip_header(0,"CSeq",stl2cstr(cseq));
+    msg->hdrs.push_back(msg->cseq);
+
+    msg->contact = new sip_header(0,"Contact",stl2cstr(req.contact));
+    msg->hdrs.push_back(msg->contact);
+
+    msg->hdrs.push_back(new sip_header(0,"Max-Forwards","10")); // FIXME
+
+    msg->content_length = new sip_header(0,"Content-Length","0");
+    msg->hdrs.push_back(msg->content_length); // FIXME
+
+    tl->send_request(msg);
+    delete msg;
 }
 
 int MyCtrlInterface::send(const AmSipReply &rep)
@@ -51,7 +93,8 @@ int MyCtrlInterface::send(const AmSipReply &rep)
     
     return tl->send_reply(get_trans_bucket(h),t,
 			  rep.code,stl2cstr(rep.reason),
-			  stl2cstr(rep.local_tag),stl2cstr(rep.hdrs), stl2cstr(rep.body));
+			  stl2cstr(rep.local_tag), stl2cstr(rep.contact),
+			  stl2cstr(rep.hdrs), stl2cstr(rep.body));
 }
 
 #define DBG_PARAM(p)\
@@ -84,11 +127,12 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     // Debug code - begin
     AmSipReply reply;
     
-    reply.method = req.method;
-    reply.code = 200;
-    reply.reason = "OK";
-    reply.serKey = req.serKey;
+    reply.method    = req.method;
+    reply.code      = 200;
+    reply.reason    = "OK";
+    reply.serKey    = req.serKey;
     reply.local_tag = "12345";
+    reply.contact   = "sip:" + req.dstip + ":" + req.port;
     
     int err = send(reply);
     if(err){

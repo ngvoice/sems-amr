@@ -14,6 +14,10 @@
 #include "AmUtils.h"
 #include "../AmSipMsg.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include <assert.h>
 
 /** 
@@ -56,8 +60,8 @@ void trans_layer::register_transport(udp_trsp* trsp)
 
 int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 			    int reply_code, const cstring& reason,
-			    const cstring& to_tag, const cstring& hdrs, 
-			    const cstring& body)
+			    const cstring& to_tag, const cstring& contact,
+			    const cstring& hdrs, const cstring& body)
 {
     //
     // Fields to copy (from RFC 3261):
@@ -65,8 +69,11 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
     //  - Call-ID
     //  - CSeq
     //  - Vias (same order)
-    //  - To (+ tag if not yet present in request)    
+    //  - To (+ tag if not yet present in request)
     //
+    // Fields to generate (if INVITE transaction):
+    //    - Contact
+    //    - Route: copied from Record-Route
     
     bucket->lock();
     if(!bucket->exist(t)){
@@ -77,14 +84,15 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 
     if(update_uas_reply(bucket,t,reply_code)<0){
       
-      ERROR("Invalid state change\n");
-      return -1;
+	ERROR("Invalid state change\n");
+	return -1;
     }
 
 
     sip_msg* req = t->msg;
 
-    bool have_to_tag = true;
+    bool have_to_tag = false;
+    bool add_contact = false;
     int reply_len = status_line_len(reason);
 
     for(list<sip_header*>::iterator it = req->hdrs.begin();
@@ -95,13 +103,13 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	case sip_header::H_TO:
 	    if(! ((sip_from_to*)(*it)->p)->tag.len ) {
 
-		// To-tag not present in request
-		have_to_tag = false;
-
 		reply_len += 5/* ';tag=' */
 		    + to_tag.len; 
 	    }
 	    else {
+		// To-tag present in request
+		have_to_tag = true;
+
 		t->to_tag = ((sip_from_to*)(*it)->p)->tag;
 	    }
 	    // fall-through-trap
@@ -114,6 +122,17 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	}
     }
 
+    // We do not send Contact for
+    // 100 provisional replies
+    //
+    if((reply_code > 100) && contact.len){
+	
+	reply_len += contact_len(contact);
+	add_contact = true;
+    }
+    
+    // Allocate buffer for the reply
+    //
     char* reply_buf = new char[reply_len];
     char* c = reply_buf;
 
@@ -159,6 +178,10 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	}
     }
 
+    if(add_contact){
+	contact_wr(&c,contact);
+    }
+
     assert(transport);
     int err = transport->send(&req->remote_ip,reply_buf,reply_len);
 
@@ -177,8 +200,93 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 
 int trans_layer::send_request(sip_msg* msg)
 {
-    // NYI
-    return -1;
+    // Request-URI
+    // To
+    // From
+    // Call-ID
+    // CSeq
+    // Max-Forwards
+    // Via
+    // Contact
+    // Supported / Require
+    // Content-Length / Content-Type
+    
+
+    int err = parse_uri(&msg->u.request->ruri,
+			msg->u.request->ruri_str.s,
+			msg->u.request->ruri_str.len);
+    if(err < 0){
+	ERROR("Invalid Request URI\n");
+	return -1;
+    }
+
+    msg->remote_ip.ss_family = AF_INET;
+    ((sockaddr_in*)&msg->remote_ip)->sin_port = htons(msg->u.request->ruri.port);
+
+    if(msg->u.request->ruri.host.len > 15){
+	ERROR("Invalid IP address in URI: to long\n");
+	return -1;
+    }
+
+    char addr_buf[16] = {'\0'};
+    memcpy(addr_buf,msg->u.request->ruri.host.s,
+	   msg->u.request->ruri.host.len);
+
+    if(inet_aton(addr_buf, &((sockaddr_in*)&msg->remote_ip)->sin_addr) < 0){
+	ERROR("Invalid IP address in URI: inet_aton failed\n");
+	return -1;
+    }
+
+    int request_len = request_line_len(msg->u.request->method_str,
+				       msg->u.request->ruri_str);
+
+    // TODO: 'branch' is missing
+    request_len += via_len(msg->contact->value);
+
+    request_len += copy_hdrs_len(msg->hdrs);
+    request_len += 2/* CRLF end-of-headers*/;
+
+    // Allocate new message
+    sip_msg* p_msg = new sip_msg();
+    p_msg->buf = new char[request_len];
+    p_msg->len = request_len;
+
+    // generate it
+    char* c = p_msg->buf;
+    request_line_wr(&c,msg->u.request->method_str,
+		    msg->u.request->ruri_str);
+
+    // TODO: 'branch' is missing
+    via_wr(&c,msg->contact->value);
+    copy_hdrs_wr(&c,msg->hdrs);
+
+    *c++ = CR;
+    *c++ = LF;
+
+    // and parse it
+    if(parse_sip_msg(p_msg)){
+	ERROR("Parser failed on generate request\n");
+	delete p_msg;
+	return MALFORMED_SIP_MSG;
+    }
+
+    memcpy(&p_msg->remote_ip,&msg->remote_ip,sizeof(sockaddr_storage));
+
+    assert(transport);
+    int send_err = transport->send(&p_msg->remote_ip,p_msg->buf,p_msg->len);
+    if(send_err < 0){
+	ERROR("Error from transport layer\n");
+	delete p_msg;
+    }
+    else {
+	trans_bucket* bucket = get_trans_bucket(p_msg->callid->value,
+						get_cseq(p_msg)->str);
+	bucket->lock();
+	sip_trans* t = bucket->add_trans(p_msg,TT_UAC);
+	bucket->unlock();
+    }
+    
+    return send_err;
 }
 
 void trans_layer::received_msg(sip_msg* msg)
@@ -254,13 +362,20 @@ void trans_layer::received_msg(sip_msg* msg)
 
 	    // Reply matched UAC transaction
 	    // TODO: - update transaction state
-	    //       - maybe retransmit ACK???
+	    //       - maybe send/retransmit ACK???
+
+	    DBG("Reply matched an existing transaction\n");
+	    if(update_uac_trans(bucket,t,msg) < 0){
+		ERROR("update_uac_trans() failed, so what happens now???\n");
+		break;
+	    }
+	    DBG("t->state = %i\n",t->state);
 	}
 	else {
 	    // Anything we should do???
+	    DBG("Reply did NOT match any existing transaction...\n");
 	}
 	break;
-	
 
     default:
 	ERROR("Got unknown message type: Bug?\n");
@@ -275,83 +390,85 @@ void trans_layer::received_msg(sip_msg* msg)
 
 int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
 {
+    // NYI
+    ERROR("NYI\n");
     return -1;
 }
 
 int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_code)
 {
-  if(t->reply_status >= 200){
-    ERROR("Trying to send a reply whereby reply_status >= 300\n");
-    return -1;
-  }
+    if(t->reply_status >= 200){
+	ERROR("Trying to send a reply whereby reply_status >= 300\n");
+	return -1;
+    }
 
-  t->reply_status = reply_code;
+    t->reply_status = reply_code;
 
-  if(t->reply_status >= 300){
-    // error reply
-    t->state = TS_COMPLETED;
+    if(t->reply_status >= 300){
+	// error reply
+	t->state = TS_COMPLETED;
 	    
 	    
-    if(t->msg->u.request->method == sip_request::INVITE){
-      //TODO: set G timer ?
+	if(t->msg->u.request->method == sip_request::INVITE){
+	    //TODO: set G timer ?
+	}
+	else {
+	    //TODO: set J timer ?
+	}
     }
-    else {
-      //TODO: set J timer ?
-    }
-  }
-  else if(t->reply_status >= 200) {
+    else if(t->reply_status >= 200) {
 
-    if(t->msg->u.request->method == sip_request::INVITE){
-      // final reply
-      t->state = TS_TERMINATED;
+	if(t->msg->u.request->method == sip_request::INVITE){
+	    // final reply
+	    t->state = TS_TERMINATED;
 		
-      // Instead of destroying the transaction
-      // we handle the 2xx reply retransmission
-      // by setting proper timer.
+	    // Instead of destroying the transaction
+	    // we handle the 2xx reply retransmission
+	    // by setting proper timer.
 		
-      // TODO: set ? timer
+	    // TODO: set ? timer
+	}
+	else {
+	    t->state = TS_COMPLETED;
+	    //TODO: set J timer
+	}
     }
     else {
-      t->state = TS_COMPLETED;
-      //TODO: set J timer
+	// provisional reply
+	t->state = TS_PROCEEDING;
     }
-  }
-  else {
-    // provisional reply
-    t->state = TS_PROCEEDING;
-  }
 	
-  return t->state;
+    return t->state;
 }
 
 int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
 {
-  if(msg->u.request->method != sip_request::ACK){
-    ERROR("Bug? Recvd non-ACK for existing UAS transaction\n");
-    return -1;
-  }
+    if(msg->u.request->method != sip_request::ACK){
+	ERROR("Bug? Recvd non-ACK for existing UAS transaction\n");
+	return -1;
+    }
 	
-  switch(t->state){
+    switch(t->state){
 	    
-  case TS_COMPLETED:
-    t->state = TS_CONFIRMED;
-    // TODO: remove G and H timer.
-    // TODO: set I timer.
+    case TS_COMPLETED:
+	t->state = TS_CONFIRMED;
+	// TODO: remove G and H timer.
+	// TODO: set I timer.
 
-    // drop through
-  case TS_CONFIRMED:
-    return t->state;
+	// drop through
+    case TS_CONFIRMED:
+	return t->state;
 	    
-  case TS_TERMINATED:
-    // remove transaction
-    bucket->remove_trans(t);
-    return TS_REMOVED;
+    case TS_TERMINATED:
+	// remove transaction
+	bucket->remove_trans(t);
+	return TS_REMOVED;
 	    
-  default:
-    DBG("Bug? Unknown state at this point: %i\n",t->state);
-  }
+    default:
+	DBG("Bug? Unknown state at this point: %i\n",t->state);
+    }
 
-  return -1;
+    return -1;
 }
 
 void trans_layer::retransmit_reply(sip_trans* t)

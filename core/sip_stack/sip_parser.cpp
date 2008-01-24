@@ -216,6 +216,8 @@ static int parse_first_line(sip_msg* msg, char** c)
 	FL_SIPVER_SEP,  // '.'
 	FL_SIPVER_DIG2, // 2st digit
 
+	FL_SIPVER_SP,   // ' '
+
 	FL_STAT1,
 	FL_STAT2,
 	FL_STAT3,
@@ -275,7 +277,7 @@ static int parse_first_line(sip_msg* msg, char** c)
 		else {
 		    msg->type = SIP_REPLY;
 		    msg->u.reply = new sip_reply;
-		    st = FL_STAT1;
+		    st = FL_SIPVER_SP;
 		}
 	    }
 	    break;
@@ -318,6 +320,14 @@ static int parse_first_line(sip_msg* msg, char** c)
 	    case HTAB:
 		DBG("Bad char in request URI: 0x%x\n",**c);
 		return MALFORMED_SIP_MSG;
+	    }
+	    break;
+
+	case FL_SIPVER_SP:
+	    if(**c != SP) st = FL_ERR;
+	    else {
+		st = FL_STAT1;
+		beg = *c+1;
 	    }
 	    break;
 

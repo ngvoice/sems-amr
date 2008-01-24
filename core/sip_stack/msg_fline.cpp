@@ -62,3 +62,22 @@ void status_line_wr(char** c, int status_code,
     *((*c)++) = CR;
     *((*c)++) = LF;
 }
+
+void request_line_wr(char** c,
+		     const cstring& method,
+		     const cstring& ruri)
+{
+    memcpy(*c,method.s,method.len);
+    *c += method.len;
+
+    *((*c)++) = SP;
+    
+    memcpy(*c,ruri.s,ruri.len);
+    *c += ruri.len;
+    
+    memcpy(*c," SIP/2.0",8);
+    *c += 8;
+
+    *((*c)++) = CR;
+    *((*c)++) = LF;
+}

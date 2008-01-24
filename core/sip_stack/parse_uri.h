@@ -47,7 +47,9 @@ struct sip_uri
     cstring    user;
     cstring    passwd;
     cstring    host;
-    cstring    port; // ?? short ??
+
+    cstring    port_str; // ?? short ??
+    short int  port;
 
     list<sip_avp*> params;
     list<sip_avp*> hdrs;

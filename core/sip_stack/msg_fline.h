@@ -44,7 +44,7 @@ inline int request_line_len(const cstring& method,
 	+ 4; // 2*SP + CRLF
 }
 
-void request_line_wr(sip_msg* msg, char** c,
+void request_line_wr(char** c,
 		     const cstring& method,
 		     const cstring& ruri);
 

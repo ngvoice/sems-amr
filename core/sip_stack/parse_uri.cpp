@@ -112,7 +112,7 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 		    DBG("Empty host part\n");
 		    return MALFORMED_URI;
 		}
-		uri->port.s = c+1;
+		uri->port_str.s = c+1;
 		st = URI_PORT;
 		break;
 	    }
@@ -149,7 +149,7 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 		break;
 
 	    case URI_PORT:
-		uri->port.len = c - uri->port.s;
+		uri->port_str.len = c - uri->port_str.s;
 		st = URI_PNAME;
 		tmp1.set(c+1,0);
 		break; 
@@ -182,7 +182,7 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 		break;
 
 	    case URI_PORT:
-		uri->port.len = c - uri->port.s;
+		uri->port_str.len = c - uri->port_str.s;
 		st = URI_HNAME;
 		tmp1.s = c+1;
 		break;
@@ -258,7 +258,7 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 	break;
 
     case URI_PORT:
-	uri->port.len = c - uri->port.s; 
+	uri->port_str.len = c - uri->port_str.s; 
 	break;
 
     case URI_PNAME:
@@ -286,6 +286,13 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 	//    tmp1.len, tmp1.s,
 	//    tmp2.len, tmp2.s);
 	break;
+    }
+
+    if(uri->port_str.len){
+	uri->port = 0;
+	for(int i=0; i<uri->port_str.len; i++){
+	    uri->port = uri->port*10 + (uri->port_str.s[i] - '0');
+	}
     }
 
     return 0;

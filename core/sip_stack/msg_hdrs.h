@@ -52,6 +52,41 @@ inline void copy_hdr_wr(char** c, sip_header* hdr)
     *((*c)++) = LF;
 }
 
+inline int contact_len(const cstring& contact)
+{
+    return 11/*'Contact: ' + CRLF*/
+	+ contact.len;
+}
+
+inline void contact_wr(char** c,const cstring& contact)
+{
+    memcpy(*c,"Contact: ",9);
+    *c += 9/*'Contact: '*/;
+    
+    memcpy(*c,contact.s,contact.len);
+    *c += contact.len;
+    
+    *((*c)++) = CR;
+    *((*c)++) = LF;
+}
+
+inline int via_len(const cstring& addr)
+{
+    return 19/*'Via: SIP/2.0/UDP ' + CRLF*/
+	+ addr.len;
+}
+
+inline int via_wr(char** c, const cstring& addr)
+{
+    memcpy(*c,"Via: SIP/2.0/UDP ",17);
+    *c += 17/*'Via: SIP/2.0/UDP '*/;
+    
+    memcpy(*c,addr.s,addr.len);
+    *c += addr.len;
+    
+    *((*c)++) = CR;
+    *((*c)++) = LF;
+}
 
 #include <list>
 using std::list;

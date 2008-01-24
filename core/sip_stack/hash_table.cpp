@@ -119,12 +119,8 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 	       msg->via_p1->port.len)
 		continue;
 
-	    if(memcmp((*it)->msg->via_p1->branch.s + MAGIC_BRANCH_LEN,
-		      branch,len))
-		continue;
-
-	    if(memcmp((*it)->msg->via_p1->branch.s + MAGIC_BRANCH_LEN,
-		      branch,len))
+	    if(memcmp(branch,
+		      msg->via_p1->branch.s+MAGIC_BRANCH_LEN,len))
 		continue;
 
 	    if(memcmp((*it)->msg->via_p1->host.s,
@@ -246,8 +242,58 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 
 sip_trans* trans_bucket::match_reply(sip_msg* msg)
 {
-    ERROR("NYI\n");
-    return NULL;
+
+    if(elmts.empty())
+	return NULL;
+
+    assert(msg->via_p1);
+    if(msg->via_p1->branch.len <= MAGIC_BRANCH_LEN){
+	// this cannot match...
+	return NULL;
+    }
+    
+    sip_trans* t = NULL;
+
+    char* branch = msg->via_p1->branch.s + MAGIC_BRANCH_LEN;
+    int   len = msg->via_p1->branch.len - MAGIC_BRANCH_LEN;
+    
+    assert(get_cseq(msg));
+
+    trans_list::iterator it = elmts.begin();
+    for(;it!=elmts.end();++it) {
+	
+	if( ((*it)->type != TT_UAC) || 
+	    ((*it)->msg->type != SIP_REPLY)){
+	    continue;
+	}
+
+	if((*it)->msg->via_p1->branch.len != msg->via_p1->branch.len)
+	    continue;
+	
+	if(get_cseq((*it)->msg)->str.len != get_cseq(msg)->str.len)
+	    continue;
+
+	if(get_cseq((*it)->msg)->method.len != get_cseq(msg)->method.len)
+	    continue;
+
+	if(memcmp(msg->via_p1->branch.s+MAGIC_BRANCH_LEN,
+		  branch,len))
+	    continue;
+
+	if(memcmp(get_cseq((*it)->msg)->str.s,get_cseq(msg)->str.s,
+		  get_cseq(msg)->str.len))
+	    continue;
+
+	if(memcmp(get_cseq((*it)->msg)->method.s,get_cseq(msg)->method.s,
+		  get_cseq(msg)->method.len))
+	    continue;
+
+	// found matching transaction
+	t = *it;
+	break;
+    }
+
+    return t;
 }
 
 sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
@@ -259,6 +305,7 @@ sip_trans* trans_bucket::add_trans(sip_msg* msg, int ttype)
 
     t->reply_status = 0;
 
+    assert(msg->type == SIP_REQUEST);
     if(msg->u.request->method == sip_request::INVITE){
 	
 	if(t->type == TT_UAS)

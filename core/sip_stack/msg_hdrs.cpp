@@ -43,7 +43,7 @@ int copy_hdrs_len(const list<sip_header*>& hdrs)
     return ret;
 }
 
-void copy_hdrs_wr(sip_msg* msg, char** c,
+void copy_hdrs_wr(char** c,
 		  const list<sip_header*>& hdrs)
 {
     list<sip_header*>::const_iterator it = hdrs.begin();

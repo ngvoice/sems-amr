@@ -74,6 +74,14 @@ sip_header::sip_header()
       p(NULL)
 {}
 
+sip_header::sip_header(int type, const cstring& name, const cstring& value)
+    : type(type),
+      name(name),
+      value(value),
+      p(NULL)
+{
+}
+
 sip_header::~sip_header()
 {
     delete p;
