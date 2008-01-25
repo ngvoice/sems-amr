@@ -240,7 +240,6 @@ int trans_layer::send_request(sip_msg* msg)
     int request_len = request_line_len(msg->u.request->method_str,
 				       msg->u.request->ruri_str);
 
-    // TODO: 'branch' is missing
     cstring branch(addr_buf,8);
     compute_branch(branch.s,msg->callid->value,msg->cseq->value);
 
@@ -259,7 +258,6 @@ int trans_layer::send_request(sip_msg* msg)
     request_line_wr(&c,msg->u.request->method_str,
 		    msg->u.request->ruri_str);
 
-    // TODO: 'branch' is missing
     via_wr(&c,msg->contact->value,branch);
     copy_hdrs_wr(&c,msg->hdrs);
 
@@ -365,7 +363,6 @@ void trans_layer::received_msg(sip_msg* msg)
 
 	    // Reply matched UAC transaction
 	    // TODO: - update transaction state
-	    //       - maybe send/retransmit ACK???
 	    
 	    DBG("Reply matched an existing transaction\n");
 	    if(update_uac_trans(bucket,t,msg) < 0){
