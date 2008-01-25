@@ -45,9 +45,9 @@ class trans_layer
     int update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_code);
 
     /**
-     * Retransmits last reply (if possible).
+     * Retransmits reply / ACK (if possible).
      */
-    void retransmit_reply(sip_trans* t);
+    void retransmit(sip_trans* t);
 
  public:
 

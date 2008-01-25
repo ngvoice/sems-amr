@@ -30,6 +30,7 @@
 
 #include "parse_header.h"
 #include "parse_common.h"
+#include "parse_via.h"
 
 inline int copy_hdr_len(sip_header* hdr)
 {
@@ -70,19 +71,27 @@ inline void contact_wr(char** c,const cstring& contact)
     *((*c)++) = LF;
 }
 
-inline int via_len(const cstring& addr)
+inline int via_len(const cstring& addr, const cstring& branch)
 {
     return 19/*'Via: SIP/2.0/UDP ' + CRLF*/
-	+ addr.len;
+	+ addr.len
+	+ 8 + MAGIC_BRANCH_LEN/*';branch=' + MAGIC_BRANCH_COOKIE*/
+	+ branch.len;
 }
 
-inline int via_wr(char** c, const cstring& addr)
+inline int via_wr(char** c, const cstring& addr, const cstring& branch)
 {
     memcpy(*c,"Via: SIP/2.0/UDP ",17);
     *c += 17/*'Via: SIP/2.0/UDP '*/;
     
     memcpy(*c,addr.s,addr.len);
     *c += addr.len;
+
+    memcpy(*c,";branch=" MAGIC_BRANCH_COOKIE,8+MAGIC_BRANCH_LEN);
+    *c += 8+MAGIC_BRANCH_LEN;
+
+    memcpy(*c,branch.s,branch.len);
+    *c += branch.len;
     
     *((*c)++) = CR;
     *((*c)++) = LF;

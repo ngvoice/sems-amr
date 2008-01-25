@@ -28,13 +28,17 @@
 #ifndef _sip_trans_h
 #define _sip_trans_h
 
+#include "cstring.h"
+
+struct sip_msg;
+
 enum {
 
     //
     // Transaction types
     //
 
-    TT_UAS,
+    TT_UAS=1,
     TT_UAC
 };
 
@@ -61,19 +65,12 @@ struct sip_trans
     // Transaction type
     int type;
     
-    // Received message:
-    //  depending on type, this
-    //  could be a request or a reply
+    // Request that initiated 
+    //  the transaction
     sip_msg* msg;
 
-    // In UAS transactions:
-    // - to_tag included in reply.
-    //   (useful for ACK matching)
-    //
-    // In UAC transactions:
-    // - to_tag received from UAS.
-    //   (useful for building ACK)
-    //
+    // To-tag included in reply.
+    // (useful for ACK matching)
     cstring to_tag;
 
     // reply code of last
@@ -84,11 +81,13 @@ struct sip_trans
     int state;
 
     // Retransmission buffer
+    //  - UAS transaction: ACK
+    //  - UAC transaction: final reply
     char* retr_buf;
 
     // Length of the retransmission buffer
     int   retr_len;
-
+    
     sip_trans()
 	: msg(0),
 	 retr_buf(0),
@@ -98,6 +97,8 @@ struct sip_trans
     ~sip_trans() {
 	delete msg;
 	delete [] retr_buf;
+	if(type == TT_UAC)
+	    delete [] to_tag.s;
     }
 };
 

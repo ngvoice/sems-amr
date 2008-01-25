@@ -37,6 +37,9 @@
 
 #include "log.h"
 
+#include <sys/time.h>
+#include <time.h>
+
 #include <assert.h>
 
 //
@@ -262,8 +265,7 @@ sip_trans* trans_bucket::match_reply(sip_msg* msg)
     trans_list::iterator it = elmts.begin();
     for(;it!=elmts.end();++it) {
 	
-	if( ((*it)->type != TT_UAC) || 
-	    ((*it)->msg->type != SIP_REPLY)){
+	if((*it)->type != TT_UAC){
 	    continue;
 	}
 
@@ -358,6 +360,42 @@ unsigned int hash(const cstring& ci, const cstring& cs)
     return h & (H_TABLE_ENTRIES-1);
 }
 
+char _branch_lookup[] = {
+    'a','b','c','d','e','f','g','h',
+    'i','j','k','l','m','n','o','p',
+    'q','r','s','t','u','v','w','x',
+    'y','z','A','B','C','D','E','F',
+    'G','H','I','J','K','L','M','N',
+    'O','P','Q','R','S','T','U','V',
+    'W','X','Y','Z','0','1','2','3',
+    '4','5','6','7','8','9','.','~'
+};
+
+
+void compute_branch(char* branch, const cstring& callid, const cstring& cseq)
+{
+    unsigned int h=0;
+    unsigned int h_tv=0;
+    timeval      tv;
+
+    gettimeofday(&tv,NULL);
+
+    h = hashlittle(callid.s,callid.len,h);
+    h = hashlittle(cseq.s,cseq.len,h);
+    h_tv = tv.tv_sec + tv.tv_usec;
+
+    h += h_tv >> 16;
+    h_tv &= 0xFFFF;
+
+    branch[0] = _branch_lookup[h&0x3F];
+    branch[1] = _branch_lookup[(h >> 6)&0x3F];
+    branch[2] = _branch_lookup[(h >> 12)&0x3F];
+    branch[3] = _branch_lookup[(h >> 18)&0x3F];
+    branch[4] = _branch_lookup[(h >> 24)&0x3F];
+    branch[5] = _branch_lookup[(h >> 30)&((h_tv << 2) & 0x3F)];
+    branch[6] = _branch_lookup[(h_tv >> 4)&0x3F];
+    branch[7] = _branch_lookup[(h_tv >> 10)&0x3F];
+}
 
 trans_bucket* get_trans_bucket(const cstring& callid, const cstring& cseq_num)
 {

@@ -241,7 +241,10 @@ int trans_layer::send_request(sip_msg* msg)
 				       msg->u.request->ruri_str);
 
     // TODO: 'branch' is missing
-    request_len += via_len(msg->contact->value);
+    cstring branch(addr_buf,8);
+    compute_branch(branch.s,msg->callid->value,msg->cseq->value);
+
+    request_len += via_len(msg->contact->value,branch);
 
     request_len += copy_hdrs_len(msg->hdrs);
     request_len += 2/* CRLF end-of-headers*/;
@@ -257,7 +260,7 @@ int trans_layer::send_request(sip_msg* msg)
 		    msg->u.request->ruri_str);
 
     // TODO: 'branch' is missing
-    via_wr(&c,msg->contact->value);
+    via_wr(&c,msg->contact->value,branch);
     copy_hdrs_wr(&c,msg->hdrs);
 
     *c++ = CR;
@@ -321,7 +324,7 @@ void trans_layer::received_msg(sip_msg* msg)
 	
 	if(t = bucket->match_request(msg)){
 	    if(msg->u.request->method != t->msg->u.request->method){
-
+		
 		// ACK matched INVITE transaction
 		DBG("ACK matched INVITE transaction\n");
 		
@@ -335,7 +338,7 @@ void trans_layer::received_msg(sip_msg* msg)
 	    }
 	    else {
 		DBG("Found retransmission\n");
-		retransmit_reply(t);
+		retransmit(t);
 	    }
 	}
 	else {
@@ -363,7 +366,7 @@ void trans_layer::received_msg(sip_msg* msg)
 	    // Reply matched UAC transaction
 	    // TODO: - update transaction state
 	    //       - maybe send/retransmit ACK???
-
+	    
 	    DBG("Reply matched an existing transaction\n");
 	    if(update_uac_trans(bucket,t,msg) < 0){
 		ERROR("update_uac_trans() failed, so what happens now???\n");
@@ -390,9 +393,85 @@ void trans_layer::received_msg(sip_msg* msg)
 
 int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* msg)
 {
-    // NYI
-    ERROR("NYI\n");
-    return -1;
+    assert(msg->type == SIP_REPLY);
+
+    cstring to_tag;
+
+    if(t->reply_status >= 200){
+
+	to_tag = ((sip_from_to*)msg->to->p)->tag;
+	
+	if((t->to_tag.len != t->to_tag.len) &&
+	   memcmp(t->to_tag.s,to_tag.s,to_tag.len)) {
+	    
+	    DBG("Transaction has already been finally replied\n");
+	    return -1;
+	}
+	else {
+	    DBG("Reply is a retransmission (has same To-tag)\n");
+	    if(t->msg->u.request->method == sip_request::INVITE){
+		DBG("INVITE transaction: re-transmit ACK\n");
+		retransmit(t);
+	    }
+	    return 0;
+	}
+    }
+    
+    t->reply_status = msg->u.reply->code;
+	
+    if(t->reply_status < 200){
+
+	// Provisional reply
+	t->state = TS_PROCEEDING;
+	goto pass_reply;
+    }
+    
+    to_tag = ((sip_from_to*)msg->to->p)->tag;
+    if(!to_tag.len){
+	DBG("To-tag missing in final reply\n");
+	return -1;
+    }
+    
+    t->to_tag.s = new char[to_tag.len];
+    memcpy(t->to_tag.s,to_tag.s,to_tag.len);
+    
+    if(t->reply_status >= 300){
+	
+	// Final error reply
+	t->state = TS_COMPLETED;
+	
+	if(t->msg->u.request->method == sip_request::INVITE){
+	
+	    
+	    // TODO: send non-200 ACK
+	    // TODO: start D timer?
+	} else {
+
+	    // TODO: start K timer?
+	}
+
+    }
+    else if(t->msg->u.request->method == sip_request::INVITE){
+
+	// Positive final reply to INVITE transaction
+	t->state = TS_TERMINATED;
+	
+	// TODO: send non-200 ACK
+	// TODO: start D timer?
+    }
+    else {
+	
+	// Positive final reply to non-INVITE transaction
+	t->state = TS_COMPLETED;
+	
+	// TODO: start K timer?
+    }
+
+ pass_reply:
+    assert(ua);
+    ua->handle_sip_reply(msg);
+
+    return 0;
 }
 
 int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_code)
@@ -471,7 +550,7 @@ int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg*
     return -1;
 }
 
-void trans_layer::retransmit_reply(sip_trans* t)
+void trans_layer::retransmit(sip_trans* t)
 {
-    // NYI
+    DBG("NYI\n");
 }
