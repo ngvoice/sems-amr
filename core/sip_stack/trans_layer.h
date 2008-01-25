@@ -49,6 +49,11 @@ class trans_layer
      */
     void retransmit(sip_trans* t);
 
+    /**
+     * Send ACK to error replies
+     */
+    void send_non_200_ack(sip_trans* t, sip_msg* reply);
+
  public:
 
     static trans_layer* instance();

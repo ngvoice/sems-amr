@@ -97,6 +97,29 @@ inline int via_wr(char** c, const cstring& addr, const cstring& branch)
     *((*c)++) = LF;
 }
 
+inline int cseq_len(const cstring& num, const cstring& method)
+{
+    return 8/*'CSeq: ' + SP + CRLF*/
+	+ num.len + method.len;
+}
+
+inline int cseq_wr(char** c, const cstring& num, const cstring& method)
+{
+    memcpy(*c,"CSeq: ",8);
+    *c += 8/*'CSeq: '*/;
+
+    memcpy(*c,num.s,num.len);
+    *c += num.len;
+
+    *((*c)++) = SP;
+
+    memcpy(*c,method.s,method.len);
+    *c += method.len;
+    
+    *((*c)++) = CR;
+    *((*c)++) = LF;
+}
+
 #include <list>
 using std::list;
 

@@ -394,6 +394,8 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 
     cstring to_tag;
 
+    DBG("reply code = %i\n",msg->u.reply->code);
+
     if(t->reply_status >= 200){
 
 	to_tag = ((sip_from_to*)msg->to->p)->tag;
@@ -441,6 +443,8 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	
 	    
 	    // TODO: send non-200 ACK
+	    send_non_200_ack(t,msg);
+
 	    // TODO: start D timer?
 	} else {
 
@@ -453,8 +457,8 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	// Positive final reply to INVITE transaction
 	t->state = TS_TERMINATED;
 	
-	// TODO: send non-200 ACK
-	// TODO: start D timer?
+	// TODO: send 200 ACK
+	// TODO: start ? timer??
     }
     else {
 	
@@ -545,6 +549,52 @@ int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg*
     }
 
     return -1;
+}
+
+void trans_layer::send_non_200_ack(sip_trans* t, sip_msg* reply)
+{
+    sip_msg* inv = t->msg;
+    
+    cstring method("ACK",3);
+    int ack_len = request_line_len(method,inv->u.request->ruri_str);
+    
+    ack_len += copy_hdr_len(inv->via1)
+	+ copy_hdr_len(inv->from)
+	+ copy_hdr_len(reply->to)
+	+ copy_hdr_len(inv->callid);
+    
+    ack_len += cseq_len(get_cseq(inv)->str,get_cseq(inv)->method);
+    
+    if(!inv->route.empty())
+	ack_len += copy_hdrs_len(inv->route);
+    
+    char* ack_buf = new char [ack_len];
+    char* c = ack_buf;
+
+    request_line_wr(&c,method,inv->u.request->ruri_str);
+    
+    copy_hdr_wr(&c,inv->via1);
+    copy_hdr_wr(&c,inv->from);
+    copy_hdr_wr(&c,reply->to);
+    copy_hdr_wr(&c,inv->callid);
+    
+    cseq_wr(&c,get_cseq(inv)->str,get_cseq(inv)->method);
+    
+    if(!inv->route.empty())
+	copy_hdrs_wr(&c,inv->route);
+    
+    *c++ = CR;
+    *c++ = LF;
+
+    assert(transport);
+    int send_err = transport->send(&inv->remote_ip,ack_buf,ack_len);
+    if(send_err < 0){
+	ERROR("Error from transport layer\n");
+	delete ack_buf;
+    }
+
+    t->retr_buf = ack_buf;
+    t->retr_len = ack_len;
 }
 
 void trans_layer::retransmit(sip_trans* t)

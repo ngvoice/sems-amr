@@ -80,6 +80,10 @@ struct sip_reply
 {
     int     code;
     cstring reason;
+
+    sip_reply()
+	: code(0)
+    {}
 };
 
 
