@@ -84,6 +84,8 @@ class trans_layer
      * From Transport Layer
      */
     void received_msg(sip_msg* msg);
+
+    void send_200_ack(sip_msg* reply);
 };
 
 

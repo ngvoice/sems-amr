@@ -69,6 +69,7 @@ struct sip_header
     sip_parsed_hdr* p;
 
     sip_header();
+    sip_header(const sip_header& hdr);
     sip_header(int type, const cstring& name, const cstring& value);
     ~sip_header();
 };

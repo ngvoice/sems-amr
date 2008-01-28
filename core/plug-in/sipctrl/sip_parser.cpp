@@ -141,13 +141,13 @@ int parse_method(int* method, char* beg, int len)
 	switch(*c){
 	case 'I':
 	    if(!memcmp(c+1,INVITEm+1,INVITE_len-1)){
-		DBG("Found INVITE\n");
+		//DBG("Found INVITE\n");
 		*method = sip_request::INVITE;
 	    }
 	    break;
 	case 'C':
 	    if(!memcmp(c+1,CANCELm+1,CANCEL_len-1)){
-		DBG("Found CANCEL\n");
+		//DBG("Found CANCEL\n");
 		*method = sip_request::CANCEL;
 	    }
 	    break;
@@ -159,13 +159,13 @@ int parse_method(int* method, char* beg, int len)
 	switch(*c){
 	case 'A':
 	    if(!memcmp(c+1,ACKm+1,ACK_len-1)){
-		DBG("Found ACK\n");
+		//DBG("Found ACK\n");
 		*method = sip_request::ACK;
 	    }
 	    break;
 	case 'B':
 	    if(!memcmp(c+1,BYEm+1,BYE_len-1)){
-		DBG("Found BYE\n");
+		//DBG("Found BYE\n");
 		*method = sip_request::BYE;
 	    }
 	    break;
@@ -173,14 +173,14 @@ int parse_method(int* method, char* beg, int len)
 
     case OPTIONS_len:
 	if(!memcmp(c+1,OPTIONSm+1,OPTIONS_len-1)){
-	    DBG("Found OPTIONS\n");
+	    //DBG("Found OPTIONS\n");
 	    *method = sip_request::OPTIONS;
 	}
 	break;
 
     case REGISTER_len:
 	if(!memcmp(c+1,REGISTERm+1,REGISTER_len-1)){
-	    DBG("Found REGISTER\n");
+	    //DBG("Found REGISTER\n");
 	    *method = sip_request::REGISTER;
 	}
 	break;
@@ -195,7 +195,7 @@ int parse_method(int* method, char* beg, int len)
     }
 
     if(*method == sip_request::OTHER_METHOD){
-	DBG("Found other method (%.*s)\n",len,beg);
+	//DBG("Found other method (%.*s)\n",len,beg);
     }
 
     return 0;
@@ -419,14 +419,14 @@ int parse_sip_msg(sip_msg* msg)
 	msg->via_p1 = *via->parms.begin();
 	msg->via1->p = via.release();
 
-	DBG("first via: proto=<%i>, addr=<%.*s:%.*s>, branch=<%.*s>\n", 
-	    msg->via_p1->trans.type, 
-	    msg->via_p1->host.len,
-	    msg->via_p1->host.s,
-	    (msg->via_p1->port.len ? msg->via_p1->port.len : 4),
-	    (msg->via_p1->port.len ? msg->via_p1->port.s : "5060"),
-	    msg->via_p1->branch.len,
-	    msg->via_p1->branch.s );
+// 	DBG("first via: proto=<%i>, addr=<%.*s:%.*s>, branch=<%.*s>\n", 
+// 	    msg->via_p1->trans.type, 
+// 	    msg->via_p1->host.len,
+// 	    msg->via_p1->host.s,
+// 	    (msg->via_p1->port.len ? msg->via_p1->port.len : 4),
+// 	    (msg->via_p1->port.len ? msg->via_p1->port.s : "5060"),
+// 	    msg->via_p1->branch.len,
+// 	    msg->via_p1->branch.s );
 
     }
     else
@@ -445,9 +445,9 @@ int parse_sip_msg(sip_msg* msg)
        cseq->str.len &&
        cseq->method.len ) {
 	
-	DBG("Cseq header: '%.*s' '%.*s'\n",
-	    cseq->str.len,cseq->str.s,
-	    cseq->method.len,cseq->method.s);
+// 	DBG("Cseq header: '%.*s' '%.*s'\n",
+// 	    cseq->str.len,cseq->str.s,
+// 	    cseq->method.len,cseq->method.s);
 
 	msg->cseq->p = cseq.release();
     }
@@ -465,9 +465,9 @@ int parse_sip_msg(sip_msg* msg)
 		      msg->from->value.s,
 		      msg->from->value.len)) {
 
-	DBG("From header: name-addr=\"%.*s <%.*s>\"\n",
-	    from->nameaddr.name.len,from->nameaddr.name.s,
-	    from->nameaddr.addr.len,from->nameaddr.addr.s);
+// 	DBG("From header: name-addr=\"%.*s <%.*s>\"\n",
+// 	    from->nameaddr.name.len,from->nameaddr.name.s,
+// 	    from->nameaddr.addr.len,from->nameaddr.addr.s);
 
 	msg->from->p = from.release();
     }
@@ -484,9 +484,9 @@ int parse_sip_msg(sip_msg* msg)
 		      msg->to->value.s,
 		      msg->to->value.len)) {
 
-	DBG("To header: name-addr=\"%.*s <%.*s>\"\n",
-	    to->nameaddr.name.len,to->nameaddr.name.s,
-	    to->nameaddr.addr.len,to->nameaddr.addr.s);
+// 	DBG("To header: name-addr=\"%.*s <%.*s>\"\n",
+// 	    to->nameaddr.name.len,to->nameaddr.name.s,
+// 	    to->nameaddr.addr.len,to->nameaddr.addr.s);
 
 	msg->to->p = to.release();
     }

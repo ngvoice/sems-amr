@@ -74,6 +74,14 @@ sip_header::sip_header()
       p(NULL)
 {}
 
+sip_header::sip_header(const sip_header& hdr)
+    : type(hdr.type),
+      name(hdr.name),
+      value(hdr.value),
+      p(NULL)
+{
+}
+
 sip_header::sip_header(int type, const cstring& name, const cstring& value)
     : type(type),
       name(name),
@@ -304,7 +312,7 @@ int parse_headers(sip_msg* msg, char** c)
 
 	    case H_NAME:
 		if((*c-(st==ST_CRLF?2:1))-begin == 0){
-		    DBG("Detected end of headers\n");
+		    //DBG("Detected end of headers\n");
 		    return 0;
 		}
  		DBG("Illegal CR or LF in header name\n");
@@ -322,9 +330,9 @@ int parse_headers(sip_msg* msg, char** c)
 		if(!IS_WSP(**c)){
 		    hdr->value.set(begin,(*c-(st==ST_CRLF?2:1))-begin);
 
-		    DBG("hdr: \"%.*s: %.*s\"\n",
-			hdr->name.len,hdr->name.s,
-			hdr->value.len,hdr->value.s);
+		    //DBG("hdr: \"%.*s: %.*s\"\n",
+		    //     hdr->name.len,hdr->name.s,
+		    //     hdr->value.len,hdr->value.s);
 
 		    add_parsed_header(msg,hdr.release());
 		    hdr.reset(new sip_header());
@@ -359,9 +367,9 @@ int parse_headers(sip_msg* msg, char** c)
 	
 	    hdr->value.set(begin,(*c-(st==ST_CRLF?2:1))-begin);
 	    
-	    DBG("hdr: \"%.*s: %.*s\"\n",
-		hdr->name.len,hdr->name.s,
-		hdr->value.len,hdr->value.s);
+// 	    DBG("hdr: \"%.*s: %.*s\"\n",
+// 		hdr->name.len,hdr->name.s,
+// 		hdr->value.len,hdr->value.s);
 	    
 	    add_parsed_header(msg,hdr.release());
 	    
@@ -375,7 +383,7 @@ int parse_headers(sip_msg* msg, char** c)
 	    
 	case H_NAME:
 	    if((*c-(st==ST_CRLF?2:1))-begin == 0){
-		DBG("Detected end of headers\n");
+		//DBG("Detected end of headers\n");
 		return 0;
 	    }
 	    DBG("Illegal CR or LF in header name\n");

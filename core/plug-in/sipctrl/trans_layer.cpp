@@ -243,7 +243,7 @@ int trans_layer::send_request(sip_msg* msg)
     cstring branch(addr_buf,8);
     compute_branch(branch.s,msg->callid->value,msg->cseq->value);
 
-    request_len += via_len(msg->contact->value,branch);
+    request_len += via_len(cstring("127.0.0.1"),branch);
 
     request_len += copy_hdrs_len(msg->hdrs);
     request_len += 2/* CRLF end-of-headers*/;
@@ -258,7 +258,7 @@ int trans_layer::send_request(sip_msg* msg)
     request_line_wr(&c,msg->u.request->method_str,
 		    msg->u.request->ruri_str);
 
-    via_wr(&c,msg->contact->value,branch);
+    via_wr(&c,cstring("127.0.0.1"),branch);
     copy_hdrs_wr(&c,msg->hdrs);
 
     *c++ = CR;
@@ -330,9 +330,10 @@ void trans_layer::received_msg(sip_msg* msg)
 		    DBG("trans_layer::update_uas_trans() failed!\n");
 		    // Anyway, there is nothing we can do...
 		}
-		DBG("t->state = %i\n",t->state);
+		// do not touch the transaction anymore:
+		// it could have been deleted !!!
 
-		// should we forward the ACK to SEMS-App upstream?
+		// should we forward the ACK to SEMS-App upstream? Yes
 	    }
 	    else {
 		DBG("Found retransmission\n");
@@ -362,18 +363,29 @@ void trans_layer::received_msg(sip_msg* msg)
 	if(t = bucket->match_reply(msg)){
 
 	    // Reply matched UAC transaction
-	    // TODO: - update transaction state
 	    
 	    DBG("Reply matched an existing transaction\n");
 	    if(update_uac_trans(bucket,t,msg) < 0){
 		ERROR("update_uac_trans() failed, so what happens now???\n");
 		break;
 	    }
-	    DBG("t->state = %i\n",t->state);
+	    // do not touch the transaction anymore:
+	    // it could have been deleted !!!
 	}
 	else {
-	    // Anything we should do???
 	    DBG("Reply did NOT match any existing transaction...\n");
+	    DBG("reply code = %i\n",msg->u.reply->code);
+	    if( (msg->u.reply->code >= 200) &&
+	        (msg->u.reply->code <  300) ) {
+		
+		bucket->unlock();
+
+		// pass to UA
+		assert(ua);
+		ua->handle_sip_reply(msg);
+
+		DROP_MSG;
+	    }
 	}
 	break;
 
@@ -393,36 +405,26 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
     assert(msg->type == SIP_REPLY);
 
     cstring to_tag;
+    int     reply_code = msg->u.reply->code;
 
     DBG("reply code = %i\n",msg->u.reply->code);
 
-    if(t->reply_status >= 200){
-
-	to_tag = ((sip_from_to*)msg->to->p)->tag;
-	
-	if((t->to_tag.len != t->to_tag.len) &&
-	   memcmp(t->to_tag.s,to_tag.s,to_tag.len)) {
-	    
-	    DBG("Transaction has already been finally replied\n");
-	    return -1;
-	}
-	else {
-	    DBG("Reply is a retransmission (has same To-tag)\n");
-	    if(t->msg->u.request->method == sip_request::INVITE){
-		DBG("INVITE transaction: re-transmit ACK\n");
-		retransmit(t);
-	    }
-	    return 0;
-	}
-    }
-    
-    t->reply_status = msg->u.reply->code;
-	
-    if(t->reply_status < 200){
+    if(reply_code < 200){
 
 	// Provisional reply
-	t->state = TS_PROCEEDING;
-	goto pass_reply;
+	switch(t->state){
+
+	case TS_TRYING:
+	case TS_CALLING:
+	    t->state = TS_PROCEEDING;
+
+	case TS_PROCEEDING:
+	    goto pass_reply;
+
+	case TS_COMPLETED:
+	default:
+	    goto end;
+	}
     }
     
     to_tag = ((sip_from_to*)msg->to->p)->tag;
@@ -431,47 +433,73 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	return -1;
     }
     
-    t->to_tag.s = new char[to_tag.len];
-    memcpy(t->to_tag.s,to_tag.s,to_tag.len);
+    //t->to_tag.s = new char[to_tag.len];
+    //memcpy(t->to_tag.s,to_tag.s,to_tag.len);
+
+    if(t->msg->u.request->method == sip_request::INVITE){
     
-    if(t->reply_status >= 300){
-	
-	// Final error reply
-	t->state = TS_COMPLETED;
-	
-	if(t->msg->u.request->method == sip_request::INVITE){
-	
+	if(reply_code >= 300){
 	    
-	    // TODO: send non-200 ACK
-	    send_non_200_ack(t,msg);
-
-	    // TODO: start D timer?
-	} else {
-
-	    // TODO: start K timer?
+	    // Final error reply
+	    switch(t->state){
+		
+	    case TS_CALLING:
+	    case TS_PROCEEDING:
+		
+		t->state = TS_COMPLETED;
+		send_non_200_ack(t,msg);
+		
+		// TODO: set D timer?
+		
+		goto pass_reply;
+		
+	    case TS_COMPLETED:
+		// retransmit non-200 ACK
+		retransmit(t);
+	    default:
+		goto end;
+	    }
+	} 
+	else {
+	    
+	    // Positive final reply to INVITE transaction
+	    switch(t->state){
+		
+	    case TS_CALLING:
+	    case TS_PROCEEDING:
+		t->state = TS_TERMINATED;
+		bucket->remove_trans(t);
+		goto pass_reply;
+		
+	    default:
+		goto end;
+	    }
 	}
-
-    }
-    else if(t->msg->u.request->method == sip_request::INVITE){
-
-	// Positive final reply to INVITE transaction
-	t->state = TS_TERMINATED;
-	
-	// TODO: send 200 ACK
-	// TODO: start ? timer??
     }
     else {
-	
-	// Positive final reply to non-INVITE transaction
-	t->state = TS_COMPLETED;
-	
-	// TODO: start K timer?
+
+	// Final reply
+	switch(t->state){
+	    
+	case TS_TRYING:
+	case TS_CALLING:
+	case TS_PROCEEDING:
+	    
+	    t->state = TS_COMPLETED;
+	    
+	    // TODO: set K timer?
+	    
+	    goto pass_reply;
+	    
+	default:
+	    goto end;
+	}
     }
 
  pass_reply:
     assert(ua);
     ua->handle_sip_reply(msg);
-
+ end:
     return 0;
 }
 
@@ -595,6 +623,80 @@ void trans_layer::send_non_200_ack(sip_trans* t, sip_msg* reply)
 
     t->retr_buf = ack_buf;
     t->retr_len = ack_len;
+}
+
+void trans_layer::send_200_ack(sip_msg* reply)
+{
+
+    // Set request URI
+    // TODO: use correct R-URI instead of just 'Contact'
+    if(!reply->contact) {
+	DBG("Sorry, reply has no Contact header: could not send ACK\n");
+	return;
+    }
+    
+    sip_nameaddr na;
+    char* c = reply->contact->value.s;
+    if(parse_nameaddr(&na,&c,reply->contact->value.len) < 0){
+	DBG("Sorry, reply's Contact parsing failed: could not send ACK\n");
+	return;
+    }
+
+    int request_len = request_line_len(cstring("ACK",3),na.addr);
+    
+    // Set destination address
+    // TODO: get correct next hop from RURI and Route
+    sockaddr_storage remote_ip;
+    remote_ip.ss_family = AF_INET;
+    ((sockaddr_in*)&remote_ip)->sin_port = htons(na.uri.port ? na.uri.port : 5060);
+
+    if(na.uri.host.len > 15){
+	ERROR("Invalid IP address in URI: to long\n");
+	return;
+    }
+
+    char addr_buf[16] = {'\0'};
+    memcpy(addr_buf,na.uri.host.s,na.uri.host.len);
+
+    if(inet_aton(addr_buf, &((sockaddr_in*)&remote_ip)->sin_addr) < 0){
+	ERROR("Invalid IP address in URI: inet_aton failed\n");
+	return;
+    }
+
+    cstring branch(addr_buf,8);
+    compute_branch(branch.s,reply->callid->value,reply->cseq->value);
+
+    request_len += via_len(cstring("127.0.0.1"),branch);
+
+    request_len += copy_hdr_len(reply->to);
+    request_len += copy_hdr_len(reply->from);
+    request_len += copy_hdr_len(reply->callid);
+    request_len += 2/* CRLF end-of-headers*/;
+
+    // Allocate new message
+    char* ack_buf = new char[request_len];
+
+    // generate it
+    c = ack_buf;
+
+    request_line_wr(&c,cstring("ACK",3),na.addr);
+    via_wr(&c,cstring("127.0.0.1"),branch);
+    copy_hdr_wr(&c,reply->to);
+    copy_hdr_wr(&c,reply->from);
+    copy_hdr_wr(&c,reply->callid);
+
+    *c++ = CR;
+    *c++ = LF;
+
+    DBG("About to send ACK: \n%.*s",request_len,ack_buf);
+
+    assert(transport);
+    int send_err = transport->send(&remote_ip,ack_buf,request_len);
+    if(send_err < 0){
+	ERROR("Error from transport layer\n");
+    }
+
+    delete [] ack_buf;
 }
 
 void trans_layer::retransmit(sip_trans* t)

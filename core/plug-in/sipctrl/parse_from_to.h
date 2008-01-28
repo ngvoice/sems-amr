@@ -53,6 +53,7 @@ struct sip_from_to: public sip_parsed_hdr
     ~sip_from_to();
 };
 
+int parse_nameaddr(sip_nameaddr* na, char** c, int len);
 int parse_from_to(sip_from_to* ft, char* beg, int len);
 
 #endif

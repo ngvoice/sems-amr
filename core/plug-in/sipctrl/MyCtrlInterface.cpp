@@ -123,7 +123,7 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     DBG_PARAM(req.next_hop);
     DBG("hdrs = <%s>\n",req.hdrs.c_str());
     DBG("body = <%s>\n",req.body.c_str());
-
+    
     // Debug code - begin
     AmSipReply reply;
     
@@ -143,7 +143,10 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
 
 void MyCtrlInterface::handleSipMsg(AmSipReply &rep)
 {
-    
+    DBG("Received reply: %i %s\n",rep.code,rep.reason.c_str());
+    DBG_PARAM(rep.callid);
+    DBG_PARAM(rep.local_tag);
+    DBG_PARAM(rep.remote_tag);
 }
 
 void MyCtrlInterface::handle_sip_request(trans_bucket* bucket, sip_msg* msg)
@@ -183,5 +186,32 @@ void MyCtrlInterface::handle_sip_request(trans_bucket* bucket, sip_msg* msg)
 
 void MyCtrlInterface::handle_sip_reply(sip_msg* msg)
 {
+    assert(msg->from && msg->from->p);
+    assert(msg->to && msg->to->p);
     
+    AmSipReply   reply;
+
+    //reply.next_hop;
+    //reply.route;
+
+    reply.content_type = msg->content_type ? c2stlstr(msg->content_type->value): "";
+
+    //reply.hdrs;
+    reply.body = msg->body.len ? c2stlstr(msg->body) : "";
+    reply.cseq = get_cseq(msg)->num;
+
+    reply.code   = msg->u.reply->code;
+    reply.reason = c2stlstr(msg->u.reply->reason);
+
+    //reply.next_request_uri
+    
+    reply.callid = c2stlstr(msg->callid->value);
+    
+    reply.remote_tag = c2stlstr(((sip_from_to*)msg->to->p)->tag);
+    reply.local_tag  = c2stlstr(((sip_from_to*)msg->from->p)->tag);
+
+    if(msg->u.reply->code >= 200)
+	tl->send_200_ack(msg);
+    
+    handleSipMsg(reply);
 }

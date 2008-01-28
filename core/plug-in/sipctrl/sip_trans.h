@@ -97,8 +97,8 @@ struct sip_trans
     ~sip_trans() {
 	delete msg;
 	delete [] retr_buf;
-	if(type == TT_UAC)
-	    delete [] to_tag.s;
+	//if(type == TT_UAC)
+	//    delete [] to_tag.s;
     }
 };
 
