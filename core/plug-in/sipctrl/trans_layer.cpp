@@ -82,13 +82,6 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	return -1;
     }
 
-    if(update_uas_reply(bucket,t,reply_code)<0){
-      
-	ERROR("Invalid state change\n");
-	return -1;
-    }
-
-
     sip_msg* req = t->msg;
 
     bool have_to_tag = false;
@@ -130,6 +123,7 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	reply_len += contact_len(contact);
 	add_contact = true;
     }
+    reply_len += 2/*CRLF*/;
     
     // Allocate buffer for the reply
     //
@@ -182,19 +176,36 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	contact_wr(&c,contact);
     }
 
+    *c++ = CR;
+    *c++ = LF;
+
     assert(transport);
     int err = transport->send(&req->remote_ip,reply_buf,reply_len);
 
-    if((err < 0) || (reply_code < 200)){
+    if(err < 0){
+	delete [] reply_buf;
+	goto end;
+    }
+
+    err = update_uas_reply(bucket,t,reply_code);
+    if(err < 0){
+	
+	ERROR("Invalid state change\n");
 	delete [] reply_buf;
     }
-    else {
+    else if(err != TS_TERMINATED) {
+	
 	t->retr_buf = reply_buf;
 	t->retr_len = reply_len;
     }
+    else {
+	// Transaction has been deleted
+	delete [] reply_buf;
+	err = 0;
+    }
     
+ end:
     bucket->unlock();
-
     return err;
 }
 
@@ -242,6 +253,7 @@ int trans_layer::send_request(sip_msg* msg)
 
     cstring branch(addr_buf,8);
     compute_branch(branch.s,msg->callid->value,msg->cseq->value);
+    //compute_branch(branch.s,msg->callid->value,msg->callid->value);
 
     request_len += via_len(cstring("127.0.0.1"),branch);
 
@@ -312,7 +324,8 @@ void trans_layer::received_msg(sip_msg* msg)
 	DROP_MSG;
     }
 
-    trans_bucket* bucket = get_trans_bucket(msg->callid->value, get_cseq(msg)->str);
+    unsigned int  h = hash(msg->callid->value, get_cseq(msg)->str);
+    trans_bucket* bucket = get_trans_bucket(h);
     sip_trans* t = NULL;
 
     bucket->lock();
@@ -342,18 +355,30 @@ void trans_layer::received_msg(sip_msg* msg)
 	}
 	else {
 
-	    // New transaction:
-	    //  let's pass the request to
-	    //  the UA. 
-	    //
-	    // Forget the msg: it will 
-	    //  owned by the new transaction
+	    string t_id;
+	    sip_trans* t = NULL;
+	    if(msg->u.request->method != sip_request::ACK){
+		
+		// New transaction
+		t = bucket->add_trans(msg, TT_UAS);
+
+		t_id = int2hex(h) 
+		    + ":" + long2hex((unsigned long)t);
+	    }
 
 	    bucket->unlock();
-
+	    
+	    //  let's pass the request to
+	    //  the UA. 
 	    assert(ua);
-	    ua->handle_sip_request(bucket,msg);
+	    ua->handle_sip_request(t_id.c_str(),msg);
 
+	    if(!t){
+		DROP_MSG;
+	    }
+	    //Else:
+	    // forget the msg: it will 
+	    // owned by the new transaction
 	    return;
 	}
 	break;
@@ -379,11 +404,11 @@ void trans_layer::received_msg(sip_msg* msg)
 	        (msg->u.reply->code <  300) ) {
 		
 		bucket->unlock();
-
+		
 		// pass to UA
 		assert(ua);
 		ua->handle_sip_reply(msg);
-
+		
 		DROP_MSG;
 	    }
 	}
@@ -513,9 +538,9 @@ int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_
     t->reply_status = reply_code;
 
     if(t->reply_status >= 300){
+
 	// error reply
 	t->state = TS_COMPLETED;
-	    
 	    
 	if(t->msg->u.request->method == sip_request::INVITE){
 	    //TODO: set G timer ?
@@ -527,14 +552,10 @@ int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_
     else if(t->reply_status >= 200) {
 
 	if(t->msg->u.request->method == sip_request::INVITE){
+
 	    // final reply
-	    t->state = TS_TERMINATED;
-		
-	    // Instead of destroying the transaction
-	    // we handle the 2xx reply retransmission
-	    // by setting proper timer.
-		
-	    // TODO: set ? timer
+	    bucket->remove_trans(t);
+	    return TS_TERMINATED;
 	}
 	else {
 	    t->state = TS_COMPLETED;
@@ -627,7 +648,6 @@ void trans_layer::send_non_200_ack(sip_trans* t, sip_msg* reply)
 
 void trans_layer::send_200_ack(sip_msg* reply)
 {
-
     // Set request URI
     // TODO: use correct R-URI instead of just 'Contact'
     if(!reply->contact) {
@@ -639,6 +659,11 @@ void trans_layer::send_200_ack(sip_msg* reply)
     char* c = reply->contact->value.s;
     if(parse_nameaddr(&na,&c,reply->contact->value.len) < 0){
 	DBG("Sorry, reply's Contact parsing failed: could not send ACK\n");
+	return;
+    }
+    
+    if(parse_uri(&na.uri,na.addr.s,na.addr.len) < 0){
+	DBG("Sorry, reply's Contact URI parsing failed: could not send ACK\n");
 	return;
     }
 
@@ -666,11 +691,15 @@ void trans_layer::send_200_ack(sip_msg* reply)
     cstring branch(addr_buf,8);
     compute_branch(branch.s,reply->callid->value,reply->cseq->value);
 
-    request_len += via_len(cstring("127.0.0.1"),branch);
+    sip_header* max_forward = new sip_header(0,cstring("Max-Forwards"),cstring("10"));
 
+    request_len += via_len(cstring("127.0.0.1"),branch);
+    
     request_len += copy_hdr_len(reply->to);
     request_len += copy_hdr_len(reply->from);
     request_len += copy_hdr_len(reply->callid);
+    request_len += copy_hdr_len(max_forward);
+    request_len += cseq_len(get_cseq(reply)->str,cstring("ACK",3));
     request_len += 2/* CRLF end-of-headers*/;
 
     // Allocate new message
@@ -681,14 +710,16 @@ void trans_layer::send_200_ack(sip_msg* reply)
 
     request_line_wr(&c,cstring("ACK",3),na.addr);
     via_wr(&c,cstring("127.0.0.1"),branch);
-    copy_hdr_wr(&c,reply->to);
     copy_hdr_wr(&c,reply->from);
+    copy_hdr_wr(&c,reply->to);
     copy_hdr_wr(&c,reply->callid);
+    copy_hdr_wr(&c,max_forward);
+    cseq_wr(&c,get_cseq(reply)->str,cstring("ACK",3));
 
     *c++ = CR;
     *c++ = LF;
 
-    DBG("About to send ACK: \n%.*s",request_len,ack_buf);
+    DBG("About to send ACK: \n<%.*s>\n",request_len,ack_buf);
 
     assert(transport);
     int send_err = transport->send(&remote_ip,ack_buf,request_len);
@@ -697,6 +728,7 @@ void trans_layer::send_200_ack(sip_msg* reply)
     }
 
     delete [] ack_buf;
+    delete max_forward;
 }
 
 void trans_layer::retransmit(sip_trans* t)

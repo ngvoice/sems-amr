@@ -99,14 +99,14 @@ inline int via_wr(char** c, const cstring& addr, const cstring& branch)
 
 inline int cseq_len(const cstring& num, const cstring& method)
 {
-    return 8/*'CSeq: ' + SP + CRLF*/
+    return 9/*'CSeq: ' + SP + CRLF*/
 	+ num.len + method.len;
 }
 
 inline int cseq_wr(char** c, const cstring& num, const cstring& method)
 {
-    memcpy(*c,"CSeq: ",8);
-    *c += 8/*'CSeq: '*/;
+    memcpy(*c,"CSeq: ",6);
+    *c += 6/*'CSeq: '*/;
 
     memcpy(*c,num.s,num.len);
     *c += num.len;

@@ -64,7 +64,9 @@ int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
     msg->callid = new sip_header(0,"Call-ID",stl2cstr(req.callid));
     msg->hdrs.push_back(msg->callid);
 
-    string cseq = int2str(req.cseq) + " " + req.method;
+    string cseq = int2str(req.cseq)
+	+ " " + req.method;
+
     msg->cseq = new sip_header(0,"CSeq",stl2cstr(cseq));
     msg->hdrs.push_back(msg->cseq);
 
@@ -104,25 +106,28 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
 {
     DBG("Received new request:\n");
 
-    DBG_PARAM(req.cmd);
+//     DBG_PARAM(req.cmd);
     DBG_PARAM(req.method);
-    DBG_PARAM(req.user);
-    DBG_PARAM(req.domain);
-    DBG_PARAM(req.dstip);
-    DBG_PARAM(req.port);
+//     DBG_PARAM(req.user);
+//     DBG_PARAM(req.domain);
+//     DBG_PARAM(req.dstip);
+//     DBG_PARAM(req.port);
     DBG_PARAM(req.r_uri);
-    DBG_PARAM(req.from_uri);
+//     DBG_PARAM(req.from_uri);
     DBG_PARAM(req.from);
     DBG_PARAM(req.to);
     DBG_PARAM(req.callid);
-    DBG_PARAM(req.from_tag);
-    DBG_PARAM(req.to_tag);
+//     DBG_PARAM(req.from_tag);
+//     DBG_PARAM(req.to_tag);
     DBG("cseq = <%i>\n",req.cseq);
     DBG_PARAM(req.serKey);
     DBG_PARAM(req.route);
     DBG_PARAM(req.next_hop);
     DBG("hdrs = <%s>\n",req.hdrs.c_str());
     DBG("body = <%s>\n",req.body.c_str());
+
+    if(req.method == "ACK")
+	return;
     
     // Debug code - begin
     AmSipReply reply;
@@ -149,7 +154,7 @@ void MyCtrlInterface::handleSipMsg(AmSipReply &rep)
     DBG_PARAM(rep.remote_tag);
 }
 
-void MyCtrlInterface::handle_sip_request(trans_bucket* bucket, sip_msg* msg)
+void MyCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)
 {
     assert(msg->from && msg->from->p);
     assert(msg->to && msg->to->p);
@@ -171,15 +176,7 @@ void MyCtrlInterface::handle_sip_request(trans_bucket* bucket, sip_msg* msg)
     req.to_tag   = c2stlstr(((sip_from_to*)msg->to->p)->tag);
     req.cseq     = get_cseq(msg)->num;
     req.body     = c2stlstr(msg->body);
-
-    bucket->lock();
-
-    sip_trans* t = bucket->add_trans(msg, TT_UAS);
-
-    req.serKey = int2hex(hash(msg->callid->value, get_cseq(msg)->str)) 
-	+ ":" + long2hex((unsigned long)t);
-
-    bucket->unlock();
+    req.serKey   = tid;
 
     handleSipMsg(req);
 }

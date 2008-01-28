@@ -37,6 +37,11 @@ struct sip_cseq: public sip_parsed_hdr
     cstring      str;
     unsigned int num;
     cstring      method;
+
+    sip_cseq()
+	: sip_parsed_hdr(),
+	  num(0)
+    {}
 };
 
 int parse_cseq(sip_cseq* cseq, char* beg, int len);

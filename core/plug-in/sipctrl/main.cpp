@@ -76,22 +76,20 @@ int main()
     udp_server->bind("",5060);
     udp_server->start();
 
-    AmSipRequest req;
-    
-    req.method   = "INVITE";
-    req.r_uri    = "sip:sipp@127.0.0.1:5070";
-    req.from     = "SEMS <sip:sems@127.0.0.1:5060>";
-    req.from_tag = "12345";
-    req.to       = "SIPP <sip:sipp@127.0.0.1:5070>";
-    req.cseq     = 10;
-    req.callid   = "12345@127.0.0.1";
-    req.contact  = "sip:127.0.0.1";
+//     AmSipRequest req;
+//     req.method   = "INVITE";
+//     req.r_uri    = "sip:sipp@127.0.0.1:5070";
+//     req.from     = "SEMS <sip:sems@127.0.0.1:5060>";
+//     req.from_tag = "12345";
+//     req.to       = "SIPP <sip:sipp@127.0.0.1:5070>";
+//     req.cseq     = 10;
+//     req.callid   = "12345@127.0.0.1";
+//     req.contact  = "sip:127.0.0.1";
 
-    int send_err = ctrl->send(req, req.serKey);
-    if(send_err < 0) {
-      
-      ERROR("ctrl->send() failed with error code %i\n",send_err);
-    }
+//     int send_err = ctrl->send(req, req.serKey);
+//     if(send_err < 0) {
+//       ERROR("ctrl->send() failed with error code %i\n",send_err);
+//     }
 
     udp_server->join();
     

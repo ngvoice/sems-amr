@@ -89,6 +89,8 @@ sip_msg::sip_msg()
 
 sip_msg::~sip_msg()
 {
+    DBG("~sip_msg()\n");
+
     delete [] buf;
 
     list<sip_header*>::iterator it;

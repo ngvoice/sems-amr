@@ -45,7 +45,7 @@ class MyCtrlInterface: public sip_ua
     /**
      * From sip_ua
      */
-    void handle_sip_request(trans_bucket* bucket, sip_msg* msg);
+    void handle_sip_request(const char* tid, sip_msg* msg);
     void handle_sip_reply(sip_msg* msg);
     
 };
