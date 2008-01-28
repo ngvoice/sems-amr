@@ -140,7 +140,7 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     reply.contact   = "sip:" + req.dstip + ":" + req.port;
     
     int err = send(reply);
-    if(err){
+    if(err < 0){
 	DBG("send failed with err code %i\n",err);
     }
     // Debug code - end

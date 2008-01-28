@@ -73,7 +73,7 @@ int main()
 
 #else
     
-    udp_server->bind("",5060);
+    udp_server->bind("127.0.0.1",5060);
     udp_server->start();
 
 //     AmSipRequest req;

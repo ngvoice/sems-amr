@@ -6,6 +6,7 @@
 
 #include <netinet/in.h>
 #include <sys/param.h>
+#include <arpa/inet.h>
 
 #include <errno.h>
 #include <strings.h>
@@ -42,6 +43,21 @@ udp_trsp::~udp_trsp()
 }
 
 
+const char* udp_trsp::get_local_ip()
+{
+    return local_ip.c_str();
+}
+
+unsigned short udp_trsp::get_local_port()
+{
+    return local_port;
+}
+
+void udp_trsp::copy_local_addr(sockaddr_storage* sa)
+{
+    memcpy(sa,&local_addr,sizeof(sockaddr_storage));
+}
+
 /** @see AmThread */
 void udp_trsp::run()
 {
@@ -64,6 +80,11 @@ void udp_trsp::run()
     msg.msg_iovlen     = 1;
     msg.msg_control    = &cmsg;
     msg.msg_controllen = sizeof(cmsg);
+
+    if(sd<=0){
+	ERROR("Transport instance not bound\n");
+	return;
+    }
 
     while(true){
 
@@ -92,7 +113,7 @@ void udp_trsp::run()
                 cmsgptr->cmsg_type == DSTADDR_SOCKOPT) {
 		
 		s_msg->local_ip.ss_family = AF_INET;
-		((sockaddr_in*)(&s_msg->local_ip))->sin_port   = htons(_port);
+		((sockaddr_in*)(&s_msg->local_ip))->sin_port   = htons(local_port);
                 memcpy(&((sockaddr_in*)(&s_msg->local_ip))->sin_addr,dstaddr(cmsgptr),sizeof(in_addr));
             }
         } 
@@ -110,7 +131,7 @@ void udp_trsp::on_stop()
 
     
 /** @see transport */
-int udp_trsp::bind(const string& address, int port)
+int udp_trsp::bind(const string& address, unsigned short port)
 {
     // FIXME: address is ignored
 
@@ -118,19 +139,28 @@ int udp_trsp::bind(const string& address, int port)
 	WARN("re-binding socket\n");
 	close(sd);
     }
+    
+    local_addr.ss_family = AF_INET;
+    SAv4(&local_addr)->sin_port = htons(port);
+
+    if(inet_aton(address.c_str(),&SAv4(&local_addr)->sin_addr)<0){
+	
+	ERROR("inet_aton: %s\n",strerror(errno));
+	return -1;
+    }
+
+    if(SAv4(&local_addr)->sin_addr.s_addr == INADDR_ANY){
+	ERROR("Sorry, we cannot bind 'ANY' address\n");
+	return -1;
+    }
 
     if((sd = socket(PF_INET,SOCK_DGRAM,0)) == -1){
 	ERROR("socket: %s\n",strerror(errno));
 	return -1;
     } 
     
-    sockaddr_in addr;
-    
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = INADDR_ANY;
 
-    if(::bind(sd,(const struct sockaddr*)&addr,
+    if(::bind(sd,(const struct sockaddr*)&local_addr,
 	     sizeof(struct sockaddr_in))) {
 
 	ERROR("bind: %s\n",strerror(errno));
@@ -155,7 +185,8 @@ int udp_trsp::bind(const string& address, int port)
 	return -1;
     }
 
-    _port = port;
+    local_port = port;
+    local_ip   = address;
 
     return 0;
 }

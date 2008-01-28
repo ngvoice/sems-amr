@@ -9,6 +9,10 @@
  */
 #define MAX_UDP_MSGLEN 65535
 
+#include <sys/socket.h>
+
+#include <string>
+using std::string;
 
 class udp_trsp: public transport
 {
@@ -16,7 +20,13 @@ class udp_trsp: public transport
     int sd;
 
     // bound port number
-    int _port;
+    unsigned short local_port;
+
+    // bound IP
+    string local_ip;
+
+    // bound address
+    sockaddr_storage local_addr;
 
  protected:
     /** @see AmThread */
@@ -30,11 +40,14 @@ class udp_trsp: public transport
     ~udp_trsp();
 
     /** @see transport */
-    int bind(const string& address, int port);
+    int bind(const string& address, unsigned short port);
 
     /** @see transport */
     int send(const sockaddr_storage* sa, const char* msg, const int msg_len);
 
+    const char* get_local_ip();
+    unsigned short get_local_port();
+    void copy_local_addr(sockaddr_storage* sa);
 };
 
 #endif

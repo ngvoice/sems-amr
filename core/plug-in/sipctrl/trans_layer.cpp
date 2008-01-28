@@ -197,10 +197,13 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	
 	t->retr_buf = reply_buf;
 	t->retr_len = reply_len;
+
+	err = 0;
     }
     else {
 	// Transaction has been deleted
 	delete [] reply_buf;
+
 	err = 0;
     }
     
@@ -222,6 +225,7 @@ int trans_layer::send_request(sip_msg* msg)
     // Supported / Require
     // Content-Length / Content-Type
     
+    assert(transport);
 
     int err = parse_uri(&msg->u.request->ruri,
 			msg->u.request->ruri_str.s,
@@ -251,11 +255,11 @@ int trans_layer::send_request(sip_msg* msg)
     int request_len = request_line_len(msg->u.request->method_str,
 				       msg->u.request->ruri_str);
 
-    cstring branch(addr_buf,8);
+    cstring branch(addr_buf,BRANCH_BUF_LEN);
     compute_branch(branch.s,msg->callid->value,msg->cseq->value);
-    //compute_branch(branch.s,msg->callid->value,msg->callid->value);
 
-    request_len += via_len(cstring("127.0.0.1"),branch);
+    cstring via((char*)transport->get_local_ip());
+    request_len += via_len(via,branch);
 
     request_len += copy_hdrs_len(msg->hdrs);
     request_len += 2/* CRLF end-of-headers*/;
@@ -270,7 +274,7 @@ int trans_layer::send_request(sip_msg* msg)
     request_line_wr(&c,msg->u.request->method_str,
 		    msg->u.request->ruri_str);
 
-    via_wr(&c,cstring("127.0.0.1"),branch);
+    via_wr(&c,via,branch);
     copy_hdrs_wr(&c,msg->hdrs);
 
     *c++ = CR;
@@ -285,7 +289,6 @@ int trans_layer::send_request(sip_msg* msg)
 
     memcpy(&p_msg->remote_ip,&msg->remote_ip,sizeof(sockaddr_storage));
 
-    assert(transport);
     int send_err = transport->send(&p_msg->remote_ip,p_msg->buf,p_msg->len);
     if(send_err < 0){
 	ERROR("Error from transport layer\n");
@@ -339,10 +342,15 @@ void trans_layer::received_msg(sip_msg* msg)
 		// ACK matched INVITE transaction
 		DBG("ACK matched INVITE transaction\n");
 		
-		if(update_uas_request(bucket,t,msg)<0){
+		err = update_uas_request(bucket,t,msg);
+		if(err<0){
 		    DBG("trans_layer::update_uas_trans() failed!\n");
 		    // Anyway, there is nothing we can do...
 		}
+		else if(err == TS_TERMINATED){
+		    
+		}
+		
 		// do not touch the transaction anymore:
 		// it could have been deleted !!!
 
@@ -588,10 +596,10 @@ int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg*
     case TS_CONFIRMED:
 	return t->state;
 	    
-    case TS_TERMINATED:
-	// remove transaction
-	bucket->remove_trans(t);
-	return TS_REMOVED;
+//     case TS_TERMINATED:
+// 	// remove transaction
+// 	bucket->remove_trans(t);
+// 	return TS_REMOVED;
 	    
     default:
 	DBG("Bug? Unknown state at this point: %i\n",t->state);
@@ -693,7 +701,9 @@ void trans_layer::send_200_ack(sip_msg* reply)
 
     sip_header* max_forward = new sip_header(0,cstring("Max-Forwards"),cstring("10"));
 
-    request_len += via_len(cstring("127.0.0.1"),branch);
+    cstring via((char*)transport->get_local_ip()); 
+
+    request_len += via_len(via,branch);
     
     request_len += copy_hdr_len(reply->to);
     request_len += copy_hdr_len(reply->from);
@@ -709,7 +719,7 @@ void trans_layer::send_200_ack(sip_msg* reply)
     c = ack_buf;
 
     request_line_wr(&c,cstring("ACK",3),na.addr);
-    via_wr(&c,cstring("127.0.0.1"),branch);
+    via_wr(&c,via,branch);
     copy_hdr_wr(&c,reply->from);
     copy_hdr_wr(&c,reply->to);
     copy_hdr_wr(&c,reply->callid);

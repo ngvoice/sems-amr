@@ -101,7 +101,10 @@ trans_bucket* get_trans_bucket(unsigned int h);
 
 unsigned int hash(const cstring& ci, const cstring& cs);
 
-// char branch[8]
+
+#define BRANCH_BUF_LEN 8
+
+// char branch[BRANCH_BUF_LEN]
 void compute_branch(char* branch, const cstring& callid, const cstring& cseq);
 
 #endif
