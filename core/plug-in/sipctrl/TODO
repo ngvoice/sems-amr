@@ -1,0 +1,6 @@
+
+- support record-routing
+- compute destination address
+- generate correct via
+- send 200 ACK
+- add timers

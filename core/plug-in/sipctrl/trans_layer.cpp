@@ -8,6 +8,7 @@
 #include "msg_fline.h"
 #include "msg_hdrs.h"
 #include "udp_trsp.h"
+#include "resolver.h"
 #include "log.h"
 
 #include "MyCtrlInterface.h"
@@ -63,6 +64,7 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 			    const cstring& to_tag, const cstring& contact,
 			    const cstring& hdrs, const cstring& body)
 {
+    // Ref.: RFC 3261 8.2.6, 12.1.1
     //
     // Fields to copy (from RFC 3261):
     //  - From
@@ -70,11 +72,19 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
     //  - CSeq
     //  - Vias (same order)
     //  - To (+ tag if not yet present in request)
+    //  - (if a dialog is created) Record-Route
     //
     // Fields to generate (if INVITE transaction):
     //    - Contact
-    //    - Route: copied from Record-Route
-    
+    //    - Route: copied from 
+    // 
+    // SHOULD be contained:
+    //  - Allow, Supported
+    //
+    // MAY be contained:
+    //  - Accept
+
+
     bucket->lock();
     if(!bucket->exist(t)){
 	bucket->unlock();
@@ -86,7 +96,7 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 
     bool have_to_tag = false;
     bool add_contact = false;
-    int reply_len = status_line_len(reason);
+    int  reply_len   = status_line_len(reason);
 
     for(list<sip_header*>::iterator it = req->hdrs.begin();
 	it != req->hdrs.end(); ++it) {
@@ -110,6 +120,7 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	case sip_header::H_CALL_ID:
 	case sip_header::H_CSEQ:
 	case sip_header::H_VIA:
+	case sip_header::H_RECORD_ROUTE:
 	    reply_len += copy_hdr_len(*it);
 	    break;
 	}
@@ -235,27 +246,20 @@ int trans_layer::send_request(sip_msg* msg)
 	return -1;
     }
 
-    msg->remote_ip.ss_family = AF_INET;
+    err = resolver::instance()->resolve_name(c2stlstr(msg->u.request->ruri.host).c_str(),
+					     &msg->remote_ip,IPv4,UDP);
+    if(err < 0){
+	ERROR("Unresolvable Request URI\n");
+	return -1;
+    }
+
     ((sockaddr_in*)&msg->remote_ip)->sin_port = htons(msg->u.request->ruri.port);
-
-    if(msg->u.request->ruri.host.len > 15){
-	ERROR("Invalid IP address in URI: to long\n");
-	return -1;
-    }
-
-    char addr_buf[16] = {'\0'};
-    memcpy(addr_buf,msg->u.request->ruri.host.s,
-	   msg->u.request->ruri.host.len);
-
-    if(inet_aton(addr_buf, &((sockaddr_in*)&msg->remote_ip)->sin_addr) < 0){
-	ERROR("Invalid IP address in URI: inet_aton failed\n");
-	return -1;
-    }
-
+    
     int request_len = request_line_len(msg->u.request->method_str,
 				       msg->u.request->ruri_str);
 
-    cstring branch(addr_buf,BRANCH_BUF_LEN);
+    char branch_buf[BRANCH_BUF_LEN];
+    cstring branch(branch_buf,BRANCH_BUF_LEN);
     compute_branch(branch.s,msg->callid->value,msg->cseq->value);
 
     cstring via((char*)transport->get_local_ip());
@@ -466,9 +470,6 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	return -1;
     }
     
-    //t->to_tag.s = new char[to_tag.len];
-    //memcpy(t->to_tag.s,to_tag.s,to_tag.len);
-
     if(t->msg->u.request->method == sip_request::INVITE){
     
 	if(reply_code >= 300){
@@ -562,8 +563,8 @@ int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_
 	if(t->msg->u.request->method == sip_request::INVITE){
 
 	    // final reply
-	    bucket->remove_trans(t);
-	    return TS_TERMINATED;
+	    //bucket->remove_trans(t);
+	    return TS_TERMINATED_200;
 	}
 	else {
 	    t->state = TS_COMPLETED;
@@ -596,10 +597,10 @@ int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg*
     case TS_CONFIRMED:
 	return t->state;
 	    
-//     case TS_TERMINATED:
-// 	// remove transaction
-// 	bucket->remove_trans(t);
-// 	return TS_REMOVED;
+    case TS_TERMINATED_200:
+	// remove transaction
+	bucket->remove_trans(t);
+	return TS_REMOVED;
 	    
     default:
 	DBG("Bug? Unknown state at this point: %i\n",t->state);
@@ -680,23 +681,17 @@ void trans_layer::send_200_ack(sip_msg* reply)
     // Set destination address
     // TODO: get correct next hop from RURI and Route
     sockaddr_storage remote_ip;
-    remote_ip.ss_family = AF_INET;
-    ((sockaddr_in*)&remote_ip)->sin_port = htons(na.uri.port ? na.uri.port : 5060);
-
-    if(na.uri.host.len > 15){
-	ERROR("Invalid IP address in URI: to long\n");
-	return;
-    }
-
-    char addr_buf[16] = {'\0'};
-    memcpy(addr_buf,na.uri.host.s,na.uri.host.len);
-
-    if(inet_aton(addr_buf, &((sockaddr_in*)&remote_ip)->sin_addr) < 0){
+    int err = resolver::instance()->resolve_name(c2stlstr(na.uri.host).c_str(),
+						 &remote_ip,IPv4,UDP);
+    if(err != 0){
 	ERROR("Invalid IP address in URI: inet_aton failed\n");
 	return;
     }
 
-    cstring branch(addr_buf,8);
+    ((sockaddr_in*)&remote_ip)->sin_port = htons(na.uri.port ? na.uri.port : 5060);
+   
+    char branch_buf[BRANCH_BUF_LEN];
+    cstring branch(branch_buf,BRANCH_BUF_LEN);
     compute_branch(branch.s,reply->callid->value,reply->cseq->value);
 
     sip_header* max_forward = new sip_header(0,cstring("Max-Forwards"),cstring("10"));

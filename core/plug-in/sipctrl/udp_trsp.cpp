@@ -133,8 +133,6 @@ void udp_trsp::on_stop()
 /** @see transport */
 int udp_trsp::bind(const string& address, unsigned short port)
 {
-    // FIXME: address is ignored
-
     if(sd){
 	WARN("re-binding socket\n");
 	close(sd);

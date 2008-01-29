@@ -17,6 +17,7 @@ SRCS = main.cpp \
 	trans_layer.cpp \
 	transport.cpp \
 	udp_trsp.cpp \
+	resolver.cpp \
 	AmThread.cpp \
 	AmUtils.cpp \
 	MyCtrlInterface.cpp
