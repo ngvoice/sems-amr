@@ -208,6 +208,7 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	
 	t->retr_buf = reply_buf;
 	t->retr_len = reply_len;
+	memcpy(&t->retr_addr,&req->remote_ip,sizeof(sockaddr_storage));
 
 	err = 0;
     }
@@ -502,6 +503,7 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	    case TS_CALLING:
 	    case TS_PROCEEDING:
 		t->state = TS_TERMINATED;
+		// TODO: should we assume 200 ACK retransmition?
 		bucket->remove_trans(t);
 		goto pass_reply;
 		
@@ -564,7 +566,7 @@ int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_
 
 	    // final reply
 	    //bucket->remove_trans(t);
-	    return TS_TERMINATED_200;
+	    t->state = TS_TERMINATED_200;
 	}
 	else {
 	    t->state = TS_COMPLETED;
@@ -738,5 +740,9 @@ void trans_layer::send_200_ack(sip_msg* reply)
 
 void trans_layer::retransmit(sip_trans* t)
 {
-    DBG("NYI\n");
+    assert(transport);
+    int send_err = transport->send(&t->retr_addr,t->retr_buf,t->retr_len);
+    if(send_err < 0){
+	ERROR("Error from transport layer\n");
+    }
 }

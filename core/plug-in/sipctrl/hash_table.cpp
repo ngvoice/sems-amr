@@ -76,6 +76,10 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
     // sip_cseq* cseq  = dynamic_cast<sip_cseq*>(msg->cseq->p);
     // assert(cseq);
 
+    DBG("Matching %.*s request\n",
+	msg->u.request->method_str.len,
+	msg->u.request->method_str.s);
+
     //this should have been checked before
     assert(msg->via_p1);
 
@@ -93,6 +97,7 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 				MAGIC_BRANCH_LEN);
     }
 
+    DBG("do_3261_match = %i\n",do_3261_match);
     if(do_3261_match){
 	
 	char* branch = msg->via_p1->branch.s + MAGIC_BRANCH_LEN;
@@ -106,11 +111,19 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 		continue;
 	    }
 
-	    if( (msg->u.request->method != (*it)->msg->u.request->method) &&
-		( (msg->u.request->method != sip_request::ACK) ||
-		  ((*it)->msg->u.request->method != sip_request::INVITE) ) )
+	    if(msg->u.request->method != (*it)->msg->u.request->method) {
+		if( (msg->u.request->method == sip_request::ACK) &&
+		    ((*it)->msg->u.request->method == sip_request::INVITE) ) {
+		    
+		    t = match_200_ack(*it,msg);
+		    if(t){
+			break;
+		    }
+		}
+		
 		continue;
-
+	    }
+	    
 	    if((*it)->msg->via_p1->branch.len != len + MAGIC_BRANCH_LEN)
 		continue;
 
@@ -123,7 +136,7 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 		continue;
 
 	    if(memcmp(branch,
-		      msg->via_p1->branch.s+MAGIC_BRANCH_LEN,len))
+		      (*it)->msg->via_p1->branch.s+MAGIC_BRANCH_LEN,len))
 		continue;
 
 	    if(memcmp((*it)->msg->via_p1->host.s,
@@ -295,6 +308,34 @@ sip_trans* trans_bucket::match_reply(sip_msg* msg)
 	break;
     }
 
+    return t;
+}
+
+sip_trans* trans_bucket::match_200_ack(sip_trans* t, sip_msg* msg)
+{
+    sip_from_to* from = dynamic_cast<sip_from_to*>(msg->from->p);
+    sip_from_to* to = dynamic_cast<sip_from_to*>(msg->to->p);
+    sip_cseq* cseq = dynamic_cast<sip_cseq*>(msg->cseq->p);
+
+    assert(from && to && cseq);
+
+    sip_from_to* t_from = dynamic_cast<sip_from_to*>(t->msg->from->p);
+    if(from->tag.len != t_from->tag.len)
+	return NULL;
+    
+    sip_cseq* t_cseq = dynamic_cast<sip_cseq*>(t->msg->cseq->p);
+    if(cseq->num != t_cseq->num)
+	return NULL;
+
+    if(to->tag.len != t->to_tag.len)
+	return NULL;
+    
+    if(memcmp(from->tag.s,t_from->tag.s,from->tag.len))
+	return NULL;
+    
+    if(memcmp(to->tag.s,t->to_tag.s,to->tag.len))
+	return NULL;
+    
     return t;
 }
 

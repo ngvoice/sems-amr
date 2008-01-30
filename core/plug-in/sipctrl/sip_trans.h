@@ -49,7 +49,7 @@ enum {
     // Transaction states
     //
 
-    TS_TRYING,     // UAC:!INV;     UAS:!INV
+    TS_TRYING=1,   // UAC:!INV;     UAS:!INV
     TS_CALLING,    // UAC:INV
     TS_PROCEEDING, // UAC:INV,!INV; UAS:INV,!INV
     TS_COMPLETED,  // UAC:INV,!INV; UAS:INV,!INV
@@ -88,7 +88,10 @@ struct sip_trans
 
     // Length of the retransmission buffer
     int   retr_len;
-    
+
+    // Where to send retransmissions
+    sockaddr_storage retr_addr;
+
     sip_trans()
 	: msg(0),
 	 retr_buf(0),
