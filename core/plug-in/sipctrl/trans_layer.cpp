@@ -214,8 +214,9 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
     }
     else {
 	// Transaction has been deleted
+	// -> should not happen, as we 
+	//    now wait for 200 ACK
 	delete [] reply_buf;
-
 	err = 0;
     }
     
@@ -375,7 +376,7 @@ void trans_layer::received_msg(sip_msg* msg)
 		// New transaction
 		t = bucket->add_trans(msg, TT_UAS);
 
-		t_id = int2hex(h) 
+		t_id = int2hex(h).substr(5,string::npos) 
 		    + ":" + long2hex((unsigned long)t);
 	    }
 

@@ -327,10 +327,17 @@ sip_trans* trans_bucket::match_200_ack(sip_trans* t, sip_msg* msg)
     if(cseq->num != t_cseq->num)
 	return NULL;
 
+    if(msg->callid->value.len != t->msg->callid->value.len)
+	return NULL;
+
     if(to->tag.len != t->to_tag.len)
 	return NULL;
     
     if(memcmp(from->tag.s,t_from->tag.s,from->tag.len))
+	return NULL;
+
+    if(memcmp(msg->callid->value.s,t->msg->callid->value.s,
+	      msg->callid->value.len))
 	return NULL;
     
     if(memcmp(to->tag.s,t->to_tag.s,to->tag.len))
