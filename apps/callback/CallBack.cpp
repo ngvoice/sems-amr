@@ -141,7 +141,7 @@ AmSession* CallBackFactory::onInvite(const AmSipRequest& req)
     DBG("INVITE user '%s'\n", from_user.c_str());
     if (from_user.length()) {
       scheduled_calls_mut.lock();
-      scheduled_calls.insert(make_pair(now + cb_wait, from_user));
+      scheduled_calls.insert(std::make_pair(now + cb_wait, from_user));
       scheduled_calls_mut.unlock();
     }
     
@@ -181,7 +181,7 @@ void CallBackFactory::run() {
     vector<string> todo;
     time_t now;
     time(&now);
-    multimap<time_t, string>::iterator it = 
+    std::multimap<time_t, string>::iterator it = 
       scheduled_calls.begin();
     while (it != scheduled_calls.end()) {
       if (it->first > now)

@@ -630,6 +630,7 @@ brpc_t *BrpcCtrlInterface::rpcExecute(brpc_t *req)
   brpc_str_t *reason;
   brpc_int_t *code;
   brpc_addr_t from = serAddr; //avoid a syscall to find out socket type
+  brpc_id_t req_id;
 
   if (getSerFd() < 0) {
     ERROR("no connection to SER available.\n");
@@ -643,16 +644,17 @@ brpc_t *BrpcCtrlInterface::rpcExecute(brpc_t *req)
     closeSock(&serFd, &sndAddr);
     goto end;
   } else {
+    req_id = req->id;
     brpc_finish(req);
     req = NULL;
   }
   
   /* receive from queue until empty, if IDs do not match */
   while ((rpl = brpc_recvfrom(serFd, &from, RX_TIMEOUT))) {
-    if (req->id == rpl->id)
+    if (req_id == rpl->id)
       break;
     ERROR("received reply's ID (#%d) doesn't match request's - discarded (%d)",
-        brpc_id(rpl), brpc_id(req));
+        brpc_id(rpl), req_id);
     brpc_finish(rpl);
   }
   if (! rpl) {
@@ -1163,7 +1165,12 @@ int BrpcCtrlInterface::send(const AmSipReply &amRpl)
   brpc_t *req, *rpl = NULL;
   brpc_int_t *retcode;
   brpc_str_t *ser_opaque;
-  
+
+
+  if (amRpl.method == "CANCEL") {
+    DBG("skipping replying to CANCEL, no longer needed with SER2.\n");
+    return 0;
+  }
 
   if (! (req = brpc_req(SER_REPLY, random()))) {
     ERROR("failed to build RPC context: %s [%d].\n", brpc_strerror(), 

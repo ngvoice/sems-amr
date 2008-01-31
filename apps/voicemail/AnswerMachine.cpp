@@ -258,7 +258,7 @@ int AnswerMachineFactory::loadEmailTemplatesFromMySQL()
 
 int AnswerMachineFactory::loadEmailTemplates(const string& path)
 {
-  string email_tmpl_file = add2path(path, 1, 
+  std::string email_tmpl_file = add2path(path, 1, 
 				    (DEFAULT_MAIL_TMPL + "."
 				     + DEFAULT_MAIL_TMPL_EXT).c_str());
     
@@ -483,7 +483,7 @@ AmSession* AnswerMachineFactory::onInvite(const AmSipRequest& req)
   if(email.empty())
     throw AmSession::Exception(404,"missing email address");
 
-  map<string,EmailTemplate>::iterator tmpl_it;
+  std::map<string,EmailTemplate>::iterator tmpl_it;
   if (!language.empty()) {
     tmpl_it = email_tmpl.find(req.domain + "_" + language);
     if(tmpl_it == email_tmpl.end()) {
