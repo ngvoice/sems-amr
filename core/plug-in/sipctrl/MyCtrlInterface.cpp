@@ -44,7 +44,6 @@ int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
     msg->u.request = new sip_request();
 
     msg->u.request->method_str = stl2cstr(req.method);
-    // TODO: parse method and set msg->u.request.method
     msg->u.request->ruri_str = stl2cstr(req.r_uri);
 
     // To
@@ -83,30 +82,26 @@ int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
  	char *c = (char*)req.route.c_str();
 	
  	int err = parse_headers(msg,&c);
-	
- 	stack<sip_header*> route_hdrs;
- 	for(list<sip_header*>::reverse_iterator it = msg->hdrs.rbegin();
- 	    it != msg->hdrs.rend(); it--) {
+
+	//
+	// parse_headers() appends our route headers 
+	// to msg->hdrs and msg->route. But we want
+	// only msg->route(), so we just remove the
+	// route headers at the end of msg->hdrs.
+	//
+ 	for(sip_header* h_rr = msg->hdrs.back();
+ 	    !msg->hdrs.empty(); h_rr = msg->hdrs.back()) {
 	    
- 	    if((*it)->type != sip_header::H_ROUTE){
+ 	    if(h_rr->type != sip_header::H_ROUTE){
  		break;
  	    }
 	    
- 	    route_hdrs.push(*it);
- 	}
-	
- 	for(;!route_hdrs.empty(); route_hdrs.pop()) {
- 	    msg->route.push_back(route_hdrs.top());
+	    msg->hdrs.pop_back();
  	}
     }
-
-//     if(!req.route.empty()){
-// 	msg->route.push_back(new sip_header(0,"Route",stl2cstr(req.route)));
-// 	msg->hdrs.push_back(msg->route.back());
-//     }
     
-    msg->content_length = new sip_header(0,"Content-Length","0");
-    msg->hdrs.push_back(msg->content_length); // FIXME
+    //msg->content_length = new sip_header(0,"Content-Length","0"); // FIXME
+    //msg->hdrs.push_back(msg->content_length); // FIXME
     
     tl->send_request(msg);
     delete msg;
@@ -220,27 +215,50 @@ void MyCtrlInterface::handle_sip_reply(sip_msg* msg)
     
     AmSipReply   reply;
 
-    //reply.next_hop;
-    //reply.route;
-
     reply.content_type = msg->content_type ? c2stlstr(msg->content_type->value): "";
 
-    //reply.hdrs;
     reply.body = msg->body.len ? c2stlstr(msg->body) : "";
     reply.cseq = get_cseq(msg)->num;
 
     reply.code   = msg->u.reply->code;
     reply.reason = c2stlstr(msg->u.reply->reason);
 
-    //reply.next_request_uri
-    
+    if(msg->contact){
+
+	char* c = msg->contact->value.s;
+	sip_nameaddr na;
+	
+	int err = parse_nameaddr(&na,&c,msg->contact->value.len);
+	if(err < 0) {
+	    
+	    ERROR("Contact nameaddr parsing failed\n");
+	    return;
+	}
+	
+	// 'Contact' header?
+	reply.next_request_uri = c2stlstr(na.addr); 
+    }
+
     reply.callid = c2stlstr(msg->callid->value);
     
     reply.remote_tag = c2stlstr(((sip_from_to*)msg->to->p)->tag);
     reply.local_tag  = c2stlstr(((sip_from_to*)msg->from->p)->tag);
 
-    if(msg->u.reply->code >= 200)
+    // Should i fill this one with anything
+    // i do not understand??? -> H_OTHER ?
+    //
+    // reply.hdrs;
+    
+    if( (msg->u.reply->code >= 200 ) &&
+	(msg->u.reply->code < 300 )){
+
 	tl->send_200_ack(msg);
+    }
+
+    //
+    // Will be computed in send_request()
+    //
+    // reply.next_hop;
 
     prepare_routes(msg->record_route, reply.route);
     
@@ -256,7 +274,6 @@ void MyCtrlInterface::prepare_routes(const list<sip_header*>& routes, string& ro
 	route_field = c2stlstr((*it)->value);
 	++it;
 
-	// TODO: req.route
 	for(; it != routes.end(); ++it) {
 		
 	    route_field += ", " + c2stlstr((*it)->value);

@@ -120,6 +120,24 @@ inline int cseq_wr(char** c, const cstring& num, const cstring& method)
     *((*c)++) = LF;
 }
 
+inline int content_length_len(const cstring& len)
+{
+    return 18/*'Content-Length: ' + CRLF*/
+	+ len.len;
+}
+
+inline void content_length_wr(char** c, const cstring& len)
+{
+    memcpy(*c,"Content-Length: ",16);
+    *c += 16/*'Content-Length: '*/;
+
+    memcpy(*c,len.s,len.len);
+    *c += len.len;
+
+    *((*c)++) = CR;
+    *((*c)++) = LF;
+}
+
 #include <list>
 using std::list;
 

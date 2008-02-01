@@ -85,7 +85,7 @@ int main()
     req.cseq     = 10;
     req.callid   = "12345@tinytop";
     req.contact  = "sip:tinytop";
-    req.route    = "Route: <sip:localhost:5070>;blabla=abc, <sip:localhost:5090>"; 
+    req.route    = "Route: <sip:localhost:5070;lr=on>;blabla=abc"; 
 
     int send_err = ctrl->send(req, req.serKey);
     if(send_err < 0) {

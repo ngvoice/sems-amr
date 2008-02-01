@@ -52,6 +52,9 @@ using std::list;
 #define IS_WSP(c) (0x20==(c)||0x09==(c))
 
 #define HCOLON    (':')
+#define COMMA     (',')
+#define DQUOTE    ('"')
+#define BACKSLASH ('\\')
 
 #define IS_ALPHA(c) (IS_IN(c,0x41,0x5a) || IS_IN(c,0x61,0x7a))
 #define IS_DIGIT(c) IS_IN(c,0x30,0x39)

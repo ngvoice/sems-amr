@@ -228,7 +228,11 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
     return err;
 }
 
-int trans_layer::set_next_hop(list<sip_header*>& route_hdrs, sip_uri& r_uri, 
+//
+// Ref. RFC 3261 "12.2.1.1 Generating the Request"
+//
+int trans_layer::set_next_hop(list<sip_header*>& route_hdrs, 
+			      cstring& r_uri, 
 			      sockaddr_storage* remote_ip)
 {
     string         next_hop;
@@ -236,9 +240,9 @@ int trans_layer::set_next_hop(list<sip_header*>& route_hdrs, sip_uri& r_uri,
 
     //assert(msg->type == SIP_REQUEST);
 
+    int err=0;
+
     if(!route_hdrs.empty()){
-	// Ref. "8.1.2 Sending the Request"
-	// TODO: check if first route is a struct router
 	
 	sip_header* fr = route_hdrs.front();
 	
@@ -280,26 +284,104 @@ int trans_layer::set_next_hop(list<sip_header*>& route_hdrs, sip_uri& r_uri,
 	    // TODO: detect beginning of next route
 	    //
 
-	    //for(;*c;c++){
-	    //  if(){
-	    //  }
-	    //}
+	    enum {
+		RR_PARAMS=0,
+		RR_QUOTED,
+		RR_SEP_SWS,       // space(s) after ','
+		RR_NXT_ROUTE
+	    };
 
+	    int st = RR_PARAMS;
+	    char* end = fr->value.s + fr->value.len;
+	    for(;c<end;c++){
+		
+		switch(st){
+		case RR_PARAMS:
+		    switch(*c){
+		    case SP:
+		    case HTAB:
+		    case CR:
+		    case LF:
+			break;
+		    case COMMA:
+			st = RR_SEP_SWS;
+			break;
+		    case DQUOTE:
+			st = RR_QUOTED;
+			break;
+		    }
+		    break;
+		case RR_QUOTED:
+		    switch(*c){
+		    case BACKSLASH:
+			c++;
+			break;
+		    case DQUOTE:
+			st = RR_PARAMS;
+			break;
+		    }
+		    break;
+		case RR_SEP_SWS:
+		    switch(*c){
+		    case SP:
+		    case HTAB:
+		    case CR:
+		    case LF:
+			break;
+		    default:
+			st = RR_NXT_ROUTE;
+			goto nxt_route;
+		    }
+		    break;
+		}
+	    }
+
+	nxt_route:
+	    
+	    switch(st){
+	    case RR_QUOTED:
+	    case RR_SEP_SWS:
+		DBG("Malformed first route header\n");
+	    case RR_PARAMS:
+		// remove current route header from message
+		DBG("delete (fr=0x%p)\n",fr);
+		delete fr; // route_hdrs.front();
+		route_hdrs.pop_front();
+		DBG("route_hdrs.length() = %i\n",route_hdrs.size());
+		break;
+		
+	    case RR_NXT_ROUTE:
+		// remove current route from this header
+		fr->value.s   = c;
+		fr->value.len = end-c;
+		break;
+	    }
+
+	    
 	    // TODO: - copy r_uri at the end of 
 	    //         the route set.
-	    //       - remove first route
 	    //
-	    r_uri = na.uri;
+	    route_hdrs.push_back(new sip_header(0,"Route",r_uri));
+	    DBG("route_hdrs.push_back(0x%p)\n",route_hdrs.back());
+	    r_uri = na.addr;
 	}
 	
     }
     else {
-	next_hop  = c2stlstr(r_uri.host);
-	next_port = r_uri.port;
+
+	sip_uri parsed_r_uri;
+	err = parse_uri(&parsed_r_uri,r_uri.s,r_uri.len);
+	if(err < 0){
+	    ERROR("Invalid Request URI\n");
+	    return -1;
+	}
+
+	next_hop  = c2stlstr(parsed_r_uri.host);
+	next_port = parsed_r_uri.port;
     }
 
-    int err = resolver::instance()->resolve_name(next_hop.c_str(),
-						 remote_ip,IPv4,UDP);
+    err = resolver::instance()->resolve_name(next_hop.c_str(),
+					     remote_ip,IPv4,UDP);
     if(err < 0){
 	ERROR("Unresolvable Request URI\n");
 	return -1;
@@ -325,20 +407,15 @@ int trans_layer::send_request(sip_msg* msg)
     
     assert(transport);
 
-    int err = parse_uri(&msg->u.request->ruri,
-			msg->u.request->ruri_str.s,
-			msg->u.request->ruri_str.len);
-    if(err < 0){
-	ERROR("Invalid Request URI\n");
-	return -1;
-    }
-
-    if(set_next_hop(msg->route,msg->u.request->ruri,&msg->remote_ip) < 0){
+    if(set_next_hop(msg->route,msg->u.request->ruri_str,&msg->remote_ip) < 0){
 	// TODO: error handling
 	DBG("set_next_hop failed\n");
 	//delete msg;
 	return -1;
     }
+
+    // assume that msg->route headers are not in msg->hdrs
+    msg->hdrs.insert(msg->hdrs.begin(),msg->route.begin(),msg->route.end());
 
     int request_len = request_line_len(msg->u.request->method_str,
 				       msg->u.request->ruri_str);
@@ -351,7 +428,15 @@ int trans_layer::send_request(sip_msg* msg)
     request_len += via_len(via,branch);
 
     request_len += copy_hdrs_len(msg->hdrs);
+
+    string content_len = int2str(msg->body.len);
+
+    request_len += content_length_len(stl2cstr(content_len));
     request_len += 2/* CRLF end-of-headers*/;
+
+    if(msg->body.len){
+	request_len += msg->body.len;
+    }
 
     // Allocate new message
     sip_msg* p_msg = new sip_msg();
@@ -366,8 +451,17 @@ int trans_layer::send_request(sip_msg* msg)
     via_wr(&c,via,branch);
     copy_hdrs_wr(&c,msg->hdrs);
 
+    content_length_wr(&c,stl2cstr(content_len));
+
     *c++ = CR;
     *c++ = LF;
+
+    if(msg->body.len){
+	memcpy(c,msg->body.s,msg->body.len);
+
+	// Not needed by now as the message is finished
+	//c += body.len;
+    }
 
     // and parse it
     if(parse_sip_msg(p_msg)){
@@ -476,7 +570,7 @@ void trans_layer::received_msg(sip_msg* msg)
 		DROP_MSG;
 	    }
 	    //Else:
-	    // forget the msg: it will 
+	    // forget the msg: it will be
 	    // owned by the new transaction
 	    return;
 	}
@@ -709,10 +803,11 @@ void trans_layer::send_non_200_ack(sip_trans* t, sip_msg* reply)
 	+ copy_hdr_len(reply->to)
 	+ copy_hdr_len(inv->callid);
     
-    ack_len += cseq_len(get_cseq(inv)->str,get_cseq(inv)->method);
-    
+    ack_len += cseq_len(get_cseq(inv)->str,method);
+    ack_len += 2/* EoH CRLF */;
+
     if(!inv->route.empty())
-	ack_len += copy_hdrs_len(inv->route);
+ 	ack_len += copy_hdrs_len(inv->route);
     
     char* ack_buf = new char [ack_len];
     char* c = ack_buf;
@@ -720,17 +815,20 @@ void trans_layer::send_non_200_ack(sip_trans* t, sip_msg* reply)
     request_line_wr(&c,method,inv->u.request->ruri_str);
     
     copy_hdr_wr(&c,inv->via1);
+
+    if(!inv->route.empty())
+	 copy_hdrs_wr(&c,inv->route);
+
     copy_hdr_wr(&c,inv->from);
     copy_hdr_wr(&c,reply->to);
     copy_hdr_wr(&c,inv->callid);
     
-    cseq_wr(&c,get_cseq(inv)->str,get_cseq(inv)->method);
-    
-    if(!inv->route.empty())
-	copy_hdrs_wr(&c,inv->route);
+    cseq_wr(&c,get_cseq(inv)->str,method);
     
     *c++ = CR;
     *c++ = LF;
+
+    DBG("About to send ACK: \n<%.*s>\n",ack_len,ack_buf);
 
     assert(transport);
     int send_err = transport->send(&inv->remote_ip,ack_buf,ack_len);
@@ -759,24 +857,36 @@ void trans_layer::send_200_ack(sip_msg* reply)
 	return;
     }
     
-    if(parse_uri(&na.uri,na.addr.s,na.addr.len) < 0){
-	DBG("Sorry, reply's Contact URI parsing failed: could not send ACK\n");
-	return;
+    cstring r_uri = na.addr;
+    list<sip_header*> route_hdrs;
+
+    for(list<sip_header*>::iterator it = reply->record_route.begin();
+	it != reply->record_route.end(); ++it) {
+	
+	route_hdrs.push_back(new sip_header(0,"Route",(*it)->value));
     }
 
-    int request_len = request_line_len(cstring("ACK",3),na.addr);
+    sockaddr_storage remote_ip;
+    set_next_hop(route_hdrs,r_uri,&remote_ip);
+
+    //if(parse_uri(&na.uri,na.addr.s,na.addr.len) < 0){
+    //DBG("Sorry, reply's Contact URI parsing failed: could not send ACK\n");
+    //return;
+    //}
+
+    int request_len = request_line_len(cstring("ACK",3),r_uri);
     
     // Set destination address
     // TODO: get correct next hop from RURI and Route
-    sockaddr_storage remote_ip;
-    int err = resolver::instance()->resolve_name(c2stlstr(na.uri.host).c_str(),
-						 &remote_ip,IPv4,UDP);
-    if(err != 0){
-	ERROR("Invalid IP address in URI: inet_aton failed\n");
-	return;
-    }
+    //sockaddr_storage remote_ip;
+    //int err = resolver::instance()->resolve_name(c2stlstr(na.uri.host).c_str(),
+    //					 &remote_ip,IPv4,UDP);
+    //if(err != 0){
+    //ERROR("Invalid IP address in URI: inet_aton failed\n");
+    //return;
+    //}
 
-    ((sockaddr_in*)&remote_ip)->sin_port = htons(na.uri.port ? na.uri.port : 5060);
+    //((sockaddr_in*)&remote_ip)->sin_port = htons(na.uri.port ? na.uri.port : 5060);
    
     char branch_buf[BRANCH_BUF_LEN];
     cstring branch(branch_buf,BRANCH_BUF_LEN);
@@ -787,7 +897,9 @@ void trans_layer::send_200_ack(sip_msg* reply)
     cstring via((char*)transport->get_local_ip()); 
 
     request_len += via_len(via,branch);
-    
+
+    request_len += copy_hdrs_len(route_hdrs);
+
     request_len += copy_hdr_len(reply->to);
     request_len += copy_hdr_len(reply->from);
     request_len += copy_hdr_len(reply->callid);
@@ -801,8 +913,11 @@ void trans_layer::send_200_ack(sip_msg* reply)
     // generate it
     c = ack_buf;
 
-    request_line_wr(&c,cstring("ACK",3),na.addr);
+    request_line_wr(&c,cstring("ACK",3),r_uri);
     via_wr(&c,via,branch);
+
+    copy_hdrs_wr(&c,route_hdrs);
+
     copy_hdr_wr(&c,reply->from);
     copy_hdr_wr(&c,reply->to);
     copy_hdr_wr(&c,reply->callid);
@@ -812,7 +927,7 @@ void trans_layer::send_200_ack(sip_msg* reply)
     *c++ = CR;
     *c++ = LF;
 
-    DBG("About to send ACK: \n<%.*s>\n",request_len,ack_buf);
+    DBG("About to send 200 ACK: \n<%.*s>\n",request_len,ack_buf);
 
     assert(transport);
     int send_err = transport->send(&remote_ip,ack_buf,request_len);

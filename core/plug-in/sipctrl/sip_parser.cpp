@@ -97,6 +97,7 @@ sip_msg::~sip_msg()
     for(it = hdrs.begin();
 	it != hdrs.end(); ++it) {
 
+	//DBG("delete 0x%p\n",*it);
 	delete *it;
     }
 

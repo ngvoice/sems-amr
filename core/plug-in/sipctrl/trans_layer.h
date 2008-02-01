@@ -51,20 +51,27 @@ class trans_layer
     int update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_code);
 
     /**
-     * Retransmits reply / ACK (if possible).
+     * Retransmits reply / non-200 ACK (if possible).
      */
     void retransmit(sip_trans* t);
 
     /**
-     * Send ACK to error replies
+     * Send ACK coresponding to error replies
      */
     void send_non_200_ack(sip_trans* t, sip_msg* reply);
-
-    int set_next_hop(list<sip_header*>& route_hdrs, sip_uri& r_uri, 
+    
+    /**
+     * Fills the address structure passed and modifies 
+     * R-URI and Route headers as needed.
+     */
+    int set_next_hop(list<sip_header*>& route_hdrs, cstring& r_uri, 
 		     sockaddr_storage* remote_ip);
 
  public:
 
+    /**
+     * Retrieve the singleton instance.
+     */
     static trans_layer* instance();
 
     /**
@@ -80,20 +87,34 @@ class trans_layer
     void register_transport(udp_trsp* trsp);
 
     /**
-     * From Control Interface.
+     * Sends a UAS reply.
+     * If a body is included, the hdrs parameter should
+     * include a well-formed 'Content-Type', but no
+     * 'Content-Length' header.
      */
     int send_reply(trans_bucket* bucket, sip_trans* t,
 		   int reply_code, const cstring& reason,
 		   const cstring& to_tag, const cstring& contact,
 		   const cstring& hdrs, const cstring& body);
 
+    /**
+     * Sends a UAC request.
+     * Caution: Route headers should not be added to the
+     * general header list (msg->hdrs).
+     * @param msg Pre-built message.
+     */
     int send_request(sip_msg* msg);
 
     /**
-     * From Transport Layer
+     * Called by the transport layer
+     * when a new message has been recived.
      */
     void received_msg(sip_msg* msg);
 
+    /**
+     * Sends an end-to-end ACK for the reply
+     * passed as a parameter.
+     */
     void send_200_ack(sip_msg* reply);
 };
 
