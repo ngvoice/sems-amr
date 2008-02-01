@@ -4,7 +4,9 @@
 #include "sip_ua.h"
 
 #include <string>
+#include <list>
 using std::string;
+using std::list;
 
 class AmSipRequest;
 class AmSipReply;
@@ -12,6 +14,7 @@ class AmSipReply;
 class trans_layer;
 class trans_bucket;
 struct sip_msg;
+struct sip_header;
 
 class MyCtrlInterface: public sip_ua
 {
@@ -21,6 +24,8 @@ class MyCtrlInterface: public sip_ua
 
     MyCtrlInterface();
     ~MyCtrlInterface(){}
+
+    void prepare_routes(const list<sip_header*>& routes, string& route_field);
 
   public:
 

@@ -365,16 +365,17 @@ int parse_headers(sip_msg* msg, char** c)
     case H_VALUE:
 	if(*c - begin > 0){
 	
-	    hdr->value.set(begin,(*c-(st==ST_CRLF?2:1))-begin);
+	    hdr->value.set(begin,*c - begin);
 	    
-// 	    DBG("hdr: \"%.*s: %.*s\"\n",
-// 		hdr->name.len,hdr->name.s,
-// 		hdr->value.len,hdr->value.s);
+	    //DBG("hdr: \"%.*s: %.*s\"\n",
+	    //	hdr->name.len,hdr->name.s,
+	    //	hdr->value.len,hdr->value.s);
 	    
 	    add_parsed_header(msg,hdr.release());
 	    
 	    return 0;
 	}
+	
 	break;
 
     case ST_LF:

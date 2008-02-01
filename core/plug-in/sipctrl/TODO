@@ -1,6 +1,11 @@
 
-- support record-routing
-- compute destination address
-- generate correct via
-- send 200 ACK
-- add timers
+- (30%) support record-routing
+  -> (100%) copy route header
+  -> (0%) compute next hop (w. RR, RURI, contact)
+
+- (100%) generate correct via
+- (0%) transport resolver (multiple transports per proto/ip)
+
+- (50%)send 200 ACK
+
+- (90%)add timers

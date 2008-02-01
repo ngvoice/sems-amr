@@ -5,8 +5,14 @@
 
 #include "cstring.h"
 
+#include <list>
+using std::list;
+
 struct sip_msg;
+struct sip_uri;
 struct sip_trans;
+struct sip_header;
+struct sockaddr_storage;
 
 class MyCtrlInterface;
 class trans_bucket;
@@ -53,6 +59,9 @@ class trans_layer
      * Send ACK to error replies
      */
     void send_non_200_ack(sip_trans* t, sip_msg* reply);
+
+    int set_next_hop(list<sip_header*>& route_hdrs, sip_uri& r_uri, 
+		     sockaddr_storage* remote_ip);
 
  public:
 

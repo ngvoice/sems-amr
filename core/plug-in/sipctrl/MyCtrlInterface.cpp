@@ -15,6 +15,9 @@
 
 #include <assert.h>
 
+#include <stack>
+using std::stack;
+
 MyCtrlInterface* MyCtrlInterface::_instance = NULL;
 
 
@@ -75,9 +78,36 @@ int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
 
     msg->hdrs.push_back(new sip_header(0,"Max-Forwards","10")); // FIXME
 
+    if(!req.route.empty()){
+	
+ 	char *c = (char*)req.route.c_str();
+	
+ 	int err = parse_headers(msg,&c);
+	
+ 	stack<sip_header*> route_hdrs;
+ 	for(list<sip_header*>::reverse_iterator it = msg->hdrs.rbegin();
+ 	    it != msg->hdrs.rend(); it--) {
+	    
+ 	    if((*it)->type != sip_header::H_ROUTE){
+ 		break;
+ 	    }
+	    
+ 	    route_hdrs.push(*it);
+ 	}
+	
+ 	for(;!route_hdrs.empty(); route_hdrs.pop()) {
+ 	    msg->route.push_back(route_hdrs.top());
+ 	}
+    }
+
+//     if(!req.route.empty()){
+// 	msg->route.push_back(new sip_header(0,"Route",stl2cstr(req.route)));
+// 	msg->hdrs.push_back(msg->route.back());
+//     }
+    
     msg->content_length = new sip_header(0,"Content-Length","0");
     msg->hdrs.push_back(msg->content_length); // FIXME
-
+    
     tl->send_request(msg);
     delete msg;
 }
@@ -178,6 +208,8 @@ void MyCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)
     req.body     = c2stlstr(msg->body);
     req.serKey   = tid;
 
+    prepare_routes(msg->record_route, req.route);
+	
     handleSipMsg(req);
 }
 
@@ -209,6 +241,25 @@ void MyCtrlInterface::handle_sip_reply(sip_msg* msg)
 
     if(msg->u.reply->code >= 200)
 	tl->send_200_ack(msg);
+
+    prepare_routes(msg->record_route, reply.route);
     
     handleSipMsg(reply);
+}
+
+void MyCtrlInterface::prepare_routes(const list<sip_header*>& routes, string& route_field)
+{
+    if(!routes.empty()){
+	
+	list<sip_header*>::const_iterator it = routes.begin();
+
+	route_field = c2stlstr((*it)->value);
+	++it;
+
+	// TODO: req.route
+	for(; it != routes.end(); ++it) {
+		
+	    route_field += ", " + c2stlstr((*it)->value);
+	}
+    }
 }

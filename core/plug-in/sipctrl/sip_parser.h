@@ -119,10 +119,8 @@ struct sip_msg
     cstring            body;
 
     sockaddr_storage   local_ip;
-    //socklen_t          local_ip_len;
 
     sockaddr_storage   remote_ip;
-    //socklen_t          remote_ip_len;
 
     sip_msg();
     sip_msg(char* msg_buf, int msg_len);

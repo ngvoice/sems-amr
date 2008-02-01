@@ -45,7 +45,8 @@ int resolver::resolve_name(const char* name, sockaddr_storage* sa,
 		ERROR("Could not resolve '%s'\n",name);
 		break;
 	    default:
-		ERROR("getaddrinfo: %s\n",gai_strerror(err));
+		ERROR("getaddrinfo('%s'): %s\n",
+		      name,gai_strerror(err));
 		break;
 	    }
 	    

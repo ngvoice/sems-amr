@@ -178,6 +178,7 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	case sip_header::H_CALL_ID:
 	case sip_header::H_CSEQ:
 	case sip_header::H_VIA:
+	case sip_header::H_RECORD_ROUTE:
 	    copy_hdr_wr(&c,*it);
 	    break;
 	}
@@ -189,6 +190,8 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 
     *c++ = CR;
     *c++ = LF;
+
+    DBG("Sending: <%.*s>\n",reply_len,reply_buf);
 
     assert(transport);
     int err = transport->send(&req->remote_ip,reply_buf,reply_len);
@@ -225,6 +228,88 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
     return err;
 }
 
+int trans_layer::set_next_hop(list<sip_header*>& route_hdrs, sip_uri& r_uri, 
+			      sockaddr_storage* remote_ip)
+{
+    string         next_hop;
+    unsigned short next_port=0; 
+
+    //assert(msg->type == SIP_REQUEST);
+
+    if(!route_hdrs.empty()){
+	// Ref. "8.1.2 Sending the Request"
+	// TODO: check if first route is a struct router
+	
+	sip_header* fr = route_hdrs.front();
+	
+	sip_nameaddr na;
+	char* c = fr->value.s;
+	if(parse_nameaddr(&na, &c, fr->value.len)<0) {
+	    
+	    DBG("Parsing name-addr failed\n");
+	    return -1;
+	}
+	
+	if(parse_uri(&na.uri,na.addr.s,na.addr.len) < 0) {
+	    
+	    DBG("Parsing route uri failed\n");
+	    return -1;
+	}
+
+	bool is_lr = false;
+	if(!na.uri.params.empty()){
+	    
+	    list<sip_avp*>::iterator it = na.uri.params.begin();
+	    for(;it != na.uri.params.end(); it++){
+		
+		if( ((*it)->name.len == 2) && 
+		    (!memcmp((*it)->name.s,"lr",2)) ) {
+
+		    is_lr = true;
+		    break;
+		}
+	    }
+
+	}
+	
+	next_hop  = c2stlstr(na.uri.host);
+	next_port = na.uri.port;
+
+	if(!is_lr){
+	    
+	    // TODO: detect beginning of next route
+	    //
+
+	    //for(;*c;c++){
+	    //  if(){
+	    //  }
+	    //}
+
+	    // TODO: - copy r_uri at the end of 
+	    //         the route set.
+	    //       - remove first route
+	    //
+	    r_uri = na.uri;
+	}
+	
+    }
+    else {
+	next_hop  = c2stlstr(r_uri.host);
+	next_port = r_uri.port;
+    }
+
+    int err = resolver::instance()->resolve_name(next_hop.c_str(),
+						 remote_ip,IPv4,UDP);
+    if(err < 0){
+	ERROR("Unresolvable Request URI\n");
+	return -1;
+    }
+
+    ((sockaddr_in*)remote_ip)->sin_port = htons(next_port);
+    
+    return 0;
+}
+
 int trans_layer::send_request(sip_msg* msg)
 {
     // Request-URI
@@ -248,15 +333,13 @@ int trans_layer::send_request(sip_msg* msg)
 	return -1;
     }
 
-    err = resolver::instance()->resolve_name(c2stlstr(msg->u.request->ruri.host).c_str(),
-					     &msg->remote_ip,IPv4,UDP);
-    if(err < 0){
-	ERROR("Unresolvable Request URI\n");
+    if(set_next_hop(msg->route,msg->u.request->ruri,&msg->remote_ip) < 0){
+	// TODO: error handling
+	DBG("set_next_hop failed\n");
+	//delete msg;
 	return -1;
     }
 
-    ((sockaddr_in*)&msg->remote_ip)->sin_port = htons(msg->u.request->ruri.port);
-    
     int request_len = request_line_len(msg->u.request->method_str,
 				       msg->u.request->ruri_str);
 
@@ -294,6 +377,8 @@ int trans_layer::send_request(sip_msg* msg)
     }
 
     memcpy(&p_msg->remote_ip,&msg->remote_ip,sizeof(sockaddr_storage));
+
+    DBG("Sending: <%.*s>",p_msg->len,p_msg->buf);
 
     int send_err = transport->send(&p_msg->remote_ip,p_msg->buf,p_msg->len);
     if(send_err < 0){

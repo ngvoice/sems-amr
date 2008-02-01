@@ -219,8 +219,10 @@ sip_trans* trans_bucket::match_request(sip_msg* msg)
 
 		    // 2xx ACK matching
 
-		    //TODO: additional work for dialog matching???
+		    // TODO: additional work for dialog matching???
 		    //      R-URI should match reply Contact ...
+		    //      Anyway, we don't keep the contact from reply.
+		    t = *it;
 		    break;
 		}
 	    }
