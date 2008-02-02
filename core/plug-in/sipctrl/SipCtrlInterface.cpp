@@ -22,7 +22,8 @@ using std::stack;
 
 #ifndef _STANDALONE
 
-#include "../../AmApi.h"
+#include "AmApi.h"
+#include "AmConfigReader.h"
 
 #ifndef MOD_NAME
 #define MOD_NAME  "sipctrl"
@@ -33,6 +34,9 @@ EXPORT_CONTROL_INTERFACE_FACTORY(SipCtrlInterfaceFactory,MOD_NAME);
 #endif
 
 
+#ifndef _STANDALONE
+
+
 AmCtrlInterface* SipCtrlInterfaceFactory::instance()
 {
     SipCtrlInterface* ctrl = new SipCtrlInterface(bind_addr,bind_port);
@@ -41,13 +45,8 @@ AmCtrlInterface* SipCtrlInterfaceFactory::instance()
     return ctrl;
 }
 
-#ifndef _STANDALONE
-#include "AmConfigReader.h"
-#endif 
-
 int SipCtrlInterfaceFactory::onLoad()
 {
-#ifndef _STANDALONE
     
     AmConfigReader cfg;
   
@@ -70,8 +69,8 @@ int SipCtrlInterfaceFactory::onLoad()
 
     return 0;
     
-#endif
 }
+#endif
 
 SipCtrlInterface::SipCtrlInterface(const string& bind_addr, unsigned short bind_port)
     : bind_addr(bind_addr), bind_port(bind_port)

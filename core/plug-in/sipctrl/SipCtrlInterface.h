@@ -34,6 +34,10 @@ public:
     AmCtrlInterface* instance();
 };
 
+#else
+
+#include "AmThread.h"
+
 #endif
 
 
