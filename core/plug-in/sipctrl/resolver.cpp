@@ -6,7 +6,7 @@
 
 #include "log.h"
 
-resolver* resolver::_instance;
+resolver* resolver::_instance=0;
 
 resolver::resolver()
 {
@@ -20,7 +20,10 @@ resolver::~resolver()
 
 resolver* resolver::instance()
 {
+    if(!_instance)
+	_instance = new resolver();
     
+    return _instance;
 }
     
 int resolver::resolve_name(const char* name, sockaddr_storage* sa, 

@@ -63,7 +63,7 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 
     int st  = URI_HOST;
     char* c = beg;
-    int escaped = 0;
+    //int escaped = 0;
 
     cstring tmp1, tmp2;
 

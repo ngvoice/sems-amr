@@ -79,7 +79,7 @@ inline int via_len(const cstring& addr, const cstring& branch)
 	+ branch.len;
 }
 
-inline int via_wr(char** c, const cstring& addr, const cstring& branch)
+inline void via_wr(char** c, const cstring& addr, const cstring& branch)
 {
     memcpy(*c,"Via: SIP/2.0/UDP ",17);
     *c += 17/*'Via: SIP/2.0/UDP '*/;
@@ -103,7 +103,7 @@ inline int cseq_len(const cstring& num, const cstring& method)
 	+ num.len + method.len;
 }
 
-inline int cseq_wr(char** c, const cstring& num, const cstring& method)
+inline void cseq_wr(char** c, const cstring& num, const cstring& method)
 {
     memcpy(*c,"CSeq: ",6);
     *c += 6/*'CSeq: '*/;

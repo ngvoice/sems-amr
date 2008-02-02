@@ -199,7 +199,7 @@ static int parse_by(cstring* host, cstring* port, char** c, int len)
 	BY_PORT
     };
 
-    int saved_st, st=BY_HOST;
+    int saved_st=0, st=BY_HOST;
 
     char* beg = *c;
     char* end = beg+len;
@@ -427,7 +427,7 @@ int parse_via(sip_via* via, char* beg, int len)
     char* c   = beg;
     char* end = beg+len;
 
-    int saved_st, st=V_TRANS;
+    int saved_st=0, st=V_TRANS;
 
     auto_ptr<sip_via_parm> parm(new sip_via_parm());
 

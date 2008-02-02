@@ -48,7 +48,7 @@ char* SUP_SIPVER = "2.0";
 int parse_sip_version(char* beg, int len)
 {
     char* c = beg;
-    char* end = c+len;
+    //char* end = c+len;
 
     if(len!=7){
 	DBG("SIP-Version string length != SIPVER_len\n");
@@ -90,7 +90,7 @@ int parse_gen_params(list<sip_avp*>* params, char** c, int len, char stop_char)
 
     char* beg = *c;
     char* end = beg+len;
-    int saved_st,st=VP_PARAM_SEP;
+    int saved_st=0,st=VP_PARAM_SEP;
 
     auto_ptr<sip_avp> avp(new sip_avp());
 

@@ -42,7 +42,7 @@ int parse_cseq(sip_cseq* cseq, char* beg, int len)
     char* c = beg;
     char* end = c+len;
 
-    int saved_st, st=C_NUM;
+    int saved_st=0, st=C_NUM;
 
     for(;c!=end;c++){
 

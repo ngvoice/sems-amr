@@ -231,6 +231,22 @@ class AmLoggingFacility : public AmPluginFactory
 };
 
 class AmInterfaceHandler;
+
+class AmCtrlInterface: public AmThread
+{
+ public:
+    virtual ~AmCtrlInterface() = 0;
+
+    //@param serKey An out parameter
+    virtual int send(const AmSipRequest &, string &serKey) = 0;
+
+    virtual int send(const AmSipReply &) = 0;
+
+    virtual string localURI(const string &displayName, 
+        const string &userName, const string &hostName, 
+        const string &uriParams, const string &hdrParams) = 0;
+};
+
 /**
  * \brief Interface for plugins that implement a control interface.
  * 
@@ -245,20 +261,12 @@ class AmInterfaceHandler;
  * SIP event queue).
  *
  */
-class AmCtrlInterface : public AmPluginFactory, public AmThread
+class AmCtrlInterfaceFactory : public AmPluginFactory
 {
   public:
-    AmCtrlInterface(const string& name) : AmPluginFactory(name){}
-    //virtual ~AmCtrlInterface() = 0;
+    AmCtrlInterfaceFactory(const string& name) : AmPluginFactory(name){}
+    virtual ~AmCtrlInterfaceFactory() = 0;
 
-    //@param serKey An out parameter
-    virtual int send(const AmSipRequest &, string &serKey) = 0;
-    virtual int send(const AmSipReply &) = 0;
-    virtual string localURI(const string &displayName, 
-        const string &userName, const string &hostName, 
-        const string &uriParams, const string &hdrParams) = 0;
-
-    virtual void registerInterfaceHandler(AmInterfaceHandler *handler) = 0;
     virtual AmCtrlInterface* instance() = 0;
 };
 

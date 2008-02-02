@@ -11,7 +11,7 @@
 #include "resolver.h"
 #include "log.h"
 
-#include "MyCtrlInterface.h"
+#include "SipCtrlInterface.h"
 #include "AmUtils.h"
 #include "../../AmSipMsg.h"
 
@@ -483,7 +483,7 @@ int trans_layer::send_request(sip_msg* msg)
 	trans_bucket* bucket = get_trans_bucket(p_msg->callid->value,
 						get_cseq(p_msg)->str);
 	bucket->lock();
-	sip_trans* t = bucket->add_trans(p_msg,TT_UAC);
+	bucket->add_trans(p_msg,TT_UAC);
 	bucket->unlock();
     }
     
@@ -521,7 +521,7 @@ void trans_layer::received_msg(sip_msg* msg)
     switch(msg->type){
     case SIP_REQUEST: 
 	
-	if(t = bucket->match_request(msg)){
+	if((t = bucket->match_request(msg)) != NULL){
 	    if(msg->u.request->method != t->msg->u.request->method){
 		
 		// ACK matched INVITE transaction
@@ -578,7 +578,7 @@ void trans_layer::received_msg(sip_msg* msg)
     
     case SIP_REPLY:
 
-	if(t = bucket->match_reply(msg)){
+	if((t = bucket->match_reply(msg)) != NULL){
 
 	    // Reply matched UAC transaction
 	    
@@ -612,7 +612,7 @@ void trans_layer::received_msg(sip_msg* msg)
 	break;
     }
 
- unlock_drop:
+    // unlock_drop:
     bucket->unlock();
     DROP_MSG;
 }

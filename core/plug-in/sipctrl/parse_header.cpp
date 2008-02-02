@@ -238,7 +238,7 @@ int parse_headers(sip_msg* msg, char** c)
     int saved_st = 0;
 
     char* begin = *c;
-    bool  cr = false;
+    //bool  cr = false;
 
     auto_ptr<sip_header> hdr(new sip_header());
 
@@ -320,7 +320,7 @@ int parse_headers(sip_msg* msg, char** c)
 
 	    case H_VALUE_SWS:
 		if(!IS_WSP(**c)){
-		    DBG("Malformed header: <%.*s>\n",(*c-begin,begin));
+		    DBG("Malformed header: <%.*s>\n",*c-begin,begin);
 		    begin = *c;
 		    saved_st = H_NAME;
 		}

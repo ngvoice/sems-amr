@@ -57,8 +57,8 @@ int parse_nameaddr(sip_nameaddr* na, char** c, int len)
     
     char* uri_end=0;
 
-    int saved_st, st=NA_SWS;
-    int ret=0;
+    int saved_st=0, st=NA_SWS;
+    //int ret=0;
 
     for(;*c!=end;(*c)++){
 	

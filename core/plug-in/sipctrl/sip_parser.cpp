@@ -232,7 +232,7 @@ static int parse_first_line(sip_msg* msg, char** c)
     };
 
     char* beg = *c;
-    int saved_st, st=FL_SIPVER1;
+    int saved_st=0, st=FL_SIPVER1;
     int err=0;
 
     bool is_request=false;

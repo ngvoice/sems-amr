@@ -32,8 +32,6 @@
 
 inline void status_code_wr(char** c, int code)
 {
-    char code_str[3];
-
     int div = code / 100;
     *((*c)++) = div + '0';
     code -= div*100;

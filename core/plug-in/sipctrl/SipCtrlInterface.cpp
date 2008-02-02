@@ -1,4 +1,4 @@
-#include "MyCtrlInterface.h"
+#include "SipCtrlInterface.h"
 
 #include "AmUtils.h"
 #include "../../AmSipMsg.h"
@@ -11,6 +11,8 @@
 #include "hash_table.h"
 #include "sip_trans.h"
 
+#include "udp_trsp.h"
+
 #include "log.h"
 
 #include <assert.h>
@@ -18,25 +20,67 @@
 #include <stack>
 using std::stack;
 
-MyCtrlInterface* MyCtrlInterface::_instance = NULL;
+#ifndef _STANDALONE
+
+#include "../../AmApi.h"
+
+#ifndef MOD_NAME
+#define MOD_NAME  "sipctrl"
+#endif
+
+EXPORT_CONTROL_INTERFACE_FACTORY(SipCtrlInterfaceFactory,MOD_NAME);
+
+#endif
 
 
-MyCtrlInterface* MyCtrlInterface::instance()
+AmCtrlInterface* SipCtrlInterfaceFactory::instance()
 {
-    if(!_instance)
-	_instance = new MyCtrlInterface();
-    
-    return _instance;
+    SipCtrlInterface* ctrl = new SipCtrlInterface(bind_addr,bind_port);
+    trans_layer::instance()->register_ua(ctrl);
+
+    return ctrl;
 }
 
-MyCtrlInterface::MyCtrlInterface()
+#ifndef _STANDALONE
+#include "AmConfigReader.h"
+#endif 
+
+int SipCtrlInterfaceFactory::onLoad()
+{
+#ifndef _STANDALONE
+    
+    AmConfigReader cfg;
+  
+    if (cfg.loadFile(AmConfig::ModConfigPath + string(MOD_NAME ".conf"))) {
+	
+	WARN("failed to read/parse config file `%s' - assuming defaults\n",
+	     (AmConfig::ModConfigPath + string(MOD_NAME ".conf")).c_str());
+	
+	bind_addr = AmConfig::LocalIP;
+	bind_port = 5060;
+    } 
+    else {
+
+	bind_addr = cfg.getParameter("bind_addr", AmConfig::LocalIP);
+	bind_port = cfg.getParameterInt("bind_port", 5060);
+    }
+
+    INFO("bind_addr: `%s'.\n", bind_addr.c_str());
+    INFO("bind_port: `%i'.\n", bind_port);
+
+    return 0;
+    
+#endif
+}
+
+SipCtrlInterface::SipCtrlInterface(const string& bind_addr, unsigned short bind_port)
+    : bind_addr(bind_addr), bind_port(bind_port)
 {
     tl = trans_layer::instance();
-    tl->register_ua(this);
 }
 
 
-int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
+int SipCtrlInterface::send(const AmSipRequest &req, string &serKey)
 {
     sip_msg* msg = new sip_msg();
     
@@ -82,6 +126,11 @@ int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
  	char *c = (char*)req.route.c_str();
 	
  	int err = parse_headers(msg,&c);
+	
+	if(err){
+	    ERROR("Route headers parsing failed\n");
+	    return -1;
+	}
 
 	//
 	// parse_headers() appends our route headers 
@@ -100,25 +149,33 @@ int MyCtrlInterface::send(const AmSipRequest &req, string &serKey)
  	}
     }
     
-    //msg->content_length = new sip_header(0,"Content-Length","0"); // FIXME
-    //msg->hdrs.push_back(msg->content_length); // FIXME
-    
     tl->send_request(msg);
     delete msg;
+
+    return 0;
 }
 
-int MyCtrlInterface::send(const AmSipReply &rep)
+void SipCtrlInterface::run()
 {
-    unsigned int h=0;
-    sip_trans*   t=0;
+    INFO("Starting SIP control interface\n");
+    udp_trsp* udp_server = new udp_trsp(tl);
 
-    if((sscanf(rep.serKey.c_str(),"%x:%x",&h,(unsigned long)&t) != 2) ||
+    udp_server->start();
+    udp_server->join();
+}
+
+int SipCtrlInterface::send(const AmSipReply &rep)
+{
+    unsigned int  h=0;
+    unsigned long t=0;
+
+    if((sscanf(rep.serKey.c_str(),"%x:%lx",&h,&t) != 2) ||
        (h >= H_TABLE_ENTRIES)){
 	ERROR("Invalid transaction key: invalid bucket ID\n");
 	return -1;
     }
     
-    return tl->send_reply(get_trans_bucket(h),t,
+    return tl->send_reply(get_trans_bucket(h),(sip_trans*)t,
 			  rep.code,stl2cstr(rep.reason),
 			  stl2cstr(rep.local_tag), stl2cstr(rep.contact),
 			  stl2cstr(rep.hdrs), stl2cstr(rep.body));
@@ -127,7 +184,7 @@ int MyCtrlInterface::send(const AmSipReply &rep)
 #define DBG_PARAM(p)\
     DBG("%s = <%s>\n",#p,p.c_str());
 
-void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
+void SipCtrlInterface::handleSipMsg(AmSipRequest &req)
 {
     DBG("Received new request:\n");
 
@@ -171,7 +228,7 @@ void MyCtrlInterface::handleSipMsg(AmSipRequest &req)
     // Debug code - end
 }
 
-void MyCtrlInterface::handleSipMsg(AmSipReply &rep)
+void SipCtrlInterface::handleSipMsg(AmSipReply &rep)
 {
     DBG("Received reply: %i %s\n",rep.code,rep.reason.c_str());
     DBG_PARAM(rep.callid);
@@ -179,7 +236,7 @@ void MyCtrlInterface::handleSipMsg(AmSipReply &rep)
     DBG_PARAM(rep.remote_tag);
 }
 
-void MyCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)
+void SipCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)
 {
     assert(msg->from && msg->from->p);
     assert(msg->to && msg->to->p);
@@ -208,7 +265,7 @@ void MyCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)
     handleSipMsg(req);
 }
 
-void MyCtrlInterface::handle_sip_reply(sip_msg* msg)
+void SipCtrlInterface::handle_sip_reply(sip_msg* msg)
 {
     assert(msg->from && msg->from->p);
     assert(msg->to && msg->to->p);
@@ -265,7 +322,7 @@ void MyCtrlInterface::handle_sip_reply(sip_msg* msg)
     handleSipMsg(reply);
 }
 
-void MyCtrlInterface::prepare_routes(const list<sip_header*>& routes, string& route_field)
+void SipCtrlInterface::prepare_routes(const list<sip_header*>& routes, string& route_field)
 {
     if(!routes.empty()){
 	

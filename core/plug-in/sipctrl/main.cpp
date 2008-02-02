@@ -30,7 +30,7 @@
 
 #include "log.h"
 
-#include "MyCtrlInterface.h"
+#include "SipCtrlInterface.h"
 #include "../../AmSipMsg.h"
 #define SERVER
 
@@ -39,9 +39,9 @@ int main()
     log_level  = 3;
     log_stderr = 1;
 
-    trans_layer* tl = trans_layer::instance();
-    udp_trsp* udp_server = new udp_trsp(tl);
-    MyCtrlInterface* ctrl = MyCtrlInterface::instance();
+//     trans_layer* tl = trans_layer::instance();
+//     udp_trsp* udp_server = new udp_trsp(tl);
+    SipCtrlInterface* ctrl = new SipCtrlInterface("127.0.0.1",5060);
     
 #ifndef SERVER
     char* buf = 
@@ -73,8 +73,10 @@ int main()
 
 #else
     
-    udp_server->bind("127.0.0.1",5060);
-    udp_server->start();
+    //udp_server->bind();
+    //udp_server->start();
+
+    ctrl->start();
 
     AmSipRequest req;
     req.method   = "INVITE";
@@ -92,7 +94,9 @@ int main()
       ERROR("ctrl->send() failed with error code %i\n",send_err);
     }
 
-    udp_server->join();
+    //udp_server->join();
+    
+    ctrl->join();
     
 #endif
 
