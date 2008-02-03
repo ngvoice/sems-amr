@@ -136,7 +136,7 @@ void AmThread::start(bool realtime)
   //     thread_nr_mut.lock();
   //     INFO("threads = %i\n",++thread_nr);
   //     thread_nr_mut.unlock();
-  DBG("Thread %lu is just created.\n", (unsigned long int) _pid);
+  //DBG("Thread %lu is just created.\n", (unsigned long int) _pid);
 }
 
 void AmThread::stop()

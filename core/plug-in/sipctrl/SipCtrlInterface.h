@@ -18,7 +18,7 @@ struct sip_header;
 
 #ifndef _STANDALONE
 
-#include "../../AmApi.h"
+#include "AmApi.h"
 
 class SipCtrlInterfaceFactory: public AmCtrlInterfaceFactory
 {
@@ -73,9 +73,11 @@ public:
     int send(const AmSipRequest &req, string &serKey);
     int send(const AmSipReply &rep);
     
-    string localURI(const string &displayName, 
+#ifndef _STANDALONE
+    string getContact(const string &displayName, 
 		    const string &userName, const string &hostName, 
 		    const string &uriParams, const string &hdrParams);
+#endif
     
     void handleSipMsg(AmSipRequest &req);
     void handleSipMsg(AmSipReply &rep);

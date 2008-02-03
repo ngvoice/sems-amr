@@ -169,6 +169,7 @@ int parse_nameaddr(sip_nameaddr* na, char** c, int len)
 		}
 		break;
 	    }
+	    break;
 
 	case NA_DISP_LAQUOT:
 	    switch(**c){

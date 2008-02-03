@@ -235,14 +235,15 @@ class AmInterfaceHandler;
 class AmCtrlInterface: public AmThread
 {
  public:
-    virtual ~AmCtrlInterface() = 0;
+    AmCtrlInterface() {}
+    //virtual ~AmCtrlInterface() = 0;
 
     //@param serKey An out parameter
     virtual int send(const AmSipRequest &, string &serKey) = 0;
 
     virtual int send(const AmSipReply &) = 0;
 
-    virtual string localURI(const string &displayName, 
+    virtual string getContact(const string &displayName, 
         const string &userName, const string &hostName, 
         const string &uriParams, const string &hdrParams) = 0;
 };
@@ -264,8 +265,8 @@ class AmCtrlInterface: public AmThread
 class AmCtrlInterfaceFactory : public AmPluginFactory
 {
   public:
-    AmCtrlInterfaceFactory(const string& name) : AmPluginFactory(name){}
-    virtual ~AmCtrlInterfaceFactory() = 0;
+    AmCtrlInterfaceFactory(const string& name);
+    virtual ~AmCtrlInterfaceFactory() {}
 
     virtual AmCtrlInterface* instance() = 0;
 };

@@ -28,48 +28,69 @@
 #include "trans_layer.h"
 #include "udp_trsp.h"
 
+#include "sip_parser.h"
+
 #include "log.h"
 
 #include "SipCtrlInterface.h"
 #include "../../AmSipMsg.h"
-#define SERVER
+
+//#define SERVER
 
 int main()
 {
     log_level  = 3;
     log_stderr = 1;
 
-//     trans_layer* tl = trans_layer::instance();
 //     udp_trsp* udp_server = new udp_trsp(tl);
     SipCtrlInterface* ctrl = new SipCtrlInterface("127.0.0.1",5060);
     
 #ifndef SERVER
     char* buf = 
-	"INVITE sip:bob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
- 	"Via: SIP/2.0/UDP bigbox3.site3.atlanta.com;branch=z9hG4bK77ef4c2312983.1\r\n"
- 	"Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bKnashds8\r\n"
- 	" ;received=192.0.2.1\r\n"
-	"Max-Forwards: 69\r\n"
-	"To: Bob <sip:bob@biloxi.com>\r\n"
-	"From: sip:alice@atlanta.com;tag=1928301774\r\n"
-	"Call-ID: a84b4c76e66710\r\n"
-	"CSeq: 314159 INVITE\r\n"
-	"Contact: <sip:alice@pc33.atlanta.com>\r\n"
-	"Content-Type: application/sdp\r\n"
-	"Content-Length: 148\r\n"
-	"\r\n"
-	"v=0\r\n"
-	"o=alice 53655765 2353687637 IN IP4 pc33.atlanta.com\r\n"
-	"s=-\r\n"
-	"t=0 0\r\n"
-	"c=IN IP4 pc33.atlanta.com\r\n"
-	"m=audio 3456 RTP/AVP 0 1 3 99\r\n"
-	"a=rtpmap:0 PCMU/8000";
+	"REGISTER sip:192.168.0.22 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 192.168.0.24:5060;branch=z9hG4bKf3f8ddeb9512414252418e7c18c2f0e;rport\r\n"
+	"From: \"Raphael\" <sip:raf@192.168.0.22>;tag=2239770325\r\n"
+	"To: \"Raphael\" <sip:raf@192.168.0.22>\r\n"
+	"Call-ID: 1199294025@192_168_0_24\r\n"
+	"CSeq: 1 REGISTER\r\n"
+	"Contact: <sip:raf@192.168.0.24:5060>\r\n"
+	"Max-Forwards: 70\r\n"
+	"User-Agent: S450 IP020970000000\r\n"
+	"Expires: 180\r\n"
+	"Allow: INVITE, ACK, CANCEL, BYE, OPTIONS, INFO, REFER, SUBSCRIBE, NOTIFY\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n";
+
+//     char* buf = 
+// 	"INVITE sip:bob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
+//  	"Via: SIP/2.0/UDP bigbox3.site3.atlanta.com;branch=z9hG4bK77ef4c2312983.1\r\n"
+//  	"Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bKnashds8\r\n"
+//  	" ;received=192.0.2.1\r\n"
+// 	"Max-Forwards: 69\r\n"
+// 	"To: Bob <sip:bob@biloxi.com>\r\n"
+// 	"From: sip:alice@atlanta.com;tag=1928301774\r\n"
+// 	"Call-ID: a84b4c76e66710\r\n"
+// 	"CSeq: 314159 INVITE\r\n"
+// 	"Contact: <sip:alice@pc33.atlanta.com>\r\n"
+// 	"Content-Type: application/sdp\r\n"
+// 	"Content-Length: 148\r\n"
+// 	"\r\n"
+// 	"v=0\r\n"
+// 	"o=alice 53655765 2353687637 IN IP4 pc33.atlanta.com\r\n"
+// 	"s=-\r\n"
+// 	"t=0 0\r\n"
+// 	"c=IN IP4 pc33.atlanta.com\r\n"
+// 	"m=audio 3456 RTP/AVP 0 1 3 99\r\n"
+// 	"a=rtpmap:0 PCMU/8000";
 
     int buf_len = strlen(buf);
     sip_msg* msg = new sip_msg(buf,buf_len);
     
+    trans_layer* tl = trans_layer::instance();
+    tl->register_ua(ctrl);
     tl->received_msg(msg);
+
+    //delete msg;
 
 #else
     
@@ -100,46 +121,6 @@ int main()
     
 #endif
 
-
-#ifdef SERVER
-
-#if 0
-    if(msg->type == SIP_REQUEST){
-
-	sip_msg reply;
-	reply.type = SIP_REPLY;
-	
-	int len = status_line_len(cstring("Bad Request"));
-	len += copy_hdrs_len(msg->hdrs);
-
-	len += 2; // CRLF
-
-	reply.buf = new char[len];
-	reply.len = len;
-
-	char* c = reply.buf;
-	status_line_wr(&reply,&c,400,cstring("Bad Request"));
-	copy_hdrs_wr(&reply,&c,msg->hdrs);
-	
-	*(c++) = CR;
-	*(c++) = LF;
-
-	DBG("reply msg: \"%.*s\"\n",reply.len,reply.buf);
-
-	sendto(sd,reply.buf,reply.len,0,
-	       (sockaddr*)&msg->recved,msg->recved_len);
-
-
-    }
-#endif
-
-    //FIXME: enter udp_server loop
-    
-#else
-    delete msg;
-
-#endif
-    
 
     return 0;
 }

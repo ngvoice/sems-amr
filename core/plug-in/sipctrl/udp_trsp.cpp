@@ -88,10 +88,17 @@ void udp_trsp::run()
 
     while(true){
 
-	DBG("before recvmsg\n");
+	DBG("before recvmsg (%s:%i)\n",local_ip.c_str(),local_port);
+
 	buf_len = recvmsg(sd,&msg,0);
 	if(buf_len <= 0){
 	    ERROR("recvfrom returned %d: %s\n",buf_len,strerror(errno));
+	    switch(errno){
+	    case EBADF:
+	    case ENOTSOCK:
+	    case EOPNOTSUPP:
+		return;
+	    }
 	    continue;
 	}
 
@@ -185,6 +192,8 @@ int udp_trsp::bind(const string& address, unsigned short port)
 
     local_port = port;
     local_ip   = address;
+
+    DBG("UDP transport bound to %s:%i\n",address.c_str(),port);
 
     return 0;
 }

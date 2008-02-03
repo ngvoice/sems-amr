@@ -83,12 +83,12 @@ void AmSessionContainer::run()
 
 	if(cur_session->is_stopped() && cur_session->detached.get()){
 		    
-	  DBG("session %ld has been destroyed'\n",(unsigned long int)cur_session->_pid);
-	  delete cur_session;
+	    DBG("session %p has been destroyed'\n",(void*)cur_session->_pid);
+	    delete cur_session;
 	}
 	else {
-	  DBG("session %ld still running\n",(unsigned long int)cur_session->_pid);
-	  n_sessions.push(cur_session);
+	    DBG("session %p still running\n",(void*)cur_session->_pid);
+	    n_sessions.push(cur_session);
 	}
 
 	ds_mut.lock();

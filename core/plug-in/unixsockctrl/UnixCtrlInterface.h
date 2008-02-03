@@ -68,7 +68,7 @@ class UnixCtrlInterface : public AmCtrlInterface
     int send(const AmSipRequest &, string &);
     int send(const AmSipReply &);
 
-    string localURI(const string &displayName, 
+    string getContact(const string &displayName, 
         const string &userName, const string &hostName, 
         const string &uriParams, const string &hdrParams);
 

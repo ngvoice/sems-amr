@@ -134,7 +134,7 @@ void AmThread::start(bool realtime)
 
   _stopped.set(false);
 
-  DBG("Thread %lu is just created.\n", (unsigned long int) _pid);
+  //DBG("Thread %lu is just created.\n", (unsigned long int) _pid);
 }
 
 void AmThread::stop()

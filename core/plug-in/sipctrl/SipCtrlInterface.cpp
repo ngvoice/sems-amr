@@ -24,18 +24,13 @@ using std::stack;
 
 #include "AmApi.h"
 #include "AmConfigReader.h"
+#include "AmSipDispatcher.h"
 
 #ifndef MOD_NAME
 #define MOD_NAME  "sipctrl"
 #endif
 
 EXPORT_CONTROL_INTERFACE_FACTORY(SipCtrlInterfaceFactory,MOD_NAME);
-
-#endif
-
-
-#ifndef _STANDALONE
-
 
 AmCtrlInterface* SipCtrlInterfaceFactory::instance()
 {
@@ -56,12 +51,12 @@ int SipCtrlInterfaceFactory::onLoad()
 	     (AmConfig::ModConfigPath + string(MOD_NAME ".conf")).c_str());
 	
 	bind_addr = AmConfig::LocalIP;
-	bind_port = 5060;
+	bind_port = AmConfig::LocalSIPPort;
     } 
     else {
 
 	bind_addr = cfg.getParameter("bind_addr", AmConfig::LocalIP);
-	bind_port = cfg.getParameterInt("bind_port", 5060);
+	bind_port = cfg.getParameterInt("bind_port", AmConfig::LocalSIPPort);
     }
 
     INFO("bind_addr: `%s'.\n", bind_addr.c_str());
@@ -70,7 +65,8 @@ int SipCtrlInterfaceFactory::onLoad()
     return 0;
     
 }
-#endif
+
+#endif // #ifndef _STANDALONE
 
 SipCtrlInterface::SipCtrlInterface(const string& bind_addr, unsigned short bind_port)
     : bind_addr(bind_addr), bind_port(bind_port)
@@ -78,6 +74,57 @@ SipCtrlInterface::SipCtrlInterface(const string& bind_addr, unsigned short bind_
     tl = trans_layer::instance();
 }
 
+#ifndef _STANDALONE
+
+string SipCtrlInterface::getContact(const string &displayName, 
+				  const string &userName, const string &hostName, 
+				  const string &uriParams, const string &hdrParams)
+{
+  string localUri;
+
+  if (displayName.length()) {
+      // quoting is safer (the check for quote need doesn't really pay off)
+      if (displayName.c_str()[0] == '"') {
+	  assert(displayName.c_str()[displayName.length() - 1] == '"');
+	  localUri += displayName;
+      } else {
+	  localUri += '"';
+	  localUri += displayName;
+	  localUri += '"';
+      }
+      localUri += " ";
+  }
+
+  // angular brackets not always needed (unless contact)
+  localUri += "<";
+  localUri += "sip:"; //TODO: sips|tel|tels
+  if (userName.length()) {
+    localUri += userName;
+    localUri += "@";
+  }
+  if (hostName.length())
+    localUri += hostName;
+  else {
+      localUri += AmConfig::LocalSIPIP; // Ser will replace that...
+      localUri += ":" + AmConfig::LocalSIPPort;
+  }
+
+  if (uriParams.length()) {
+    if (uriParams.c_str()[0] != ';')
+      localUri += ';';
+    localUri += uriParams;
+  }
+  localUri += ">";
+
+  if (hdrParams.length()) {
+    if (hdrParams.c_str()[0] != ';')
+      localUri += ';';
+    localUri += hdrParams;
+  }
+
+  return localUri;
+}
+#endif
 
 int SipCtrlInterface::send(const AmSipRequest &req, string &serKey)
 {
@@ -159,6 +206,7 @@ void SipCtrlInterface::run()
     INFO("Starting SIP control interface\n");
     udp_trsp* udp_server = new udp_trsp(tl);
 
+    udp_server->bind(bind_addr,bind_port);
     udp_server->start();
     udp_server->join();
 }
@@ -174,6 +222,9 @@ int SipCtrlInterface::send(const AmSipReply &rep)
 	return -1;
     }
     
+    string hdrs = rep.hdrs;
+    hdrs += "Content-Type: " + rep.content_type + "\r\n";
+
     return tl->send_reply(get_trans_bucket(h),(sip_trans*)t,
 			  rep.code,stl2cstr(rep.reason),
 			  stl2cstr(rep.local_tag), stl2cstr(rep.contact),
@@ -210,6 +261,7 @@ void SipCtrlInterface::handleSipMsg(AmSipRequest &req)
     if(req.method == "ACK")
 	return;
     
+#ifdef _STANDALONE
     // Debug code - begin
     AmSipReply reply;
     
@@ -225,6 +277,10 @@ void SipCtrlInterface::handleSipMsg(AmSipRequest &req)
 	DBG("send failed with err code %i\n",err);
     }
     // Debug code - end
+#else
+
+    AmSipDispatcher::instance()->handleSipMsg(req);
+#endif
 }
 
 void SipCtrlInterface::handleSipMsg(AmSipReply &rep)
@@ -233,6 +289,11 @@ void SipCtrlInterface::handleSipMsg(AmSipReply &rep)
     DBG_PARAM(rep.callid);
     DBG_PARAM(rep.local_tag);
     DBG_PARAM(rep.remote_tag);
+
+#ifndef _STANDALONE
+
+    AmSipDispatcher::instance()->handleSipMsg(rep);
+#endif
 }
 
 void SipCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)

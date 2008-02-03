@@ -201,7 +201,7 @@ void UnixCtrlInterface::run()
 #undef POS_RPL
 }
 
-string UnixCtrlInterface::localURI(const string &displayName, 
+string UnixCtrlInterface::getContact(const string &displayName, 
     const string &userName, const string &hostName, 
     const string &uriParams, const string &hdrParams)
 {
@@ -246,5 +246,5 @@ string UnixCtrlInterface::localURI(const string &displayName,
     localUri += hdrParams;
   }
 
-  return localUri;
+  return SIP_HDR_COLSP(SIP_HDR_CONTACT) + localUri + CRLF;
 }

@@ -134,6 +134,17 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	reply_len += contact_len(contact);
 	add_contact = true;
     }
+
+    reply_len += hdrs.len;
+
+    string c_len = int2str(body.len);
+    reply_len += content_length_len((char*)c_len.c_str());
+
+    if(body.len){
+	
+	reply_len += body.len;
+    }
+
     reply_len += 2/*CRLF*/;
     
     // Allocate buffer for the reply
@@ -188,8 +199,18 @@ int trans_layer::send_reply(trans_bucket* bucket, sip_trans* t,
 	contact_wr(&c,contact);
     }
 
+    memcpy(c,hdrs.s,hdrs.len);
+    c += hdrs.len;
+
+    content_length_wr(&c,(char*)c_len.c_str());
+
     *c++ = CR;
     *c++ = LF;
+
+    if(body.len){
+	
+	memcpy(c,body.s,body.len);
+    }
 
     DBG("Sending: <%.*s>\n",reply_len,reply_buf);
 

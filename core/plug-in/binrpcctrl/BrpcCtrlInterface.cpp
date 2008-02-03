@@ -1243,7 +1243,7 @@ end:
   return ret;
 }
 
-string BrpcCtrlInterface::localURI(const string &displayName, 
+string BrpcCtrlInterface::getContact(const string &displayName, 
     const string &userName, const string &hostName, 
     const string &uriParams, const string &hdrParams)
 {
@@ -1296,5 +1296,5 @@ string BrpcCtrlInterface::localURI(const string &displayName,
     localUri += hdrParams;
   }
 
-  return localUri;
+  return SIP_HDR_COLSP(SIP_HDR_CONTACT) + localUri + CRLF;
 }
