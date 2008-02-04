@@ -170,7 +170,7 @@ AmSession* AmSessionContainer::getSession(const string& local_tag)
 {
   SessionMapIter it = a_sessions.find(local_tag);
   if(it == a_sessions.end()){
-    //ERROR("could not find session (local_tag='%s')\n",local_tag.c_str());
+      //ERROR("could not find session (local_tag='%s')\n",local_tag.c_str());
     return NULL;
   }
 
@@ -386,7 +386,8 @@ bool AmSessionContainer::addSession_unsafe(const string& local_tag,
 {
   if(getSession(local_tag))
     return false;
-    
+  
+  //DBG("a_sessions['%s'] = session\n",local_tag.c_str());
   a_sessions[local_tag] = session;
   return true;
 }

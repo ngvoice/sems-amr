@@ -28,11 +28,14 @@
 #ifndef _parse_from_to_h
 #define _parse_from_to_h
 
+#include "sip_parser.h"
 #include "parse_header.h"
 #include "parse_uri.h"
 
 struct sip_nameaddr
 {
+    cstring body;
+
     cstring name;
     cstring addr;
 
@@ -55,5 +58,15 @@ struct sip_from_to: public sip_parsed_hdr
 
 int parse_nameaddr(sip_nameaddr* na, char** c, int len);
 int parse_from_to(sip_from_to* ft, char* beg, int len);
+
+inline sip_from_to* get_from(sip_msg* msg)
+{
+    return dynamic_cast<sip_from_to*>(msg->from->p);
+}
+
+inline sip_from_to* get_to(sip_msg* msg)
+{
+    return dynamic_cast<sip_from_to*>(msg->to->p);
+}
 
 #endif

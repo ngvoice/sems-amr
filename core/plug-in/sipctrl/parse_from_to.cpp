@@ -159,7 +159,7 @@ int parse_nameaddr(sip_nameaddr* na, char** c, int len)
 
 	    case '\"':
 		st = NA_DISP_LAQUOT;
-		na->name.set(beg, *c - beg);
+		na->name.set(beg, *c - beg + 1);
 		break;
 
 	    case '\\':
@@ -224,7 +224,7 @@ int parse_nameaddr(sip_nameaddr* na, char** c, int len)
 	break;
 
     default:
-	DBG("Incomplete name-addr (st=%i)\n",st);
+	DBG("Incomplete name-addr (st=%i) <%.*s>\n",st,end-beg,beg);
 	return MALFORMED_SIP_MSG;
     }
     

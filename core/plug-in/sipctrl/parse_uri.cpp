@@ -294,6 +294,12 @@ static int parse_sip_uri(sip_uri* uri, char* beg, int len)
 	    uri->port = uri->port*10 + (uri->port_str.s[i] - '0');
 	}
     }
+    else {
+	uri->port = 5060;
+    }
+
+    DBG("Converted URI port (%.*s) to int (%i)\n",
+	uri->port_str.len,uri->port_str.s,uri->port);
 
     return 0;
 }

@@ -389,6 +389,21 @@ int parse_headers(sip_msg* msg, char** c)
 	    }
 	    DBG("Illegal CR or LF in header name\n");
 	    return MALFORMED_SIP_MSG;
+
+	case H_VALUE:
+	    if(*c - begin > 2){
+		
+		hdr->value.set(begin,*c - begin - (st==ST_CRLF? 2 : 1));
+		
+		//DBG("hdr: \"%.*s: %.*s\"\n",
+		//	hdr->name.len,hdr->name.s,
+		//	hdr->value.len,hdr->value.s);
+		
+		add_parsed_header(msg,hdr.release());
+		
+		return 0;
+	    }
+	    break;
 	}
 	break;
     }

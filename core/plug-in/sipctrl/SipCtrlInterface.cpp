@@ -142,19 +142,30 @@ int SipCtrlInterface::send(const AmSipRequest &req, string &serKey)
     // CSeq
     // Contact
     // Max-Forwards
+
     
-    string from = req.from;
-    if(!req.from_tag.empty())
-	from += ";tag=" + req.from_tag;
+    //string from = req.from;
+    //if(!req.from_tag.empty())
+    //  from += ";tag=" + req.from_tag;
 
-    msg->from = new sip_header(0,"From",stl2cstr(from));
-    msg->hdrs.push_back(msg->from);
+    //msg->from = new sip_header(0,"From",stl2cstr(from));
+    //msg->hdrs.push_back(msg->from);
 
-    msg->to = new sip_header(0,"To",stl2cstr(req.to));
-    msg->hdrs.push_back(msg->to);
+    char* c = (char*)req.from.c_str();
+    int err = parse_headers(msg,&c);
 
-    msg->callid = new sip_header(0,"Call-ID",stl2cstr(req.callid));
-    msg->hdrs.push_back(msg->callid);
+    //msg->to = new sip_header(0,"To",stl2cstr(req.to));
+    //msg->hdrs.push_back(msg->to);
+
+    DBG("req.to == '%s'\n",req.to.c_str());
+    c = (char*)req.to.c_str();
+    err = err || parse_headers(msg,&c);
+
+    if(err){
+	ERROR("Malformed To or From header\n");
+	delete msg;
+	return -1;
+    }
 
     string cseq = int2str(req.cseq)
 	+ " " + req.method;
@@ -162,19 +173,37 @@ int SipCtrlInterface::send(const AmSipRequest &req, string &serKey)
     msg->cseq = new sip_header(0,"CSeq",stl2cstr(cseq));
     msg->hdrs.push_back(msg->cseq);
 
-    msg->contact = new sip_header(0,"Contact",stl2cstr(req.contact));
-    msg->hdrs.push_back(msg->contact);
+    msg->callid = new sip_header(0,"Call-ID",stl2cstr(req.callid));
+    msg->hdrs.push_back(msg->callid);
 
+
+    if(!req.contact.empty()){
+
+	DBG("req.contact == '%s'\n",req.contact.c_str());
+	c = (char*)req.contact.c_str();
+	err = parse_headers(msg,&c);
+	if(err){
+	    ERROR("Malformed Contact header\n");
+	    delete msg;
+	    return -1;
+	}
+
+	//msg->contact = new sip_header(0,"Contact",stl2cstr(req.contact));
+	//msg->hdrs.push_back(msg->contact);
+    }
+    
     msg->hdrs.push_back(new sip_header(0,"Max-Forwards","10")); // FIXME
 
     if(!req.route.empty()){
 	
  	char *c = (char*)req.route.c_str();
 	
- 	int err = parse_headers(msg,&c);
+ 	err = parse_headers(msg,&c);
 	
 	if(err){
 	    ERROR("Route headers parsing failed\n");
+	    ERROR("Faulty headers were: <%s>\n",req.route.c_str());
+	    delete msg;
 	    return -1;
 	}
 
@@ -245,12 +274,12 @@ void SipCtrlInterface::handleSipMsg(AmSipRequest &req)
 //     DBG_PARAM(req.dstip);
 //     DBG_PARAM(req.port);
     DBG_PARAM(req.r_uri);
-//     DBG_PARAM(req.from_uri);
+    DBG_PARAM(req.from_uri);
     DBG_PARAM(req.from);
     DBG_PARAM(req.to);
     DBG_PARAM(req.callid);
-//     DBG_PARAM(req.from_tag);
-//     DBG_PARAM(req.to_tag);
+    DBG_PARAM(req.from_tag);
+    DBG_PARAM(req.to_tag);
     DBG("cseq = <%i>\n",req.cseq);
     DBG_PARAM(req.serKey);
     DBG_PARAM(req.route);
@@ -289,6 +318,7 @@ void SipCtrlInterface::handleSipMsg(AmSipReply &rep)
     DBG_PARAM(rep.callid);
     DBG_PARAM(rep.local_tag);
     DBG_PARAM(rep.remote_tag);
+    DBG("cseq = <%i>\n",rep.cseq);
 
 #ifndef _STANDALONE
 
@@ -310,8 +340,29 @@ void SipCtrlInterface::handle_sip_request(const char* tid, sip_msg* msg)
     req.dstip    = get_addr_str(((sockaddr_in*)(&msg->local_ip))->sin_addr); //FIXME: IPv6
     req.port     = int2str(ntohs(((sockaddr_in*)(&msg->local_ip))->sin_port));
     req.r_uri    = c2stlstr(msg->u.request->ruri_str);
-    req.from_uri = c2stlstr(((sip_from_to*)msg->from->p)->nameaddr.addr);
-    req.from     = c2stlstr(msg->from->value);
+
+    if(msg->contact){
+
+	sip_nameaddr na;
+	char* c = msg->contact->value.s;
+	if(parse_nameaddr(&na,&c,msg->contact->value.len) < 0){
+	    DBG("Contact parsing failed\n");
+	}
+	else {
+	    req.from_uri = c2stlstr(na.addr);
+	}
+    }
+    
+    if(req.from_uri.empty()) {
+	req.from_uri = c2stlstr(get_from(msg)->nameaddr.addr);
+    }
+
+    if(get_from(msg)->nameaddr.name.len){
+	req.from += c2stlstr(get_from(msg)->nameaddr.name) + ' ';
+    }
+
+    req.from += '<' + c2stlstr(get_from(msg)->nameaddr.addr) + '>';
+
     req.to       = c2stlstr(msg->to->value);
     req.callid   = c2stlstr(msg->callid->value);
     req.from_tag = c2stlstr(((sip_from_to*)msg->from->p)->tag);

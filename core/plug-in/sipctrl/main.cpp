@@ -29,6 +29,7 @@
 #include "udp_trsp.h"
 
 #include "sip_parser.h"
+#include "parse_header.h"
 
 #include "log.h"
 
@@ -61,6 +62,20 @@ int main()
 	"Content-Length: 0\r\n"
 	"\r\n";
 
+    char* hdr = "Route: <sip:10.36.2.24;ftag=qvj9pp5vw7;lr=on>\r\n";
+
+ 	char *c = hdr;
+	
+	sip_msg* msg = new sip_msg();
+ 	int err = parse_headers(msg,&c);
+	
+	if(err){
+	    ERROR("Route headers parsing failed\n");
+	    ERROR("Faulty headers were: <%s>\n",hdr);
+	    return -1;
+	}
+    
+
 //     char* buf = 
 // 	"INVITE sip:bob@biloxi.com;user=phone;tti=13;ttl=12?abc=def SIP/2.0\r\n"
 //  	"Via: SIP/2.0/UDP bigbox3.site3.atlanta.com;branch=z9hG4bK77ef4c2312983.1\r\n"
@@ -83,12 +98,12 @@ int main()
 // 	"m=audio 3456 RTP/AVP 0 1 3 99\r\n"
 // 	"a=rtpmap:0 PCMU/8000";
 
-    int buf_len = strlen(buf);
-    sip_msg* msg = new sip_msg(buf,buf_len);
+    //int buf_len = strlen(buf);
+    //sip_msg* msg = new sip_msg(buf,buf_len);
     
-    trans_layer* tl = trans_layer::instance();
-    tl->register_ua(ctrl);
-    tl->received_msg(msg);
+    //trans_layer* tl = trans_layer::instance();
+    //tl->register_ua(ctrl);
+    //tl->received_msg(msg);
 
     //delete msg;
 

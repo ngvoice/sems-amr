@@ -15,13 +15,13 @@ AmSipDispatcher* AmSipDispatcher::instance()
 
 void AmSipDispatcher::handleSipMsg(AmSipReply &reply)
 {
-  if (!AmSessionContainer::instance()->postEvent(reply.local_tag,
-      new AmSipReplyEvent(reply))) {
-    for (vector<AmSIPEventHandler*>::iterator it = 
-        reply_handlers.begin(); it != reply_handlers.end(); it++) 
-      if ((*it)->onSipReply(reply))
-        break;
-  }
+    if (!AmSessionContainer::instance()->postEvent(reply.local_tag,
+						   new AmSipReplyEvent(reply))) {
+	for (vector<AmSIPEventHandler*>::iterator it = 
+		 reply_handlers.begin(); it != reply_handlers.end(); it++) 
+	    if ((*it)->onSipReply(reply))
+		break;
+    }
 }
 
 void AmSipDispatcher::handleSipMsg(AmSipRequest &req)

@@ -444,9 +444,12 @@ int trans_layer::send_request(sip_msg* msg)
     char branch_buf[BRANCH_BUF_LEN];
     cstring branch(branch_buf,BRANCH_BUF_LEN);
     compute_branch(branch.s,msg->callid->value,msg->cseq->value);
+    
+    string via(transport->get_local_ip());
+    if(transport->get_local_port() != 5060)
+	via += ":" + int2str(transport->get_local_port());
 
-    cstring via((char*)transport->get_local_ip());
-    request_len += via_len(via,branch);
+    request_len += via_len(stl2cstr(via),branch);
 
     request_len += copy_hdrs_len(msg->hdrs);
 
@@ -469,7 +472,7 @@ int trans_layer::send_request(sip_msg* msg)
     request_line_wr(&c,msg->u.request->method_str,
 		    msg->u.request->ruri_str);
 
-    via_wr(&c,via,branch);
+    via_wr(&c,stl2cstr(via),branch);
     copy_hdrs_wr(&c,msg->hdrs);
 
     content_length_wr(&c,stl2cstr(content_len));
@@ -486,14 +489,18 @@ int trans_layer::send_request(sip_msg* msg)
 
     // and parse it
     if(parse_sip_msg(p_msg)){
-	ERROR("Parser failed on generate request\n");
+	ERROR("Parser failed on generated request\n");
+	ERROR("Message was: <%.*s>\n",p_msg->len,p_msg->buf);
 	delete p_msg;
 	return MALFORMED_SIP_MSG;
     }
 
     memcpy(&p_msg->remote_ip,&msg->remote_ip,sizeof(sockaddr_storage));
 
-    DBG("Sending: <%.*s>",p_msg->len,p_msg->buf);
+    DBG("Sending to %s:%i <%.*s>\n",
+	get_addr_str(((sockaddr_in*)&p_msg->remote_ip)->sin_addr).c_str(),
+	ntohs(((sockaddr_in*)&p_msg->remote_ip)->sin_port),
+	p_msg->len,p_msg->buf);
 
     int send_err = transport->send(&p_msg->remote_ip,p_msg->buf,p_msg->len);
     if(send_err < 0){
