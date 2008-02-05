@@ -520,7 +520,7 @@ int trans_layer::send_request(sip_msg* msg)
 	    // if transport == UDP
 	    t->reset_timer(STIMER_A,T1_TIMER,bucket->get_id());
 	    // for any transport type
-	    t->reset_timer(STIMER_B, 4*T1_TIMER, bucket->get_id());
+	    t->reset_timer(STIMER_B, 64*T1_TIMER, bucket->get_id());
 	}
 	else {
 	    
@@ -713,7 +713,8 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 		t->state = TS_COMPLETED;
 		send_non_200_ack(t,msg);
 		
-		// TODO: set D timer?
+		// TODO: set D timer if UDP
+		t->reset_timer(STIMER_D, 64*T1_TIMER, bucket->get_id());
 		
 		goto pass_reply;
 		
@@ -751,15 +752,16 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	case TS_PROCEEDING:
 	    
 	    t->state = TS_COMPLETED;
-	    
-	    t->reset_timer(STIMER_K,T4_TIMER,bucket->get_id());
+	
+	    // TODO: timer should be 0 if reliable transport
+	    t->reset_timer(STIMER_K, T4_TIMER, bucket->get_id());
 	    
 	    goto pass_reply;
 
 	case TS_COMPLETED:
 	    // Absorb reply retransmission (only if UDP)
 	    goto end;
-
+	    
 	default:
 	    goto end;
 	}
@@ -1042,11 +1044,27 @@ void trans_layer::timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr)
 	break;
 
     case STIMER_D:  // Completed: -> Terminated
+	
+	tr->clear_timer(STIMER_D);
+	tr->state = TS_TERMINATED;
+	
+	bucket->remove_trans(tr);
+	break;
+	
+
+    case STIMER_K:  // Completed: terminate transaction  
+
+	tr->clear_timer(STIMER_K);
+	tr->state = TS_TERMINATED;
+	
+	bucket->remove_trans(tr);
+	break;
 
     // non-INVITE client transaction
     case STIMER_E:  // Trying/Proceeding: (re-)send request
     case STIMER_F:  // Trying/Proceeding: terminate transaction
-    case STIMER_K:  // Completed: terminate transaction  
+	
+
 
     // INVITE server transaction
     case STIMER_G:  // Completed: (re-)send response
