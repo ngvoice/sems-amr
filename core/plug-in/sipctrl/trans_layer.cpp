@@ -525,6 +525,12 @@ int trans_layer::send_request(sip_msg* msg)
 	else {
 	    
 	    // TODO: which timer is suitable?
+
+	    // if transport == UDP
+	    t->reset_timer(STIMER_E,T1_TIMER,bucket->get_id());
+	    // for any transport type
+	    t->reset_timer(STIMER_F, 64*T1_TIMER, bucket->get_id());
+
 	}
 	bucket->unlock();
     }
@@ -924,24 +930,7 @@ void trans_layer::send_200_ack(sip_msg* reply)
     sockaddr_storage remote_ip;
     set_next_hop(route_hdrs,r_uri,&remote_ip);
 
-    //if(parse_uri(&na.uri,na.addr.s,na.addr.len) < 0){
-    //DBG("Sorry, reply's Contact URI parsing failed: could not send ACK\n");
-    //return;
-    //}
-
     int request_len = request_line_len(cstring("ACK",3),r_uri);
-    
-    // Set destination address
-    // TODO: get correct next hop from RURI and Route
-    //sockaddr_storage remote_ip;
-    //int err = resolver::instance()->resolve_name(c2stlstr(na.uri.host).c_str(),
-    //					 &remote_ip,IPv4,UDP);
-    //if(err != 0){
-    //ERROR("Invalid IP address in URI: inet_aton failed\n");
-    //return;
-    //}
-
-    //((sockaddr_in*)&remote_ip)->sin_port = htons(na.uri.port ? na.uri.port : 5060);
    
     char branch_buf[BRANCH_BUF_LEN];
     cstring branch(branch_buf,BRANCH_BUF_LEN);
@@ -1015,65 +1004,75 @@ void trans_layer::retransmit(sip_msg* msg)
 void trans_layer::timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr)
 {
     int n = t->type >> 16;
+    int type = t->type & 0xFFFF;
 
-    switch(t->type & 0xFFFF){
+    switch(type){
+
+
+	/**
+	 * INVITE / non-INVITE client transaction
+	 */
 
     case STIMER_A:  // Calling: (re-)send INV
+    case STIMER_E:  // Trying/Proceeding: (re-)send request
+
 	retransmit(tr->msg);
 
-	// calculate next A timer:
+	// calculate next A/E timer:
 	n++;
 	
-	tr->reset_timer((n<<16) | STIMER_A, T1_TIMER<<n, bucket->get_id());
+	tr->reset_timer((n<<16) | type, T1_TIMER<<n, bucket->get_id());
 	break;
 	
     case STIMER_B:  // Calling: -> Terminated
+    case STIMER_F:  // Trying/Proceeding: terminate transaction
 	
-	tr->clear_timer(STIMER_B);
+	tr->clear_timer(type);
 
-	if(tr->state == TS_CALLING){
-	    
-	    DBG("Trying to clear timer A\n");
+	switch(tr->state) {
+
+	case TS_CALLING:
 	    tr->clear_timer(STIMER_A);
-
 	    tr->state = TS_TERMINATED;
 	    bucket->remove_trans(tr);
-	    
 	    // TODO: send 408 to 'ua'
+	    break;
+
+	case TS_TRYING:
+	case TS_PROCEEDING:
+	    tr->clear_timer(STIMER_E);
+	    tr->state = TS_TERMINATED;
+	    bucket->remove_trans(tr);
+	    // TODO: send 408 to 'ua'
+	    break;
+	    
 	}
 	break;
 
     case STIMER_D:  // Completed: -> Terminated
-	
-	tr->clear_timer(STIMER_D);
-	tr->state = TS_TERMINATED;
-	
-	bucket->remove_trans(tr);
-	break;
-	
-
     case STIMER_K:  // Completed: terminate transaction  
-
-	tr->clear_timer(STIMER_K);
+	
+	tr->clear_timer(type);
 	tr->state = TS_TERMINATED;
 	
 	bucket->remove_trans(tr);
 	break;
 
-    // non-INVITE client transaction
-    case STIMER_E:  // Trying/Proceeding: (re-)send request
-    case STIMER_F:  // Trying/Proceeding: terminate transaction
+
+	/**
+	 * INVITE server transaction
+	 */
 	
-
-
-    // INVITE server transaction
     case STIMER_G:  // Completed: (re-)send response
     case STIMER_H:  // Completed: -> Terminated
     case STIMER_I:  // Confirmed: -> Terminated
 
-    // non-INVITE server transaction
-    case STIMER_J:  // Completed: -> Terminated
 
+	/**
+	 * non-INVITE server transaction
+	 */
+    case STIMER_J:  // Completed: -> Terminated
+	
     default:
 	ERROR("Invalid timer type %i\n",t->type);
 	break;
