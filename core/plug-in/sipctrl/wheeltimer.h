@@ -1,4 +1,4 @@
-/*
+/**
  *
  *Wheeltimer
  *
@@ -10,6 +10,9 @@
 #define _wheeltimer_h_
 
 #include "AmThread.h"
+
+#include <queue>
+using std::queue;
 
 #define BITS_PER_WHEEL 8
 #define ELMTS_PER_WHEEL (1 << BITS_PER_WHEEL)

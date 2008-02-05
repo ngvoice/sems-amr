@@ -72,7 +72,7 @@ void sip_trans::reset_timer(timer* t, unsigned int timer_type)
     
     if(*tp != NULL){
 
-	DBG("Clearing old timer of type %p\n",(*tp)->type);
+	DBG("Clearing old timer of type %p\n",(void*)(*tp)->type);
 	wheeltimer::instance()->remove_timer(*tp);
     }
 
