@@ -224,7 +224,7 @@ int parse_nameaddr(sip_nameaddr* na, char** c, int len)
 	break;
 
     default:
-	DBG("Incomplete name-addr (st=%i) <%.*s>\n",st,end-beg,beg);
+	DBG("Incomplete name-addr (st=%i) <%.*s>\n",st,(int)(end-beg),beg);
 	return MALFORMED_SIP_MSG;
     }
     

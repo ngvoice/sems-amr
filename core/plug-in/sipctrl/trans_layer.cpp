@@ -371,7 +371,7 @@ int trans_layer::set_next_hop(list<sip_header*>& route_hdrs,
 		DBG("delete (fr=0x%p)\n",fr);
 		delete fr; // route_hdrs.front();
 		route_hdrs.pop_front();
-		DBG("route_hdrs.length() = %i\n",route_hdrs.size());
+		DBG("route_hdrs.length() = %i\n",(int)route_hdrs.size());
 		break;
 		
 	    case RR_NXT_ROUTE:

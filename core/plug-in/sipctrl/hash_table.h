@@ -51,7 +51,7 @@ public:
 
 private:
 
-    unsigned int id;
+    unsigned long   id;
 
     pthread_mutex_t m;
     trans_list      elmts;
@@ -112,7 +112,7 @@ public:
      */
     void remove_trans(sip_trans* t);
 
-    unsigned int get_id() {
+    unsigned long get_id() {
 	return id;
     }
 };

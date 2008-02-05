@@ -51,7 +51,7 @@ trans_bucket _trans_table[H_TABLE_ENTRIES];
 
 trans_bucket::trans_bucket()
 {
-    id = (unsigned int)(trans_bucket*)(this - _trans_table);
+    id = (unsigned long)(trans_bucket*)(this - _trans_table);
     pthread_mutex_init(&m,NULL);
 }
 

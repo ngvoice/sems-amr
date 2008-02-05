@@ -320,7 +320,7 @@ int parse_headers(sip_msg* msg, char** c)
 
 	    case H_VALUE_SWS:
 		if(!IS_WSP(**c)){
-		    DBG("Malformed header: <%.*s>\n",*c-begin,begin);
+		    DBG("Malformed header: <%.*s>\n",(int)(*c-begin),begin);
 		    begin = *c;
 		    saved_st = H_NAME;
 		}
@@ -358,7 +358,7 @@ int parse_headers(sip_msg* msg, char** c)
     case H_NAME:
 	DBG("Incomplete header (st=%i;saved_st=%i)\n",st,saved_st);
 	if(st == H_NAME){
-	    DBG("header = \"%.*s\"\n",*c - begin, begin);
+	    DBG("header = \"%.*s\"\n",(int)(*c - begin), begin);
 	}
 	return UNEXPECTED_EOT;
 
