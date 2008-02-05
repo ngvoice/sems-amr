@@ -18,6 +18,8 @@ class MyCtrlInterface;
 class trans_bucket;
 class udp_trsp;
 class sip_ua;
+class timer;
+
 
 class trans_layer
 {
@@ -54,6 +56,11 @@ class trans_layer
      * Retransmits reply / non-200 ACK (if possible).
      */
     void retransmit(sip_trans* t);
+
+    /**
+     * Retransmits a message (mostly the first UAC request).
+     */
+    void retransmit(sip_msg* msg);
 
     /**
      * Send ACK coresponding to error replies
@@ -116,6 +123,14 @@ class trans_layer
      * passed as a parameter.
      */
     void send_200_ack(sip_msg* reply);
+
+
+    /**
+     * This is called by the transaction timer callback.
+     * At this place, the bucket is already locked, so
+     * please be quick.
+     */
+    void timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr);
 };
 
 

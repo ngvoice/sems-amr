@@ -18,6 +18,8 @@ SRCS = main.cpp \
 	transport.cpp \
 	udp_trsp.cpp \
 	resolver.cpp \
+	wheeltimer.cpp \
+	sip_trans.cpp \
 	AmThread.cpp \
 	AmUtils.cpp \
 	SipCtrlInterface.cpp

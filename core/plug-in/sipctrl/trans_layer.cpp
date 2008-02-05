@@ -11,6 +11,9 @@
 #include "resolver.h"
 #include "log.h"
 
+#include "wheeltimer.h"
+#include "sip_timers.h"
+
 #include "SipCtrlInterface.h"
 #include "AmUtils.h"
 #include "../../AmSipMsg.h"
@@ -511,7 +514,18 @@ int trans_layer::send_request(sip_msg* msg)
 	trans_bucket* bucket = get_trans_bucket(p_msg->callid->value,
 						get_cseq(p_msg)->str);
 	bucket->lock();
-	bucket->add_trans(p_msg,TT_UAC);
+	sip_trans* t = bucket->add_trans(p_msg,TT_UAC);
+	if(p_msg->u.request->method == sip_request::INVITE){
+	    
+	    // if transport == UDP
+	    t->reset_timer(STIMER_A,T1_TIMER,bucket->get_id());
+	    // for any transport type
+	    t->reset_timer(STIMER_B, 4*T1_TIMER, bucket->get_id());
+	}
+	else {
+	    
+	    // TODO: which timer is suitable?
+	}
 	bucket->unlock();
     }
     
@@ -660,9 +674,13 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	// Provisional reply
 	switch(t->state){
 
-	case TS_TRYING:
 	case TS_CALLING:
+	    t->clear_timer(STIMER_A);
+	    // fall through trap
+
+	case TS_TRYING:
 	    t->state = TS_PROCEEDING;
+	    // fall through trap
 
 	case TS_PROCEEDING:
 	    goto pass_reply;
@@ -687,6 +705,9 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	    switch(t->state){
 		
 	    case TS_CALLING:
+
+		t->clear_timer(STIMER_A);
+
 	    case TS_PROCEEDING:
 		
 		t->state = TS_COMPLETED;
@@ -720,7 +741,7 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	    }
 	}
     }
-    else {
+    else { // non-INVITE transaction
 
 	// Final reply
 	switch(t->state){
@@ -731,10 +752,14 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	    
 	    t->state = TS_COMPLETED;
 	    
-	    // TODO: set K timer?
+	    t->reset_timer(STIMER_K,T4_TIMER,bucket->get_id());
 	    
 	    goto pass_reply;
-	    
+
+	case TS_COMPLETED:
+	    // Absorb reply retransmission (only if UDP)
+	    goto end;
+
 	default:
 	    goto end;
 	}
@@ -973,5 +998,66 @@ void trans_layer::retransmit(sip_trans* t)
     int send_err = transport->send(&t->retr_addr,t->retr_buf,t->retr_len);
     if(send_err < 0){
 	ERROR("Error from transport layer\n");
+    }
+}
+
+void trans_layer::retransmit(sip_msg* msg)
+{
+    assert(transport);
+    int send_err = transport->send(&msg->remote_ip,msg->buf,msg->len);
+    if(send_err < 0){
+	ERROR("Error from transport layer\n");
+    }
+}
+
+void trans_layer::timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr)
+{
+    int n = t->type >> 16;
+
+    switch(t->type & 0xFFFF){
+
+    case STIMER_A:  // Calling: (re-)send INV
+	retransmit(tr->msg);
+
+	// calculate next A timer:
+	n++;
+	
+	tr->reset_timer((n<<16) | STIMER_A, T1_TIMER<<n, bucket->get_id());
+	break;
+	
+    case STIMER_B:  // Calling: -> Terminated
+	
+	tr->clear_timer(STIMER_B);
+
+	if(tr->state == TS_CALLING){
+	    
+	    DBG("Trying to clear timer A\n");
+	    tr->clear_timer(STIMER_A);
+
+	    tr->state = TS_TERMINATED;
+	    bucket->remove_trans(tr);
+	    
+	    // TODO: send 408 to 'ua'
+	}
+	break;
+
+    case STIMER_D:  // Completed: -> Terminated
+
+    // non-INVITE client transaction
+    case STIMER_E:  // Trying/Proceeding: (re-)send request
+    case STIMER_F:  // Trying/Proceeding: terminate transaction
+    case STIMER_K:  // Completed: terminate transaction  
+
+    // INVITE server transaction
+    case STIMER_G:  // Completed: (re-)send response
+    case STIMER_H:  // Completed: -> Terminated
+    case STIMER_I:  // Confirmed: -> Terminated
+
+    // non-INVITE server transaction
+    case STIMER_J:  // Completed: -> Terminated
+
+    default:
+	ERROR("Invalid timer type %i\n",t->type);
+	break;
     }
 }

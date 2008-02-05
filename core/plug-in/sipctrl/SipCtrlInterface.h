@@ -11,6 +11,7 @@ using std::list;
 class AmSipRequest;
 class AmSipReply;
 
+//class udp_trsp;
 class trans_layer;
 class trans_bucket;
 struct sip_msg;
@@ -53,6 +54,9 @@ class SipCtrlInterface:
 {
     string         bind_addr;
     unsigned short bind_port;
+
+    //udp_trsp*      udp_server;
+
     trans_layer*   tl;
 
 

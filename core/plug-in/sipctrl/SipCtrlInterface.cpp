@@ -10,6 +10,7 @@
 #include "parse_cseq.h"
 #include "hash_table.h"
 #include "sip_trans.h"
+#include "wheeltimer.h"
 
 #include "udp_trsp.h"
 
@@ -233,9 +234,16 @@ int SipCtrlInterface::send(const AmSipRequest &req, string &serKey)
 void SipCtrlInterface::run()
 {
     INFO("Starting SIP control interface\n");
-    udp_trsp* udp_server = new udp_trsp(tl);
+
+    udp_trsp* udp_server =  new udp_trsp(tl);
+
+    assert(tl);
+    tl->register_transport(udp_server);
 
     udp_server->bind(bind_addr,bind_port);
+    
+    wheeltimer::instance()->start();
+
     udp_server->start();
     udp_server->join();
 }

@@ -36,14 +36,14 @@
 #include "SipCtrlInterface.h"
 #include "../../AmSipMsg.h"
 
-//#define SERVER
+#define SERVER
 
 int main()
 {
     log_level  = 3;
     log_stderr = 1;
 
-//     udp_trsp* udp_server = new udp_trsp(tl);
+    //udp_trsp* udp_server = new udp_trsp(tl);
     SipCtrlInterface* ctrl = new SipCtrlInterface("127.0.0.1",5060);
     
 #ifndef SERVER
@@ -109,17 +109,16 @@ int main()
 
 #else
     
-    //udp_server->bind();
-    //udp_server->start();
-
     ctrl->start();
+    
+    sleep(2);
 
     AmSipRequest req;
     req.method   = "INVITE";
     req.r_uri    = "sip:sipp@tinytop:5080";
-    req.from     = "SEMS <sip:sems@tinytop:5060>";
+    req.from     = "From: SEMS <sip:sems@tinytop:5060>";
     req.from_tag = "12345";
-    req.to       = "SIPP <sip:sipp@tinytop:5070>";
+    req.to       = "To: SIPP <sip:sipp@tinytop:5070>";
     req.cseq     = 10;
     req.callid   = "12345@tinytop";
     req.contact  = "sip:tinytop";
@@ -130,8 +129,6 @@ int main()
       ERROR("ctrl->send() failed with error code %i\n",send_err);
     }
 
-    //udp_server->join();
-    
     ctrl->join();
     
 #endif

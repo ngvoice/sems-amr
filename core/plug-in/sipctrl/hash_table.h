@@ -50,8 +50,12 @@ public:
     typedef list<sip_trans*> trans_list;
 
 private:
-    pthread_mutex_t m;
 
+    unsigned int id;
+
+    pthread_mutex_t m;
+    trans_list      elmts;
+    
     /**
      * Finds a transaction ptr in this bucket.
      * This is used to check if the transaction
@@ -64,12 +68,23 @@ private:
     sip_trans* match_200_ack(sip_trans* t,sip_msg* msg);
 
 public:
-    trans_list elmts;
 
+    /**
+     * Kept public to allow for static construction.
+     * !!! DO CREATE ANY BUCKETS ON YOUR OWN !!!
+     */
     trans_bucket();
     ~trans_bucket();
-
+    
+    /**
+     * The bucket MUST be locked before you can 
+     * do anything with it.
+     */
     void lock();
+
+    /**
+     * Unlocks the bucket after work has been done.
+     */
     void unlock();
     
     // Match a request to UAS transactions
@@ -96,6 +111,10 @@ public:
      * if it was still present.
      */
     void remove_trans(sip_trans* t);
+
+    unsigned int get_id() {
+	return id;
+    }
 };
 
 trans_bucket* get_trans_bucket(const cstring& callid, const cstring& cseq_num);
