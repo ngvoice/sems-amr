@@ -114,23 +114,23 @@ int main()
     
     ctrl->start();
     
-    sleep(1);
+//     sleep(1);
 
-    AmSipRequest req;
-    req.method   = "INVITE";
-    req.r_uri    = "sip:sipp@tinytop:5080";
-    req.from     = "From: SEMS <sip:sems@tinytop:5060>;tag=" + int2str(getpid());
-    //req.from_tag = "12345";
-    req.to       = "To: SIPP <sip:sipp@tinytop:5070>";
-    req.cseq     = 10;
-    req.callid   = int2str(getpid()) + "@tinytop";
-    req.contact  = "sip:tinytop";
-    //req.route    = "Route: <sip:localhost:5070;lr=on>;blabla=abc"; 
+//     AmSipRequest req;
+//     req.method   = "INVITE";
+//     req.r_uri    = "sip:sipp@tinytop:5080";
+//     req.from     = "From: SEMS <sip:sems@tinytop:5060>;tag=" + int2str(getpid());
+//     //req.from_tag = "12345";
+//     req.to       = "To: SIPP <sip:sipp@tinytop:5070>";
+//     req.cseq     = 10;
+//     req.callid   = int2str(getpid()) + "@tinytop";
+//     req.contact  = "sip:tinytop";
+//     //req.route    = "Route: <sip:localhost:5070;lr=on>;blabla=abc"; 
 
-    int send_err = ctrl->send(req, req.serKey);
-    if(send_err < 0) {
-      ERROR("ctrl->send() failed with error code %i\n",send_err);
-    }
+//     int send_err = ctrl->send(req, req.serKey);
+//     if(send_err < 0) {
+//       ERROR("ctrl->send() failed with error code %i\n",send_err);
+//     }
 
     //sleep(10);
     ctrl->join();

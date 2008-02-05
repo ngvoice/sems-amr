@@ -518,18 +518,18 @@ int trans_layer::send_request(sip_msg* msg)
 	if(p_msg->u.request->method == sip_request::INVITE){
 	    
 	    // if transport == UDP
-	    t->reset_timer(STIMER_A,T1_TIMER,bucket->get_id());
+	    t->reset_timer(STIMER_A,A_TIMER,bucket->get_id());
 	    // for any transport type
-	    t->reset_timer(STIMER_B, 64*T1_TIMER, bucket->get_id());
+	    t->reset_timer(STIMER_B,B_TIMER,bucket->get_id());
 	}
 	else {
 	    
 	    // TODO: which timer is suitable?
 
 	    // if transport == UDP
-	    t->reset_timer(STIMER_E,T1_TIMER,bucket->get_id());
+	    t->reset_timer(STIMER_E,E_TIMER,bucket->get_id());
 	    // for any transport type
-	    t->reset_timer(STIMER_F, 64*T1_TIMER, bucket->get_id());
+	    t->reset_timer(STIMER_F,F_TIMER,bucket->get_id());
 
 	}
 	bucket->unlock();
@@ -720,7 +720,7 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 		send_non_200_ack(t,msg);
 		
 		// TODO: set D timer if UDP
-		t->reset_timer(STIMER_D, 64*T1_TIMER, bucket->get_id());
+		t->reset_timer(STIMER_D, D_TIMER, bucket->get_id());
 		
 		goto pass_reply;
 		
@@ -760,7 +760,7 @@ int trans_layer::update_uac_trans(trans_bucket* bucket, sip_trans* t, sip_msg* m
 	    t->state = TS_COMPLETED;
 	
 	    // TODO: timer should be 0 if reliable transport
-	    t->reset_timer(STIMER_K, T4_TIMER, bucket->get_id());
+	    t->reset_timer(STIMER_K, K_TIMER, bucket->get_id());
 	    
 	    goto pass_reply;
 
@@ -796,9 +796,13 @@ int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_
 	    
 	if(t->msg->u.request->method == sip_request::INVITE){
 	    //TODO: set G timer ?
+	    t->reset_timer(STIMER_G,G_TIMER,bucket->get_id());
+	    t->reset_timer(STIMER_H,H_TIMER,bucket->get_id());
 	}
 	else {
 	    //TODO: set J timer ?
+	    // 64*T1_TIMER if UDP / 0 if !UDP
+	    t->reset_timer(STIMER_J,J_TIMER,bucket->get_id()); 
 	}
     }
     else if(t->reply_status >= 200) {
@@ -812,6 +816,7 @@ int trans_layer::update_uas_reply(trans_bucket* bucket, sip_trans* t, int reply_
 	else {
 	    t->state = TS_COMPLETED;
 	    //TODO: set J timer
+	    t->reset_timer(STIMER_J,J_TIMER,bucket->get_id()); // 0 if !UDP
 	}
     }
     else {
@@ -833,9 +838,14 @@ int trans_layer::update_uas_request(trans_bucket* bucket, sip_trans* t, sip_msg*
 	    
     case TS_COMPLETED:
 	t->state = TS_CONFIRMED;
-	// TODO: remove G and H timer.
-	// TODO: set I timer.
 
+	// TODO: remove G and H timer.
+	t->clear_timer(STIMER_G);
+	t->clear_timer(STIMER_H);
+
+	// TODO: set I timer.
+	t->reset_timer(STIMER_I,I_TIMER,bucket->get_id());
+	
 	// drop through
     case TS_CONFIRMED:
 	return t->state;
@@ -1009,18 +1019,10 @@ void trans_layer::timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr)
     switch(type){
 
 
-	/**
-	 * INVITE / non-INVITE client transaction
-	 */
-
     case STIMER_A:  // Calling: (re-)send INV
-    case STIMER_E:  // Trying/Proceeding: (re-)send request
 
-	retransmit(tr->msg);
-
-	// calculate next A/E timer:
 	n++;
-	
+	retransmit(tr->msg);
 	tr->reset_timer((n<<16) | type, T1_TIMER<<n, bucket->get_id());
 	break;
 	
@@ -1036,6 +1038,7 @@ void trans_layer::timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr)
 	    tr->state = TS_TERMINATED;
 	    bucket->remove_trans(tr);
 	    // TODO: send 408 to 'ua'
+	    DBG("Transaction timeout (INV)\n");
 	    break;
 
 	case TS_TRYING:
@@ -1044,35 +1047,36 @@ void trans_layer::timer_expired(timer* t, trans_bucket* bucket, sip_trans* tr)
 	    tr->state = TS_TERMINATED;
 	    bucket->remove_trans(tr);
 	    // TODO: send 408 to 'ua'
+	    DBG("Transaction timeout (!INV)\n");
 	    break;
-	    
 	}
 	break;
 
     case STIMER_D:  // Completed: -> Terminated
-    case STIMER_K:  // Completed: terminate transaction  
+    case STIMER_K:  // Completed: terminate transaction
+    case STIMER_J:  // Completed: -> Terminated
+    case STIMER_H:  // Completed: -> Terminated
+    case STIMER_I:  // Confirmed: -> Terminated
 	
 	tr->clear_timer(type);
 	tr->state = TS_TERMINATED;
-	
 	bucket->remove_trans(tr);
 	break;
 
 
-	/**
-	 * INVITE server transaction
-	 */
-	
+    case STIMER_E:  // Trying/Proceeding: (re-)send request
     case STIMER_G:  // Completed: (re-)send response
-    case STIMER_H:  // Completed: -> Terminated
-    case STIMER_I:  // Confirmed: -> Terminated
 
+	n++;
+	retransmit(tr->msg);
+	if(T1_TIMER<<n > T2_TIMER) {
+	    tr->reset_timer((n<<16) | type, T2_TIMER, bucket->get_id());
+	}
+	else {
+	    tr->reset_timer((n<<16) | type, T1_TIMER<<n, bucket->get_id());
+	}
+	break;
 
-	/**
-	 * non-INVITE server transaction
-	 */
-    case STIMER_J:  // Completed: -> Terminated
-	
     default:
 	ERROR("Invalid timer type %i\n",t->type);
 	break;
