@@ -640,7 +640,7 @@ int AmSipDialog::transfer(const string& target)
     AmSipDialog tmp_d(*this);
 		
     tmp_d.setRoute("");
-    tmp_d.contact_uri = "Contact: <" + tmp_d.remote_uri + ">\n";
+    tmp_d.contact_uri = "Contact: <" + tmp_d.remote_uri + ">\r\n";
     tmp_d.remote_uri = target;
 		
     string r_set;
@@ -917,7 +917,7 @@ string AmSipDialog::getRoute()
   for(vector<string>::iterator it = route.begin();
       it != route.end(); it++) {
 
-    r_set += "Route: " + *it + "\n";
+    r_set += "Route: " + *it + "\r\n";
   }
 
   return r_set;

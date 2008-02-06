@@ -92,12 +92,12 @@ bool SessionTimer::onSendRequest(const string& method,
 				 string& hdrs,
 				 unsigned int cseq)
 {
-  string m_hdrs = "Supported: timer\n";
+  string m_hdrs = "Supported: timer\r\n";
   if  ((method != "INVITE") && (method != "UPDATE"))
     goto end;
   
-  m_hdrs += "Session-Expires: "+ int2str(session_timer_conf.getSessionExpires()) +"\n"
-    + "Min-SE: " + int2str(session_timer_conf.getMinimumTimer()) + "\n";
+  m_hdrs += "Session-Expires: "+ int2str(session_timer_conf.getSessionExpires()) +"\r\n"
+    + "Min-SE: " + int2str(session_timer_conf.getMinimumTimer()) + "\r\n";
 
  end:
   hdrs += m_hdrs;
@@ -113,17 +113,17 @@ bool SessionTimer::onSendReply(const AmSipRequest& req,
   //if (!session_timer_conf.getEnableSessionTimer())
   // 	return "";
 
-  string m_hdrs = "Supported: timer\n";
+  string m_hdrs = "Supported: timer\r\n";
   if  ((req.method != "INVITE") && (req.method != "UPDATE")) 
     return false;
     
   // only in 2xx responses to INV/UPD
   m_hdrs  += "Session-Expires: " + int2str(session_interval) + ";refresher="+
-    (session_refresher_role==UAC ? "uac":"uas")+"\n";
+    (session_refresher_role==UAC ? "uac":"uas")+"\r\n";
     
   if (((session_refresher_role==UAC) && (session_refresher==refresh_remote)) 
       || ((session_refresher_role==UAS) && remote_timer_aware))
-    m_hdrs += "Required: timer\n";
+    m_hdrs += "Required: timer\r\n";
     
   hdrs += m_hdrs;
 
