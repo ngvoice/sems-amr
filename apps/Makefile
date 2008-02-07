@@ -3,8 +3,8 @@ COREPATH ?= ../core
 
 include $(COREPATH)/../Makefile.defs
 
-exclude_modules = mp3 examples
-modules = $(filter-out $(exclude_modules) \
+exclude_modules ?= mp3 examples
+modules ?= $(filter-out $(exclude_modules) \
 		$(wildcard Makefile*) CVS, \
 		$(wildcard *) )
 #modules = wav gsm ilbc bot echo announcement recorder voicemail dtmf_demo ivr
