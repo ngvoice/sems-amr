@@ -95,14 +95,14 @@ struct SdpPayload
   int    clock_rate; // sample rate (Hz)
   string format;
   string sdp_format_parameters;
-  string encoding_params;
+  int    encoding_param;
   
-  SdpPayload() : int_pt(-1), payload_type(-1), clock_rate(-1) {}
+  SdpPayload() : int_pt(-1), payload_type(-1), clock_rate(-1), encoding_param(-1) {}
 
-  SdpPayload(int pt) : int_pt(-1), payload_type(pt), clock_rate(-1) {}
+  SdpPayload(int pt) : int_pt(-1), payload_type(pt), clock_rate(-1), encoding_param(-1) {}
 
-  SdpPayload(int pt, const string& name, int rate) 
-    : int_pt(-1), payload_type(pt), encoding_name(name), clock_rate(rate) {}
+  SdpPayload(int pt, const string& name, int rate, int param) 
+    : int_pt(-1), payload_type(pt), encoding_name(name), clock_rate(rate), encoding_param(param) {}
 
   bool operator == (int r);
 };
@@ -119,7 +119,7 @@ struct SdpMedia
 
   int           type;
   unsigned int  port;
-  unsigned int nports;
+  unsigned int  nports;
   int           transport;
   SdpConnection conn; // c=
   Direction     dir;  // a=direction

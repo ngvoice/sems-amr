@@ -166,7 +166,7 @@ int AmSdp::genResponse(const string& localip, int localport, string& out_buf, bo
      it != sup_pl.end(); ++it){
    payloads += " " + int2str((*it)->payload_type);
    options += "a=rtpmap:" + int2str((*it)->payload_type) + " "
-     + (*it)->encoding_name + "/" + int2str((*it)->clock_rate) + "\r\n";
+     + (*it)->encoding_name + "/" + int2str((*it)->clock_rate) + "/" + int2str((*it)->encoding_param) + "\r\n";
    
    if((*it)->sdp_format_parameters.size()){
      options += "a=fmtp:" + int2str((*it)->payload_type) + " "
@@ -720,7 +720,7 @@ static void parse_sdp_attr(AmSdp* sdp_msg, char* s)
   int parsing = 1;
   line_end = get_next_line(attr_line);
   
-  unsigned int payload_type, clock_rate;
+  unsigned int payload_type, clock_rate, encoding_param;
   string encoding_name, params;
 
   if(contains(attr_line, line_end, ':')){
@@ -781,12 +781,14 @@ static void parse_sdp_attr(AmSdp* sdp_msg, char* s)
 	    next = parse_until(attr_line, ' ');
 	    if(next < line_end){
 	      string value(attr_line, int(next-attr_line)-1);
+	      str2i(value, encoding_param);
 	      attr_line = next;
 	      params += value;
 	      params += ' ';
 	      rtpmap_st = ENC_PARAM;
 	    }else{
 	      string last_value(attr_line, int(line_end-attr_line)-1);
+	      str2i(last_value, encoding_param);
 	      params += last_value;
 	      parsing = 0;
 	    }
@@ -806,9 +808,11 @@ static void parse_sdp_attr(AmSdp* sdp_msg, char* s)
       if(pl_it != media.payloads.end()){
 	*pl_it = SdpPayload( int(payload_type),
 			     encoding_name,
-			     int(clock_rate));
+			     int(clock_rate),
+			     int(encoding_param));
       }
       
+
     }else if(attr == "fmtp"){
       while(parsing){
 	switch(fmtp_st){
