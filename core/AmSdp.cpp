@@ -166,9 +166,15 @@ int AmSdp::genResponse(const string& localip, int localport, string& out_buf, bo
  for(vector<SdpPayload*>::iterator it = sup_pl.begin();
      it != sup_pl.end(); ++it){
    payloads += " " + int2str((*it)->payload_type);
-   options += "a=rtpmap:" + int2str((*it)->payload_type) + " "
-     + (*it)->encoding_name + "/" + int2str((*it)->clock_rate) + "/" + int2str((*it)->encoding_param) + "\r\n";
-   
+   if((*it)->encoding_param == 0){
+     options += "a=rtpmap:" + int2str((*it)->payload_type) + " "
+       + (*it)->encoding_name + "/" + int2str((*it)->clock_rate) + "\r\n";
+   }else{
+     options += "a=rtpmap:" + int2str((*it)->payload_type) + " "
+       + (*it)->encoding_name + "/" + int2str((*it)->clock_rate) + "/" + int2str((*it)->encoding_param) + "\r\n";
+
+   }
+
    if((*it)->sdp_format_parameters.size()){
      options += "a=fmtp:" + int2str((*it)->payload_type) + " "
        + (*it)->sdp_format_parameters + "\r\n";
