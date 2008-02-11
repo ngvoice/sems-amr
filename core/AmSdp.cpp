@@ -145,7 +145,7 @@ int AmSdp::parse()
 
 int AmSdp::genResponse(const string& localip, int localport, string& out_buf, bool single_codec)
 {
-  string l_ip = "IP4" + localip;
+  string l_ip = "IP4 " + localip;
   
 #ifdef SUPPORT_IPV6
   if(localip.find('.') == string::npos)
@@ -166,7 +166,7 @@ int AmSdp::genResponse(const string& localip, int localport, string& out_buf, bo
  for(vector<SdpPayload*>::iterator it = sup_pl.begin();
      it != sup_pl.end(); ++it){
    payloads += " " + int2str((*it)->payload_type);
-   if((*it)->encoding_param == 0){
+   if((*it)->encoding_param <= 0){
      options += "a=rtpmap:" + int2str((*it)->payload_type) + " "
        + (*it)->encoding_name + "/" + int2str((*it)->clock_rate) + "\r\n";
    }else{
@@ -727,7 +727,7 @@ static void parse_sdp_attr(AmSdp* sdp_msg, char* s)
   int parsing = 1;
   line_end = get_next_line(attr_line);
   
-  unsigned int payload_type, clock_rate, encoding_param;
+  unsigned int payload_type, clock_rate, encoding_param = 0;
   string encoding_name, params;
 
   if(contains(attr_line, line_end, ':')){
