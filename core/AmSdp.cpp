@@ -193,7 +193,7 @@ int AmSdp::genResponse(const string& localip, int localport, string& out_buf, bo
      out_buf += "a=rtpmap:" + int2str(telephone_event_pt->payload_type) + " " + 
        telephone_event_pt->encoding_name + "/" +
        int2str(telephone_event_pt->clock_rate) + "\r\n"
-       "a=fmtp:" + int2str(telephone_event_pt->payload_type) + "0-15\r\n";
+       "a=fmtp:" + int2str(telephone_event_pt->payload_type) + " 0-15\r\n";
    }
  
  if(remote_active /* dir == SdpMedia::DirActive */)
