@@ -121,8 +121,9 @@ long MP3_create(const char* format_parameters, amci_codec_fmt_info_t* format_des
 }
 
 void MP3_destroy(long h_inst) {
-  if (h_inst)
-    free((lame_global_flags*) h_inst);
+  if (h_inst) {
+    lame_close((lame_global_flags*) h_inst);
+  }
 }
 
 static int Pcm16_2_MP3( unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
