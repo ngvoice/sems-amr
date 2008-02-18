@@ -1,5 +1,5 @@
 /*
- * $Id$
+ * $Id: AmAudio.h 711 2008-02-10 18:52:44Z sayer $
  *
  * Copyright (C) 2002-2003 Fhg Fokus
  *
@@ -8,9 +8,9 @@
  * sems is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * (at your option) any later version
  *
- * For a license to use the sems software under conditions
+ * For a license to use the ser software under conditions
  * other than those described here, or to purchase support for this
  * software, please contact iptel.org by e-mail at the following addresses:
  *    info@iptel.org
@@ -25,48 +25,39 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef _ANNOUNCEB2B_H_
-#define _ANNOUNCEB2B_H_
+#ifndef _AmBufferedAudio_H
+#define _AmBufferedAudio_H
 
-#include "AmSession.h"
-#include "AmConfigReader.h"
-#include "AmAudioFile.h"
-#include "AmB2BSession.h"
+#include "AmAudio.h"
+/**
+ * AmAudio with buffered output
+ */
+class AmBufferedAudio : public AmAudio {
 
-#include <string>
-using std::string;
+  unsigned char* output_buffer;
+  size_t output_buffer_size, low_buffer_thresh, full_buffer_thresh;
+  size_t r, w;
 
-/** \brief Factory for AnnounceB2B sessions */
-class AnnounceB2BFactory: public AmSessionFactory
-{
-public:
-  static string AnnouncePath;
-  static string AnnounceFile;
+  bool eof;
+  int err_code;
 
-  AnnounceB2BFactory(const string& _app_name);
+  void input_get_audio(unsigned int user_ts);
+  inline void allocateBuffer();
+  inline void releaseBuffer();
 
-  int onLoad();
-  AmSession* onInvite(const AmSipRequest& req);
+ protected:
+  AmBufferedAudio(size_t output_buffer_size, size_t low_buffer_thresh, size_t full_buffer_thresh);
+  ~AmBufferedAudio();
+  
+  void clearBufferEOF();
+  void setBufferSize(size_t _output_buffer_size, size_t _low_buffer_thresh, size_t _full_buffer_thresh);
+
+ public:
+  virtual int get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples);
+
 };
-
-/** \brief Session logic implementation of A leg in announce_b2b sessions */
-class AnnounceCallerDialog: public AmB2BCallerSession
-{
-  AmAudioFile wav_file;
-  string filename;
-
-  string callee_addr;
-  string callee_uri;
-    
-public:
-  AnnounceCallerDialog(const string& filename);
-    
-  void process(AmEvent* event);
-  void onSessionStart(const AmSipRequest& req);
-};
-
 #endif
+
 // Local Variables:
 // mode:C++
 // End:
-

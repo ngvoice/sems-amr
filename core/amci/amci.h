@@ -31,11 +31,11 @@
 /** AUDIO_BUFFER_SIZE must be a power of 2 */
 #define AUDIO_BUFFER_SIZE (1<<12) /* 2 KB */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* #ifdef __cplusplus */
+/* extern "C" { */
+/* #endif */
 
-#include <stdio.h>
+//#include <stdio.h>
 
 /**
  * @file amci.h
@@ -75,30 +75,43 @@ extern "C" {
 #define AMCI_FMT_ENCODED_FRAME_SIZE 3
 
 struct amci_codec_t;
+struct BitStream;
 
-/** 
+/**
  * \brief File format declaration 
  */
 struct amci_file_desc_t {
 
-    /** subtype from current file format */
-    int     subtype;
+    /** file format: @see */
+    char* file_format;
 
+    /** codec: @see */
+    char* codec;
+    
     /** sampling rate */
-    int     rate;
+    int rate;
 
     /** # channels */
-    int     channels;
+    int channels;
 
-    /** size of the data */
+    /** size of the data. -1 for unknown/unlimited */
     int data_size;
+
+    /** output buffer size. 0 for no buffering */
+    int buffer_size;
+
+    /** output buffer refill threshold */
+    int buffer_thresh;
+
+    /** output buffer refill threshold */
+    int buffer_full_thresh;
 };
 
 /**
  * \brief Sound converter function pointer.
  * @param out      [out] output buffer
  * @param in       [in] input buffer
- * @param size     [in] size of input buffer
+ * @param size       [in] size of input buffer
  * @param channels [in] number of channels
  * @param rate     [in] sampling rate
  * @param h_codec  [in] codec handle
@@ -110,7 +123,7 @@ struct amci_file_desc_t {
  * @see amci_codec_t::intern2type
  * @see amci_codec_t::type2intern
  */
-typedef int (*amci_converter_t)( unsigned char* out, 
+typedef int (*amci_converter_t)( unsigned char* out,
 				 unsigned char* in,
 				 unsigned int   size,
 				 unsigned int   channels,
@@ -141,72 +154,37 @@ typedef int (*amci_plc_t)( unsigned char* out,
 /**
  * \brief File format handler's open function
  * @param fptr     [in] fresh opened file pointer
- * @param fmt_desc [out] file description
  * @param options  [in] options (see amci_inoutfmt_t)
- * @param h_codec  [in] handle of the codec
+ * @param fmt_desc [out] file description
  * @return if failure -1, else 0.
  * @see amci_inoutfmt_t::open
  */
-typedef int (*amci_file_open_t)( FILE* fptr,
-				    struct amci_file_desc_t* fmt_desc,
-				    int  options,
-				    long h_codec
-                                  );
+typedef int (*amci_file_open_t)( BitStream* bs_ptr, int  options,
+				 struct amci_file_desc_t* fmt_desc );
 
 /**
  * File format handler's close function
  * @param fptr     [in] fresh opened file pointer
- * @param fmt_desc [out] file description
  * @param options  [in] options (see amci_inoutfmt_t)
- * @param h_codec  [in] handle of the codec
- * @param codec    [in] codec structure
+ * @param fmt_desc [out] file description
  * @return if failure -1, else 0.
  * @see amci_inoutfmt_t::on_close
  */
-typedef int (*amci_file_close_t)( FILE* fptr,
-				    struct amci_file_desc_t* fmt_desc,
-				    int  options,
-				    long h_codec,
-				    struct amci_codec_t *codec
-                                  );
+typedef int (*amci_file_close_t)( BitStream* bs_ptr, int  options,
+				  struct amci_file_desc_t* fmt_desc );
 
 /**
- * File format handler's open function from memory area
- * @param fptr     [in]  pointer to memory where file is loaded 
- * @param size     [in]  length of file in mem  
- * @param pos      [out] position after open
- * @param fmt_desc [out] file description
- * @param options  [in]  options (see amci_inoutfmt_t)
- * @param h_codec  [in]  handle of the codec
- * @return if failure -1, else 0.
- * @see amci_inoutfmt_t::open
+ * \brief Codec module 's init function pointer.
+ * this function initializes the codec module.
+ * @return 0 on success, <0 on error
  */
-typedef int (*amci_file_mem_open_t)(unsigned char* mptr,
-				    unsigned long size,
-				    unsigned long* pos,
-				    struct amci_file_desc_t* fmt_desc,
-				    int  options,
-				    long h_codec
-                                  );
+typedef int (*amci_codec_module_load_t)(void);
 
 /**
- * File format handler's mem close function (usually no-op)
- * @param fptr     [in]  pointer to memory where file is loaded
- * @param pos      [in,out]  position in memory 
- * @param fmt_desc [out] file description
- * @param options  [in]  options (see amci_inoutfmt_t)
- * @param h_codec  [in]  handle of the codec
- * @param codec    [in]  codec structure
- * @return if failure -1, else 0.
- * @see amci_inoutfmt_t::on_close
+ * \brief Codec's module's destroy function pointer.
  */
-typedef int (*amci_file_mem_close_t)( unsigned char* mptr,
-				    unsigned long* pos,
-				    struct amci_file_desc_t* fmt_desc,
-				    int  options,
-				    long h_codec,
-				    struct amci_codec_t *codec
-                                  );
+typedef void (*amci_codec_module_destroy_t)(void);
+
 
 /**
  * \brief Codec's init function pointer.
@@ -214,14 +192,15 @@ typedef int (*amci_file_mem_close_t)( unsigned char* mptr,
  * @param format_parameters  [in] parameters as passed by fmtp tag, 0 if none 
  * @param format_description [out] pointer to describing block, with amci_codec_fmt_info_t array; zero-terminated. 0 if none
  *   <table><tr><td><b>key</b></td><td><b>value</b></td></tr>
- *     <tr><td>AMCI_FMT_FRAME_LENGTH (1)</td><td>  frame length in ms (for framed codecs; must be multiple of 10)</td></tr>
- *     <tr><td>AMCI_FMT_FRAME_SIZE (2)</td><td>  frame size in samples</td></tr>
- *     <tr><td>AMCI_FMT_ENCODED_FRAME_SIZE (3)</td><td>  encoded frame size</td></tr></table>
- * @return -1 if failed, else some handler which will be 
+ *     <tr><td>AMCI_FMT_FRAME_LENGTH (1)</td><td>  frame length in ms (for framed codecs; must be multiple of 10) </td></tr>
+ *     <tr><td>AMCI_FMT_FRAME_SIZE (2)</td><td>  frame size in samples </td></tr>
+ *     <tr><td>AMCI_FMT_ENCODED_FRAME_SIZE (3)</td><td>  encoded frame size </td></tr></table>
+ * @return -1 if failed, else some handle which will be 
  *         passed by each further call (0 is legal).
  *
  */
-  
+
+// TODO: use SDP-style options only (text based)
   typedef struct {
     int id;
     int value;
@@ -250,8 +229,8 @@ typedef unsigned int (*amci_codec_samples2bytes_t)(long h_codec, unsigned int nu
  */
 struct amci_codec_t {
 
-    /** internal codec id (the ones from codecs.h) */
-    int id;
+    /** internal codec name */
+    char* name;
 
     /** 
      * Converts the input buffer (internal format: Pcm16)
@@ -262,7 +241,7 @@ struct amci_codec_t {
     /** Does the opposite of encode. */
     amci_converter_t decode;
 
-    /** Codec specific packet loss concealment. */
+    /** Codec specific packet loss concealment. can be NULL */
     amci_plc_t plc;
 
     /** Init function. can be NULL. */
@@ -277,37 +256,11 @@ struct amci_codec_t {
     amci_codec_samples2bytes_t samples2bytes;
 };
   
-  /** \brief supported subtypes for a file */
-struct amci_subtype_t {
-
-    /** ex. 0x06 for Wav's Mu-Law */
-    int   type;
-
-    /** ex. "Mu-Law" */
-    char* name;
-
-    /**
-     * This must be initialized.<br> 
-     * example: 8000 Hz.
-     */
-    int sample_rate;
-
-    /**
-     * This must be initialized.<br> 
-     * <br>example 1 (mono), 2 (stereo).
-    */
-    int channels;
-
-    /**
-     * Internal codec id (see codecs.h)
-     */
-    int codec_id;
-};
 
 /**
  * \brief File format declaration.
  */
-struct amci_inoutfmt_t {
+struct amci_file_fmt_t {
 
     /** example: "Wav". */
     char* name; 
@@ -316,7 +269,7 @@ struct amci_inoutfmt_t {
     char* ext;
 
     /** example: "audio/x-wav". */
-    char* email_content_type; 
+    char* mime_type; 
 
     /** options: AMCI_RDONLY, AMCI_WRONLY. */
     amci_file_open_t open;
@@ -324,17 +277,10 @@ struct amci_inoutfmt_t {
     /** no options at the moment. */
     amci_file_close_t on_close;
 
-    /** options: AMCI_RDONLY, AMCI_WRONLY. */
-    amci_file_mem_open_t mem_open;
-
-    /** no options at the moment. */
-    amci_file_mem_close_t mem_close;
-
-    /** NULL terminated subtype array. */
-    struct amci_subtype_t*  subtypes; 
-
+    /** NULL terminated array of supported codec names. */
+    char** subtypes; 
 };
-
+    
 /** Payload type for continuous audio */
 #define AMCI_PT_AUDIO_LINEAR 0
 /** Payload type for frame based audio */
@@ -346,7 +292,7 @@ struct amci_inoutfmt_t {
 struct amci_payload_t {
 
     /** static payload id (see RFC 1890) */
-    int   payload_id;
+    int payload_id;
 
     /** example: "PCMU" (see RFC 1890)*/
     char* name;
@@ -366,9 +312,6 @@ struct amci_payload_t {
     */
     int channels;
 
-    /** internal codec id (see codecs.h) */
-    int codec_id;
-
     /** @see AMCI_PT_AUDIO_LINEAR, AMCI_PT_AUDIO_FRAME */
     int type;
 };
@@ -382,24 +325,30 @@ struct amci_exports_t {
     /** Module name */
     char* name;
 
+    /** Codec module load function. can be NULL */
+    amci_codec_module_load_t module_load;
+    /** Codec module destroy function. can be NULL */
+    amci_codec_module_destroy_t module_destroy;
+
     /** NULL terminated array of amci_codec_t */
-    struct amci_codec_t*    codecs;       
+    amci_codec_t*    codecs;
     /** NULL terminated array of amci_payload_t */
-    struct amci_payload_t*  payloads;     
+    amci_payload_t*  payloads;
     /** NULL terminated array of amci_inoutfmt_t */
-    struct amci_inoutfmt_t* file_formats; 
+    amci_file_fmt_t* file_formats;
 };
-
-
 
 /**
  * Portable export definition macro
  * see example media plug-in 'wav' (plug-in/wav/wav.c).
  * @hideinitializer
  */
-#define BEGIN_EXPORTS(name) \
+#define BEGIN_EXPORTS(name, module_load, module_destroy)	   \
             struct amci_exports_t amci_exports = { \
-                name,
+                name,\
+                module_load,\
+		module_destroy,
+
 
 /**
  * Portable export definition macro
@@ -431,7 +380,7 @@ struct amci_exports_t {
  * see example media plug-in 'wav' (plug-in/wav/wav.c).
  * @hideinitializer
  */
-#define CODEC(id,intern2type,type2intern,plc,init,destroy,bytes2samples,samples2bytes) \
+#define CODEC(id, intern2type,type2intern,plc,init,destroy,bytes2samples,samples2bytes) \
                     { id, intern2type, type2intern, plc, init, destroy, bytes2samples, samples2bytes },
 
 /**
@@ -520,9 +469,16 @@ struct amci_exports_t {
                         { type, name, rate, channels, codec_id },
 
 
-#ifdef __cplusplus
-}
-#endif
+  /* defines to make definitions more expressive */
+#define AMCI_NO_MODULEINIT    NULL
+#define AMCI_NO_MODULEDESTROY NULL
+#define AMCI_NO_CODEC_PLC     NULL
+#define AMCI_NO_CODECCREATE   NULL
+#define AMCI_NO_CODECDESTROY  NULL
+
+/* #ifdef __cplusplus */
+/* } */
+/* #endif */
 
 #endif
 

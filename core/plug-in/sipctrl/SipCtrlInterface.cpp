@@ -11,6 +11,7 @@
 #include "hash_table.h"
 #include "sip_trans.h"
 #include "wheeltimer.h"
+#include "msg_hdrs.h"
 
 #include "udp_trsp.h"
 
@@ -258,21 +259,63 @@ int SipCtrlInterface::send(const AmSipReply &rep)
 	return -1;
     }
     
-    string hdrs = rep.hdrs + rep.contact;
+    sip_msg msg;
+
+    if(!rep.hdrs.empty()) {
+
+	char* c = (char*)rep.hdrs.c_str();
+	int err = parse_headers(&msg,&c);
+	if(err){
+	    ERROR("Malformed additional header\n");
+	    return -1;
+	}
+    }
+
+    if(!rep.contact.empty()){
+
+	char* c = (char*)rep.contact.c_str();
+	int err = parse_headers(&msg,&c);
+	if(err){
+	    ERROR("Malformed Contact header\n");
+	    return -1;
+	}
+    }
 
     if(!rep.body.empty()) {
 	if(rep.content_type.empty()){
 	    ERROR("Reply does not contain a Content-Type whereby body is not empty\n");
 	    return -1;
 	}
-
-	hdrs += "Content-Type: " + rep.content_type + "\r\n";
     }
 
-    return tl->send_reply(get_trans_bucket(h),(sip_trans*)t,
-			  rep.code,stl2cstr(rep.reason),
-			  stl2cstr(rep.local_tag),
-			  stl2cstr(hdrs), stl2cstr(rep.body));
+    
+    unsigned int hdrs_len = copy_hdrs_len(msg.hdrs);
+
+    if(!rep.body.empty()) {
+	hdrs_len += content_type_len(stl2cstr(rep.content_type));
+    }
+
+    char* hdrs_buf = NULL;
+    char* c = hdrs_buf;
+
+    if (hdrs_len) {
+      c = hdrs_buf = new char[hdrs_len];
+      
+      copy_hdrs_wr(&c,msg.hdrs);
+
+      if(!rep.body.empty()) {
+	  content_type_wr(&c,stl2cstr(rep.content_type));
+      }
+    }
+
+    int ret = tl->send_reply(get_trans_bucket(h),(sip_trans*)t,
+			     rep.code,stl2cstr(rep.reason),
+			     stl2cstr(rep.local_tag),
+			     cstring(hdrs_buf,hdrs_len), stl2cstr(rep.body));
+
+    delete [] hdrs_buf;
+
+    return ret;
 }
 
 #define DBG_PARAM(p)\
@@ -314,7 +357,7 @@ void SipCtrlInterface::handleSipMsg(AmSipRequest &req)
     reply.reason    = "OK";
     reply.serKey    = req.serKey;
     reply.local_tag = "12345";
-    reply.contact   = "sip:" + req.dstip + ":" + req.port;
+    reply.contact   = "Contact: sip:" + req.dstip + ":" + req.port;
     
     int err = send(reply);
     if(err < 0){

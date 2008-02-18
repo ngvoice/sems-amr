@@ -28,7 +28,12 @@
 #ifndef _EarlyAnnounce_h_
 #define _EarlyAnnounce_h_
 
+#ifdef USE_MYSQL
+#include <mysql++/mysql++.h>
+#endif
+
 #include "AmSession.h"
+#include "AmAudioFile.h"
 #include "AmConfigReader.h"
 
 #include <string>
@@ -38,8 +43,16 @@ using std::string;
 class EarlyAnnounceFactory: public AmSessionFactory
 {
 public:
+
+#ifdef USE_MYSQL
+  static mysqlpp::Connection Connection;
+  static string AnnounceApplication;
+  static string AnnounceMessage;
+  static string DefaultLanguage;
+#else 
   static string AnnouncePath;
   static string AnnounceFile;
+#endif
 
   EarlyAnnounceFactory(const string& _app_name);
 
@@ -65,6 +78,7 @@ public:
   void onDtmf(int event, int duration_msec) {}
 
   void process(AmEvent* event);
+
 };
 
 #endif
