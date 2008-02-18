@@ -20,6 +20,8 @@
 #include	"gsm.h"
 #include	"proto.h"
 
+#include <string.h> /* memcpy */
+
 /* 
  *  4.2 FIXED POINT IMPLEMENTATION OF THE RPE-LTP CODER 
  */

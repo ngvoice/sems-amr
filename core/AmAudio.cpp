@@ -52,14 +52,16 @@ struct CodecContainer
 };
 
 AmAudioRtpFormat::AmAudioRtpFormat(const vector<SdpPayload *>& payloads)
-  : AmAudioFormat(), m_payloads(payloads), m_currentPayload(-1)
+    : AmAudioFormat(), m_payloads(payloads), m_currentPayload(-1)
 {
-  for (vector<SdpPayload *>::iterator it = m_payloads.begin();
-	  it != m_payloads.end(); ++it)
-  {
-    m_sdpPayloadByPayload[(*it)->payload_type] = *it;
-  }
-  setCurrentPayload(m_payloads[0]->payload_type);
+    for (vector<SdpPayload *>::iterator it = m_payloads.begin();
+	 it != m_payloads.end(); ++it) {
+	
+	DBG("(*it)->payload_type = %i\n",(*it)->payload_type);
+	m_sdpPayloadByPayload[(*it)->payload_type] = *it;
+    }
+    
+    setCurrentPayload(m_payloads[0]->payload_type);
 }
 
 int AmAudioRtpFormat::setCurrentPayload(int payload)
@@ -92,6 +94,7 @@ int AmAudioRtpFormat::setCurrentPayload(int payload)
     if (c == m_codecContainerByPayload.end())
     {
       codec = NULL;
+      codec_name = m_currentPayloadP->codec;
       getCodec();
       if (codec)
       {
@@ -131,17 +134,23 @@ AmAudioRtpFormat::~AmAudioRtpFormat()
 
 AmAudioFormat::AmAudioFormat()
   : channels(-1), rate(-1), codec(NULL),
-    frame_length(20), frame_size(160), frame_encoded_size(320)
+    frame_length(20), frame_size(160), frame_encoded_size(320),
+  codec_name()//,codec_id(0)
 {
 
 }
 
-AmAudioSimpleFormat::AmAudioSimpleFormat(int codec_id)
-  : AmAudioFormat(), codec_id(codec_id)
+AmAudioFormat::AmAudioFormat(const char* codec_name, int rate, int channels)
+    : channels(channels), rate(rate),
+      frame_length(20), frame_size(160), frame_encoded_size(320),
+    codec_name(codec_name)//,codec_id(0)
 {
-  codec = getCodec();
-  rate = 8000;
-  channels = 1;
+    
+}
+
+AmAudioSimpleFormat::AmAudioSimpleFormat(const char* codec_name, int rate, int channels)
+    : AmAudioFormat(codec_name,rate,channels)
+{
 }
 
 
@@ -170,7 +179,8 @@ unsigned int AmAudioFormat::bytes2samples(unsigned int bytes) const
 bool AmAudioFormat::operator == (const AmAudioFormat& r) const
 {
   return ( codec && r.codec
-	   && (r.codec->id == codec->id) 
+	   && (strlen(r.codec->name) == strlen(codec->name))
+	   && (!memcmp(r.codec->name,codec->name,strlen(codec->name)))
 	   && (r.bytes2samples(1024) == bytes2samples(1024))
 	   && (r.channels == channels)
 	   && (r.rate == rate));
@@ -189,7 +199,7 @@ void AmAudioFormat::initCodec()
 
   if( codec && codec->init ) {
     if ((h_codec = (*codec->init)(sdp_format_parameters.c_str(), fmt_i)) == -1) {
-      ERROR("could not initialize codec %i\n",codec->id);
+      ERROR("could not initialize codec <%s>\n",codec->name);
     } else {
       string s; 
       int i=0;
@@ -226,15 +236,13 @@ void AmAudioFormat::destroyCodec()
 
 amci_codec_t* AmAudioFormat::getCodec()
 {
+    if(!codec){
 
-  if(!codec){
-    int codec_id = getCodecId();
-    codec = AmPlugIn::instance()->codec(codec_id);
-
-    initCodec();
-  }
+	codec = AmPlugIn::instance()->codec(codec_name.c_str());
+	initCodec();
+    }
     
-  return codec;
+    return codec;
 }
 
 long AmAudioFormat::getHCodec()
@@ -301,25 +309,24 @@ int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_sa
 // returns bytes written, else -1 if error (0 is OK)
 int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
 {
-  if(!size){
-    return 0;
-  }
+    if(!size){
+      return 0;
+    }
 
-  if(max_rec_time > -1 && rec_time >= max_rec_time)
-    return -1;
-
-
-  memcpy((unsigned char*)samples,buffer,size);
-
-  unsigned int s = encode(size);
-  if(s>0){
-    //DBG("%s\n",typeid(this).name());
-    incRecordTime(bytes2samples(size));
-    return write(user_ts,(unsigned int)s);
-  }
-  else{
-    return s;
-  }
+    if(max_rec_time > -1 && rec_time >= max_rec_time)
+	return -1;
+    
+    memcpy((unsigned char*)samples,buffer,size);
+    
+    unsigned int s = encode(size);
+    if(s>0) {
+	//DBG("%s\n",typeid(this).name());
+	incRecordTime(bytes2samples(size));
+	return write(user_ts,(unsigned int)s);
+    }
+    else{
+	return s;
+    }
 }
 
 void AmAudio::stereo2mono(unsigned char* out_buf,unsigned char* in_buf,unsigned int& size)
@@ -499,10 +506,15 @@ void DblBuffer::swap()
 
 int AmAudioRtpFormat::getCodecId()
 {
-  if(!m_currentPayloadP){
-    ERROR("AmAudioRtpFormat::getCodecId: could not find payload %i\n", m_currentPayload);
-    return -1;
-  }
-  else 
-    return m_currentPayloadP->codec_id;
+    if(!m_currentPayloadP){
+	ERROR("AmAudioRtpFormat::getCodecId: could not find payload %i\n", m_currentPayload);
+	return -1;
+    }
+    else {
+	//return m_currentPayloadP->codec_id;
+	ERROR("AmAudioRtpFormat::getCodecId: NYI payload_id<%d>\n", 
+	      m_currentPayloadP->payload_id);
+	
+	return -1;
+    }
 }

@@ -55,8 +55,8 @@
 #define ILBC30  30 
 #define ILBC20  20
 
-const iLBC_ULP_Inst_t ULP_20msTbl;
-const iLBC_ULP_Inst_t ULP_30msTbl;
+//const iLBC_ULP_Inst_t ULP_20msTbl;
+//const iLBC_ULP_Inst_t ULP_30msTbl;
 
 static int iLBC_2_Pcm16_Ext( unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 			     unsigned int channels, unsigned int rate, long h_codec, int mode );
@@ -71,8 +71,8 @@ static int Pcm16_2_iLBC( unsigned char* out_buf, unsigned char* in_buf, unsigned
 			 unsigned int channels, unsigned int rate, long h_codec );
 static long iLBC_create(const char* format_parameters, amci_codec_fmt_info_t* format_description);
 static void iLBC_destroy(long h_inst);
-static int iLBC_open(FILE* fp, struct amci_file_desc_t* fmt_desc, int options, long h_codec);
-static int iLBC_close(FILE* fp, struct amci_file_desc_t* fmt_desc, int options, long h_codec, struct amci_codec_t *codec);
+static int iLBC_open(BitStream* fp, int options, struct amci_file_desc_t* fmt_desc);
+static int iLBC_close(BitStream* fp, int options, struct amci_file_desc_t* fmt_desc);
 
 static unsigned int ilbc_bytes2samples(long, unsigned int);
 static unsigned int ilbc_samples2bytes(long, unsigned int);
@@ -80,10 +80,10 @@ static unsigned int ilbc_samples2bytes(long, unsigned int);
 BEGIN_EXPORTS( "ilbc" , AMCI_NO_MODULEINIT, AMCI_NO_MODULEDESTROY )
 
      BEGIN_CODECS
-CODEC( CODEC_ILBC, Pcm16_2_iLBC, iLBC_2_Pcm16, iLBC_PLC,
-       iLBC_create, 
-       iLBC_destroy,
-       ilbc_bytes2samples, ilbc_samples2bytes )
+         CODEC( CODEC_ILBC, Pcm16_2_iLBC, iLBC_2_Pcm16, iLBC_PLC,
+                iLBC_create, 
+                iLBC_destroy,
+                ilbc_bytes2samples, ilbc_samples2bytes )
      END_CODECS
     
 BEGIN_PAYLOADS
@@ -91,10 +91,9 @@ PAYLOAD( -1, "iLBC", 8000, 1, CODEC_ILBC, AMCI_PT_AUDIO_FRAME )
      END_PAYLOADS
 
 BEGIN_FILE_FORMATS
-BEGIN_FILE_FORMAT( "iLBC", "ilbc", "audio/iLBC", iLBC_open, iLBC_close, 0, 0)
+BEGIN_FILE_FORMAT( "iLBC", "ilbc", "audio/iLBC", iLBC_open, iLBC_close)
      BEGIN_SUBTYPES
-SUBTYPE( ILBC30,  "iLBC30",  8000, 1, CODEC_ILBC )
-     SUBTYPE( ILBC20,  "iLBC20",  8000, 1, CODEC_ILBC )
+         SUBTYPE( CODEC_ILBC )
      END_SUBTYPES
 END_FILE_FORMAT
 END_FILE_FORMATS
@@ -184,7 +183,8 @@ int Pcm16_2_iLBC( unsigned char* out_buf, unsigned char* in_buf, unsigned int si
   short* in_b = (short*)in_buf;
 
   float block[BLOCKL_MAX];
-  int i,k;
+  unsigned int i;
+  int k;
   iLBC_Codec_Inst_t* codec_inst;
   int out_buf_offset=0;
 
@@ -236,7 +236,8 @@ static int iLBC_2_Pcm16_Ext( unsigned char* out_buf, unsigned char* in_buf, unsi
 			     unsigned int channels, unsigned int rate, long h_codec, int mode )
 {
   short* out_b = (short*)out_buf;
-  int i,k,noframes;
+  unsigned int i,noframes;
+  int k;
   float decblock[BLOCKL_MAX];
   float dtmp;
   iLBC_Codec_Inst_t* codec_inst;
@@ -281,14 +282,14 @@ static int iLBC_2_Pcm16_Ext( unsigned char* out_buf, unsigned char* in_buf, unsi
 }
 
 #define SAFE_READ(buf,s,fp,sr) \
-    sr = fread(buf,s,1,fp);\
-    if((sr != 1) || ferror(fp)) return -1;
+    sr = fp->read(buf,s);\
+    if(sr != 1) return -1;
 
 #define SAFE_WRITE(buf,s,fp) \
     fwrite(buf,s,1,fp);\
-    if(ferror(fp)) return -1;
+    if(0/*ferror(fp)*/) return -1;
 
-static int ilbc_read_header(FILE* fp, struct amci_file_desc_t* fmt_desc)
+static int ilbc_read_header(BitStream* fp, struct amci_file_desc_t* fmt_desc)
 {
   unsigned int s;
 
@@ -296,7 +297,7 @@ static int ilbc_read_header(FILE* fp, struct amci_file_desc_t* fmt_desc)
 
   if(!fp)
     return -1;
-  rewind(fp);
+  fp->seek(0);
 
   DBG("trying to read iLBC file\n");
 
@@ -304,9 +305,9 @@ static int ilbc_read_header(FILE* fp, struct amci_file_desc_t* fmt_desc)
   DBG("tag = <%.9s>\n",tag);
 
   if(!strncmp(tag,"#iLBC30\n",9) ){
-    fmt_desc->subtype=ILBC30;
+      //fmt_desc->subtype=ILBC30;
   } else if (!strncmp(tag,"#iLBC20\n",9)) {
-    fmt_desc->subtype=ILBC20;
+      //fmt_desc->subtype=ILBC20;
   } else {
     DBG("wrong format !");
     return -1;
@@ -314,34 +315,34 @@ static int ilbc_read_header(FILE* fp, struct amci_file_desc_t* fmt_desc)
   fmt_desc->rate = 8000;
   fmt_desc->channels = 1;
 
-  fseek(fp, 0, SEEK_END);
-  fmt_desc->data_size = ftell(fp) - 9; // file size - header size
-  fseek(fp, 9, SEEK_SET);   // get at start of samples
+  fp->seek(-1);
+  fmt_desc->data_size = fp->pos() - 9; // file size - header size
+  fp->seek(9); // get at start of samples
     
   return 0;
 }
 
-int iLBC_open(FILE* fp, struct amci_file_desc_t* fmt_desc, int options, long h_codec)
+int iLBC_open(BitStream* fp, int options, struct amci_file_desc_t* fmt_desc)
 {
   DBG("ilbc_open.\n");
   if(options == AMCI_RDONLY){
     return ilbc_read_header(fp,fmt_desc);
   }  else {
-    if (fmt_desc->subtype == ILBC30) {
-      DBG("writing: #iLBC30\n");
-      SAFE_WRITE("#iLBC30\n",9,fp);
-    } else if (fmt_desc->subtype == ILBC20) {
-      DBG("writing: #iLBC20\n");
-      SAFE_WRITE("#iLBC20\n",9,fp);
-    } else {
-      ERROR("Unsupported ilbc sub type %d\n", fmt_desc->subtype);
-      return -1;
-    }
-    return 0;
+/*     if (fmt_desc->subtype == ILBC30) { */
+/*       DBG("writing: #iLBC30\n"); */
+/*       SAFE_WRITE("#iLBC30\n",9,fp); */
+/*     } else if (fmt_desc->subtype == ILBC20) { */
+/*       DBG("writing: #iLBC20\n"); */
+/*       SAFE_WRITE("#iLBC20\n",9,fp); */
+/*     } else { */
+/*       ERROR("Unsupported ilbc sub type %d\n", fmt_desc->subtype); */
+       return -1; 
+/*     } */
+/*     return 0; */
   }
 }
 
-int iLBC_close(FILE* fp, struct amci_file_desc_t* fmt_desc, int options, long h_codec, struct amci_codec_t *codec)
+int iLBC_close(BitStream* fp, int options, struct amci_file_desc_t* fmt_desc)
 {
   DBG("iLBC_close.\n");
   return 0;

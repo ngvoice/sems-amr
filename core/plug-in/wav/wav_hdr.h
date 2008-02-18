@@ -30,17 +30,23 @@
 
 #include "amci.h"
 
-int wav_open(FILE* fp, struct amci_file_desc_t* fmt_desc, 
-	     int options, long h_codec);
-int wav_close(FILE* fp, struct amci_file_desc_t* fmt_desc, 
-	      int options, long h_codec, struct amci_codec_t *codec);
+/** @def WAV_PCM subtype declaration. */
+#define WAV_PCM  1 
+/** @def WAV_ALAW subtype declaration. */
+#define WAV_ALAW 6 
+/** @def WAV_ULAW subtype declaration. */
+#define WAV_ULAW 7 
 
-int wav_mem_open(unsigned char* mptr, unsigned long size, unsigned long* pos, 
-		 struct amci_file_desc_t* fmt_desc, int options, long h_codec);
 
-int wav_mem_close(unsigned char* mptr, unsigned long* pos,
-		  struct amci_file_desc_t* fmt_desc, int options, 
-		  long h_codec, struct amci_codec_t *codec);
+int wav_open(BitStream* fp, int options, struct amci_file_desc_t* fmt_desc);
+int wav_close(BitStream* fp, int options, struct amci_file_desc_t* fmt_desc);
+
+/* int wav_mem_open(unsigned char* mptr, unsigned long size, unsigned long* pos,  */
+/* 		 struct amci_file_desc_t* fmt_desc, int options, long h_codec); */
+
+/* int wav_mem_close(unsigned char* mptr, unsigned long* pos, */
+/* 		  struct amci_file_desc_t* fmt_desc, int options,  */
+/* 		  long h_codec, struct amci_codec_t *codec); */
 
 
 #endif

@@ -156,7 +156,7 @@ static char* read_param(char* input, const char *param, char** param_value)
 long speexNB_create(const char* format_parameters, amci_codec_fmt_info_t* format_description)
 {
   SpeexState* ss;
-  const int BLEN = 63;
+  const unsigned int BLEN = 63;
   int bits;
         
   ss = (SpeexState*) calloc(1, sizeof(SpeexState));

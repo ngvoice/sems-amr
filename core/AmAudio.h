@@ -105,63 +105,68 @@ class AmAudio;
 class AmAudioFormat
 {
 public:
-  /** Number of channels. */
-  int channels;
-  /** Sampling rate. */
-  int rate;
-  /* frame length in samples (frame based codecs) */
-  int frame_length;
-  /* frame size in bytes */
-  int frame_size;
-  /* encoded frame size in bytes */
-  int frame_encoded_size;
+    /** Number of channels. */
+    int channels;
 
-  string sdp_format_parameters;
+    /** Sampling rate. */
+    int rate;
+
+    /** frame length in samples (frame based codecs) */
+    int frame_length;
+
+    /** frame size in bytes */
+    int frame_size;
+
+    /** encoded frame size in bytes */
+    int frame_encoded_size;
     
-  AmAudioFormat();
-  virtual ~AmAudioFormat();
+    string sdp_format_parameters;
+    
+    AmAudioFormat();
+    AmAudioFormat(const char* codec_name, int rate, int channels);
+    virtual ~AmAudioFormat();
+    
+    /** @return The format's codec pointer. */
+    amci_codec_t*    getCodec();
+    /** @return Handler returned by the codec's init function.*/
+    long             getHCodec();
+    long             getHCodecNoInit() { return h_codec; } // do not initialize
+    
+    unsigned int calcBytesToRead(unsigned int needed_samples) const;
+    unsigned int bytes2samples(unsigned int) const;
+    
+    /** @return true if same format. */
+    bool operator == (const AmAudioFormat& r) const;
+    /** @return false if same format. */
+    bool operator != (const AmAudioFormat& r) const;
 
-  /** @return The format's codec pointer. */
-  amci_codec_t*    getCodec();
-  /** @return Handler returned by the codec's init function.*/
-  long             getHCodec();
-  long             getHCodecNoInit() { return h_codec; } // do not initialize
-
-  unsigned int calcBytesToRead(unsigned int needed_samples) const;
-  unsigned int bytes2samples(unsigned int) const;
-
-  /** @return true if same format. */
-  bool operator == (const AmAudioFormat& r) const;
-  /** @return false if same format. */
-  bool operator != (const AmAudioFormat& r) const;
-
+    void setCodecName(const char* name) { codec_name = name; }
+    
 protected:
-  virtual int getCodecId()=0;
-
-  /** ==0 if not yet initialized. */
-  amci_codec_t*   codec;
-  /** ==0 if not yet initialized. */
-  long            h_codec;
-
-  /** Calls amci_codec_t::destroy() */
-  void destroyCodec();
-  /** Calls amci_codec_t::init() */
-  void initCodec();
-
+    string codec_name;
+    
+    /** ==0 if not yet initialized. */
+    amci_codec_t*   codec;
+    /** ==0 if not yet initialized. */
+    long            h_codec;
+    
+    /** Calls amci_codec_t::destroy() */
+    void destroyCodec();
+    /** Calls amci_codec_t::init() */
+    void initCodec();
+    
 private:
-  void operator = (const AmAudioFormat& r);
+    void operator = (const AmAudioFormat& r);
 };
 
 /** \brief simple \ref AmAudioFormat audio format */
 class AmAudioSimpleFormat: public AmAudioFormat
 {
-  int codec_id;
-
 protected:
-  int getCodecId() { return codec_id; }
+    //int getCodecId() { return codec_id; }
 
 public:
-  AmAudioSimpleFormat(int codec_id);
+    AmAudioSimpleFormat(const char* codec_name, int rate=8000, int channels=1);
 };
 
 

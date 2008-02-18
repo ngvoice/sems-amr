@@ -47,7 +47,7 @@ class AmCtrlInterfaceFactory;
 struct amci_exports_t;
 struct amci_codec_t;
 struct amci_payload_t;
-struct amci_inoutfmt_t;
+struct amci_file_fmt_t;
 struct amci_subtype_t;
 
 /**
@@ -66,17 +66,36 @@ class AmPlugIn
 
   vector<void*> dlls;
 
-  std::map<int,amci_codec_t*>       codecs;
-  std::map<int,amci_payload_t*>     payloads;
-  std::map<int,int>                 payload_order;
-  std::map<string,amci_inoutfmt_t*> file_formats;
-  std::map<string,AmSessionFactory*>  name2app;
+  typedef std::map<string,amci_codec_t*> Codecs;
+  Codecs codecs;
 
-  std::map<string,AmSessionEventHandlerFactory*> name2seh;
-  std::map<string,AmPluginFactory*> name2base;
-  std::map<string,AmDynInvokeFactory*> name2di;
-  std::map<string,AmSIPEventHandler*> name2sipeh;
-  std::map<string,AmLoggingFacility*> name2logfac;
+  typedef std::map<int,amci_payload_t*> Payloads;
+  Payloads payloads;
+
+  typedef std::map<int,int> PayloadOrder;
+  PayloadOrder payload_order;
+
+  typedef std::map<string,amci_file_fmt_t*> FileFormats;
+  FileFormats file_formats;
+
+  typedef std::map<string,AmSessionFactory*> Name2App;
+  Name2App name2app;
+
+  typedef std::map<string,AmSessionEventHandlerFactory*> Name2Seh;
+  Name2Seh name2seh;
+
+  typedef std::map<string,AmPluginFactory*> Name2Base;
+  Name2Base name2base;
+
+  typedef std::map<string,AmDynInvokeFactory*> Name2Di;
+  Name2Di name2di;
+
+  typedef std::map<string,AmSIPEventHandler*> Name2Sipeh;
+  Name2Sipeh name2sipeh;
+
+  typedef std::map<string,AmLoggingFacility*> Name2LogFac;
+  Name2LogFac name2logfac;
+
   AmCtrlInterfaceFactory *ctrlIface;
 
   int dynamic_pl; // range: 96->127, see RFC 1890
@@ -99,7 +118,7 @@ class AmPlugIn
 
   int addCodec(amci_codec_t* c);
   int addPayload(amci_payload_t* p);
-  int addFileFormat(amci_inoutfmt_t* f);
+  int addFileFormat(amci_file_fmt_t* f);
 
  public:
 
@@ -130,20 +149,20 @@ class AmPlugIn
    * @param ext File extension.
    * @return NULL if failed.
    */
-  amci_inoutfmt_t* fileFormat(const string& fmt_name, const string& ext = "");
+  amci_file_fmt_t* fileFormat(const string& fmt_name, const string& ext = "");
   /** 
    * File format's subtype lookup function.
    * @param iofmt The file format.
    * @param subtype Subtype ID (see plug-in declaration for values).
    * @return NULL if failed.
    */
-  amci_subtype_t*  subtype(amci_inoutfmt_t* iofmt, int subtype);
+  amci_subtype_t*  subtype(amci_file_fmt_t* iofmt, int subtype);
   /** 
    * Codec lookup function.
    * @param id Codec ID (see amci/codecs.h).
    * @return NULL if failed.
    */
-  amci_codec_t*    codec(int id);
+  amci_codec_t*    codec(const char* name);
   /**
    * Application lookup function
    * @param app_name application name

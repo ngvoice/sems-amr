@@ -95,7 +95,7 @@ amci_payload_t _payload_tevent = {
   8000,
   -1,
   CODEC_TELEPHONE_EVENT,
-  -1 
+  -1
 };
 
 AmPlugIn* AmPlugIn::_instance=0;
@@ -346,18 +346,18 @@ int AmPlugIn::loadPlugIn(const string& file)
 }
 
 
-amci_inoutfmt_t* AmPlugIn::fileFormat(const string& fmt_name, const string& ext)
+amci_file_fmt_t* AmPlugIn::fileFormat(const string& fmt_name, const string& ext)
 {
   if(!fmt_name.empty()){
 
-    std::map<std::string,amci_inoutfmt_t*>::iterator it = file_formats.find(fmt_name);
+    std::map<std::string,amci_file_fmt_t*>::iterator it = file_formats.find(fmt_name);
     if ((it != file_formats.end()) &&
 	(ext.empty() || (ext == it->second->ext)))
       return it->second;
   }
   else if(!ext.empty()){
 	
-    std::map<std::string,amci_inoutfmt_t*>::iterator it = file_formats.begin();
+    std::map<std::string,amci_file_fmt_t*>::iterator it = file_formats.begin();
     for(;it != file_formats.end();++it){
       if(ext == it->second->ext)
 	return it->second;
@@ -367,16 +367,17 @@ amci_inoutfmt_t* AmPlugIn::fileFormat(const string& fmt_name, const string& ext)
   return 0;
 }
 
-amci_codec_t* AmPlugIn::codec(int id)
+amci_codec_t* AmPlugIn::codec(const char* name)
 {
-  std::map<int,amci_codec_t*>::iterator it = codecs.find(id);
-  if(it != codecs.end())
-    return it->second;
-
-  return 0;
+    assert(name && strlen(name));
+    Codecs::iterator it = codecs.find(name);
+    if(it != codecs.end())
+	return it->second;
+    
+    return 0;
 }
 
-amci_payload_t*  AmPlugIn::payload(int payload_id)
+amci_payload_t* AmPlugIn::payload(int payload_id)
 {
   std::map<int,amci_payload_t*>::iterator it = payloads.find(payload_id);
   if(it != payloads.end())
@@ -385,23 +386,23 @@ amci_payload_t*  AmPlugIn::payload(int payload_id)
   return 0;
 }
 
-amci_subtype_t* AmPlugIn::subtype(amci_inoutfmt_t* iofmt, int subtype)
-{
-  if(!iofmt)
-    return 0;
+// amci_subtype_t* AmPlugIn::subtype(amci_inoutfmt_t* iofmt, int subtype)
+// {
+//   if(!iofmt)
+//     return 0;
     
-  amci_subtype_t* st = iofmt->subtypes;
-  if(subtype<0) // default subtype wanted
-    return st;
+//   amci_subtype_t* st = iofmt->subtypes;
+//   if(subtype<0) // default subtype wanted
+//     return st;
 
-  for(;;st++){
-    if(!st || st->type<0) break;
-    if(st->type == subtype)
-      return st;
-  }
+//   for(;;st++){
+//     if(!st || st->type<0) break;
+//     if(st->type == subtype)
+//       return st;
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 AmSessionFactory* AmPlugIn::getFactory4App(const string& app_name)
 {
@@ -458,7 +459,7 @@ int AmPlugIn::loadAudioPlugIn(amci_exports_t* exports)
   }
 
   for( amci_codec_t* c=exports->codecs; 
-       c->id>=0; c++ ){
+       c->name; c++ ){
 
     if(addCodec(c))
       goto error;
@@ -471,7 +472,7 @@ int AmPlugIn::loadAudioPlugIn(amci_exports_t* exports)
       goto error;
   }
 
-  for(amci_inoutfmt_t* f = exports->file_formats; 
+  for(amci_file_fmt_t* f = exports->file_formats; 
       f->name; f++ ){
 
     if(addFileFormat(f))
@@ -627,12 +628,12 @@ int AmPlugIn::loadCtrlFacPlugIn(AmPluginFactory* f)
 
 int AmPlugIn::addCodec(amci_codec_t* c)
 {
-  if(codecs.find(c->id) != codecs.end()){
-    ERROR("codec id (%i) already supported\n",c->id);
+  if(codecs.find(c->name) != codecs.end()){
+    ERROR("codec<%s> already supported\n",c->name);
     return -1;
   }
-  codecs.insert(std::make_pair(c->id,c));
-  DBG("codec id %i inserted\n",c->id);
+  codecs.insert(std::make_pair(c->name,c));
+  DBG("codec<%s> inserted\n",c->name);
   return 0;
 }
 
@@ -647,9 +648,9 @@ int AmPlugIn::addPayload(amci_payload_t* p)
 
   amci_codec_t* c;
   unsigned int i, id;
-  if( !(c = codec(p->codec_id)) ){
-    ERROR("in payload '%s': codec id (%i) not supported\n",
-	  p->name, p->codec_id);
+  if( !(c = codec(p->codec)) ){
+    ERROR("in payload '%s': codec <%s> not supported\n",
+	  p->name, p->codec);
     return -1;
   }
   if(p->payload_id != -1){
@@ -682,32 +683,32 @@ int AmPlugIn::addPayload(amci_payload_t* p)
   return 0;
 }
 
-int AmPlugIn::addFileFormat(amci_inoutfmt_t* f)
+int AmPlugIn::addFileFormat(amci_file_fmt_t* f)
 {
   if(file_formats.find(f->name) != file_formats.end()){
     ERROR("file format '%s' already supported\n",f->name);
     return -1;
   }
 
-  amci_subtype_t* st = f->subtypes;
-  for(; st->type >= 0; st++ ){
+  char** st = f->subtypes;
+  for(; *st; st++ ){
 
-    if( !codec(st->codec_id) ){
-      ERROR("in '%s' subtype %i: codec id (%i) not supported\n",
-	    f->name,st->type,st->codec_id);
+    if( !codec(*st) ){
+      ERROR("in '%s', codec %s not supported\n",
+	    f->name,*st);
       return -1;
     }
 
-    if (st->sample_rate < 0) {
-      ERROR("in '%s' subtype %i: rate must be specified!"
-	    " (ubr no longer supported)\n", f->name,st->type);
-      return -1;
-    }
-    if (st->channels < 0) {
-      ERROR("in '%s' subtype %i: channels must be specified!"
-	    "(unspecified channel count no longer supported)\n", f->name,st->type);
-      return -1;
-    }
+//     if(st->sample_rate < 0) {
+//       ERROR("in '%s' subtype %i: rate must be specified!"
+// 	    " (ubr no longer supported)\n", f->name,st->type);
+//       return -1;
+//     }
+//     if (st->channels < 0) {
+//       ERROR("in '%s' subtype %i: channels must be specified!"
+// 	    "(unspecified channel count no longer supported)\n", f->name,st->type);
+//       return -1;
+//     }
 
   }
   DBG("file format %s inserted\n",f->name);

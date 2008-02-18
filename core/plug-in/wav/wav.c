@@ -70,13 +70,6 @@
  @endcode
 */
 
-/** @def WAV_PCM subtype declaration. */
-#define WAV_PCM  1 
-/** @def WAV_ALAW subtype declaration. */
-#define WAV_ALAW 6 
-/** @def WAV_ULAW subtype declaration. */
-#define WAV_ULAW 7 
-
 static int ULaw_2_Pcm16( unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 			 unsigned int channels, unsigned int rate, long h_codec );
 
@@ -109,11 +102,11 @@ PAYLOAD( 0, "PCMU", 8000, 1, CODEC_ULAW, AMCI_PT_AUDIO_LINEAR )
      END_PAYLOADS
 
 BEGIN_FILE_FORMATS
-BEGIN_FILE_FORMAT( "Wav", "wav", "audio/x-wav", wav_open, wav_close, wav_mem_open, wav_mem_close)
+BEGIN_FILE_FORMAT( "Wav", "wav", "audio/x-wav", wav_open, wav_close)
      BEGIN_SUBTYPES
-SUBTYPE( WAV_PCM,  "Pcm16",  8000, 1, CODEC_PCM16 ) // we only support 8000/1 channel !
-     SUBTYPE( WAV_ALAW, "A-Law",  8000, 1, CODEC_ALAW )
-     SUBTYPE( WAV_ULAW, "Mu-Law", 8000, 1, CODEC_ULAW )
+         SUBTYPE( CODEC_PCM16 ) // we only support 8000/1 channel !
+         SUBTYPE( CODEC_ALAW )
+         SUBTYPE( CODEC_ULAW )
      END_SUBTYPES
 END_FILE_FORMAT
 END_FILE_FORMATS

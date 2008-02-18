@@ -130,7 +130,7 @@ static long gsm_create_if(const char* format_parameters, amci_codec_fmt_info_t* 
 { 
   gsm* h_codec=0;
     
-  h_codec = malloc(sizeof(gsm)*2);
+  h_codec = (gsm*)malloc(sizeof(gsm)*2);
   if(!h_codec){
     ERROR("gsm.c: could not create handle array\n");
     return 0;

@@ -31,45 +31,40 @@
 #include "AmAudio.h"
 #include "AmBufferedAudio.h"
 
+
 /** \brief \ref AmAudioFormat for file */
 class AmAudioFileFormat: public AmAudioFormat
 {
-  /** == "" if not yet initialized. */
-  string          name;
+    /** == "" if not yet initialized. */
+    string name;
     
-  /** == -1 if not yet initialized. */
-  int             subtype;
-
-  /** ==  0 if not yet initialized. */
-  amci_subtype_t* p_subtype;
-
+    /** == "" if not yet initialized. */
+    //string codec_name;
+    
 protected:
-  int getCodecId();
-
+    int getCodecId();
+    
 public:
-  /**
-   * Constructor for file based formats.
-   * All information are taken from the plug-in description.
-   * @param name The file format name (ex. "Wav").
-   * @param subtype Subtype for the file format (see amci.h).
-   */
-  AmAudioFileFormat(const string& name, int subtype = -1);
-  /**
-   * Constructor for file based formats.
-   * All information are taken from the file descriptor.
-   * @param name The file format name (ex. "Wav").
-   * @param fd A file descriptor filled by the a plug-in's open function.
-   */
-  AmAudioFileFormat(const string& name, const amci_file_desc_t* fd);
+    /**
+     * Constructor for file based formats.
+     * All information are taken from the plug-in description.
+     * @param name The file format name (ex. "Wav").
+     * @param subtype Subtype for the file format (see amci.h).
+     */
+    AmAudioFileFormat(const string& name);
+    /**
+     * Constructor for file based formats.
+     * All information are taken from the file descriptor.
+     * @param name The file format name (ex. "Wav").
+     * @param fd A file descriptor filled by the a plug-in's open function.
+     */
+    AmAudioFileFormat(const amci_file_desc_t* fd);
+    
+    /** @return Format name. */
+    string        getName() { return name; }
 
-  /** @return Format name. */
-  string        getName() { return name; }
-  /** @return Format subtype. */
-  int           getSubtypeId() { return subtype; }
-  /** @return Subtype pointer. */
-  amci_subtype_t*  getSubtype();
-
-  void setSubtypeId(int subtype_id);
+    string getCodecName() { return name; }
+    void setCodecName(const char* codec_name);
 };
 
 /**
@@ -83,11 +78,12 @@ public:
 
 protected:
   /** Pointer to the file opened as last. */
-  FILE* fp;
+  BitStream* fp;//FILE* fp;
   long begin;
 
   /** Format of that file. @see fp, open(). */
-  amci_inoutfmt_t* iofmt;
+  amci_file_fmt_t* file_fmt;
+
   /** Open mode. */
   int open_mode;
 
@@ -147,7 +143,8 @@ public:
   void on_close();
 
   /** be carefull with this one ;-) */ 
-  FILE* getfp() { return fp; }
+  //FILE* getfp() { return fp; }
+  BitStream* getfp() { return fp; }
 
   OpenMode getMode() { return (OpenMode)open_mode; }
 

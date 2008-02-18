@@ -82,20 +82,20 @@ struct SdpOrigin
  */
 struct SdpPayload
 {
-  int    int_pt; // internal payload type
-  int    payload_type; // SDP payload type
-  string encoding_name;
-  int    clock_rate; // sample rate (Hz)
-  string sdp_format_parameters;
-  
-  SdpPayload() : int_pt(-1), payload_type(-1), clock_rate(-1) {}
-
-  SdpPayload(int pt) : int_pt(-1), payload_type(pt), clock_rate(-1) {}
-
-  SdpPayload(int pt, const string& name, int rate) 
-    : int_pt(-1), payload_type(pt), encoding_name(name), clock_rate(rate) {}
-
-  bool operator == (int r);
+    int    int_pt; // internal payload type
+    int    payload_type; // SDP payload type
+    string encoding_name;
+    int    clock_rate; // sample rate (Hz)
+    string sdp_format_parameters;
+    
+    SdpPayload() : int_pt(-1), payload_type(-1), clock_rate(-1) {}
+    
+    SdpPayload(int pt) : int_pt(-1), payload_type(pt), clock_rate(-1) {}
+    
+    SdpPayload(int pt, const string& name, int rate) 
+	: int_pt(-1), payload_type(pt), encoding_name(name), clock_rate(rate) {}
+    
+    bool operator == (int r);
 };
 
 

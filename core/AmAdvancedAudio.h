@@ -65,7 +65,7 @@ class AmAudioQueue : public AmAudio {
   AmMutex outputQueue_mut;
   std::list<AudioQueueEntry> outputQueue;
  public:
-  AmAudioQueue();
+  AmAudioQueue(int rate, int channels);
   ~AmAudioQueue();
 
   enum QueueType { OutputQueue, InputQueue };

@@ -35,7 +35,49 @@
 /* extern "C" { */
 /* #endif */
 
-//#include <stdio.h>
+#include <stdio.h>
+
+class BitStream
+{
+public:
+    BitStream(){}
+    virtual ~BitStream(){}
+    
+    virtual int read(void* buf, int len)=0;
+    virtual int write(void* buf, int len)=0;
+    virtual int seek(long p)=0;
+    virtual long pos()=0;
+    virtual int close()=0;
+};
+
+class MemStream: public BitStream
+{
+public:
+    MemStream() {}
+    virtual ~MemStream(){}
+    
+    int read(void* buf, int len);
+    int write(void* buf, int len);
+    int seek(long p);
+    long pos();
+    virtual int close()=0;
+};
+
+class FileStream: public BitStream
+{
+    FILE* fptr;
+
+public:
+    FileStream(FILE* fptr):fptr(fptr){}
+    virtual ~FileStream(){}
+    
+    int read(void* buf, int len);
+    int write(void* buf, int len);
+    int seek(long p);
+    long pos();
+    int close();
+};
+
 
 /**
  * @file amci.h
@@ -61,6 +103,8 @@
  *   than using directly the structures.<br>
  * \example plug-in/wav/wav.c
  */
+
+
 
 /** @def AMCI_RDONLY Read only mode. */
 #define AMCI_RDONLY   1
@@ -278,7 +322,7 @@ struct amci_file_fmt_t {
     amci_file_close_t on_close;
 
     /** NULL terminated array of supported codec names. */
-    char** subtypes; 
+    char** subtypes;
 };
     
 /** Payload type for continuous audio */
@@ -311,6 +355,9 @@ struct amci_payload_t {
      * <br>example 1 (mono), 2 (stereo).
     */
     int channels;
+
+
+    char* codec;
 
     /** @see AMCI_PT_AUDIO_LINEAR, AMCI_PT_AUDIO_FRAME */
     int type;
@@ -372,7 +419,7 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define END_CODECS \
-                    { -1, 0, 0, 0, 0, 0, 0, 0 } \
+                    { NULL, 0, 0, 0, 0, 0, 0, 0 } \
                 },
 
 /**
@@ -397,7 +444,7 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define END_PAYLOADS \
-                    { -1, 0, -1, -1, -1, -1 } \
+                    { -1, 0, -1, -1, NULL, -1 } \
                 },
 
 /**
@@ -414,7 +461,7 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define BEGIN_FILE_FORMATS \
-                (struct amci_inoutfmt_t[]) {
+                (struct amci_file_fmt_t[]) {
 
 /**
  * Portable export definition macro
@@ -422,8 +469,8 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define END_FILE_FORMATS \
-                    { 0,0,0,0,0,0,0, \
-                      (struct amci_subtype_t[]) { {-1, 0, -1, -1, -1} } \
+                    { 0,0,0,0,0, \
+                      (char*[]) { NULL } \
                     } \
                 }
 
@@ -432,8 +479,8 @@ struct amci_exports_t {
  * see example media plug-in 'wav' (plug-in/wav/wav.c).
  * @hideinitializer
  */
-#define BEGIN_FILE_FORMAT(name,ext,email_content_type,open,on_close,mem_open,mem_close) \
-                    { name,ext,email_content_type,open,on_close,mem_open,mem_close,
+#define BEGIN_FILE_FORMAT(name,ext,email_content_type,open,on_close) \
+                    { name,ext,email_content_type,open,on_close,
 
 /**
  * Portable export definition macro
@@ -449,7 +496,7 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define BEGIN_SUBTYPES \
-                        (struct amci_subtype_t[]) {
+                        (char*[]) {
 
 /**
  * Portable export definition macro
@@ -457,7 +504,7 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define END_SUBTYPES \
-                            {-1, 0, -1, -1, -1} \
+                            NULL \
                         }
 
 /**
@@ -465,8 +512,8 @@ struct amci_exports_t {
  * see example media plug-in 'wav' (plug-in/wav/wav.c).
  * @hideinitializer
  */
-#define SUBTYPE(type,name,rate,channels,codec_id) \
-                        { type, name, rate, channels, codec_id },
+#define SUBTYPE(codec_name) \
+                        codec_name,
 
 
   /* defines to make definitions more expressive */

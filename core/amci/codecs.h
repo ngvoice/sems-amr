@@ -35,22 +35,42 @@
  * they just need to be different from each other.
  */
 
-#define CODEC_PCM16   0
-#define CODEC_ULAW    1
-#define CODEC_ALAW    2
-#define CODEC_GSM0610 3
+#define CODEC_PCM16 "PCM.16"
+#define CODEC_ULAW  "ULaw"
+#define CODEC_ALAW  "ALaw"
 
-#define CODEC_ILBC    4
-#define CODEC_MP3     5
+#define CODEC_GSM0610 "GSM.06.10"
+#define CODEC_TELEPHONE_EVENT "Telephony-Events"
 
-#define CODEC_TELEPHONE_EVENT 6
+#define CODEC_G726_16 "G.726/16"
+#define CODEC_G726_24 "G.726/24" 
+#define CODEC_G726_32 "G.726/24"
+#define CODEC_G726_40 "G.726/40"
 
-#define CODEC_SPEEX_NB 7
 
-#define CODEC_G726_16 8
-#define CODEC_G726_24 9
-#define CODEC_G726_32 10
-#define CODEC_G726_40 11
+#define CODEC_ILBC    "iLBC"
+#define CODEC_MP3     "MP3"
 
-#define CODEC_L16     12
+#define CODEC_L16     "L16"
+
+#define CODEC_SPEEX_NB "Speex.NB"
+
+/* #define CODEC_PCM16   0 */
+/* #define CODEC_ULAW    1 */
+/* #define CODEC_ALAW    2 */
+/* #define CODEC_GSM0610 3 */
+
+/* #define CODEC_ILBC    4 */
+/* #define CODEC_MP3     5 */
+
+//#define CODEC_TELEPHONE_EVENT 6
+
+/* #define CODEC_SPEEX_NB 7 */
+
+/* #define CODEC_G726_16 8 */
+/* #define CODEC_G726_24 9 */
+/* #define CODEC_G726_32 10 */
+/* #define CODEC_G726_40 11 */
+
+/* #define CODEC_L16     12 */
 #endif
