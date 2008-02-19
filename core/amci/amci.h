@@ -127,10 +127,10 @@ struct BitStream;
 struct amci_file_desc_t {
 
     /** file format: @see */
-    char* file_format;
+    //char* file_format;
 
     /** codec: @see */
-    char* codec;
+    const char* codec;
     
     /** sampling rate */
     int rate;
@@ -245,12 +245,14 @@ typedef void (*amci_codec_module_destroy_t)(void);
  */
 
 // TODO: use SDP-style options only (text based)
-  typedef struct {
-    int id;
-    int value;
-  } amci_codec_fmt_info_t;
+/*   typedef struct { */
+/*     int id; */
+/*     int value; */
+/*   } amci_codec_fmt_info_t; */
 
-typedef long (*amci_codec_init_t)(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+struct amci_codec_params_t;
+
+typedef long (*amci_codec_init_t)(amci_codec_params_t* codec_desc);
 
 /**
  * \brief Codec's destroy function pointer.
@@ -299,7 +301,24 @@ struct amci_codec_t {
     /** Function for calculating the number of samples from bytes. */
     amci_codec_samples2bytes_t samples2bytes;
 };
-  
+
+struct amci_codec_params_t 
+{
+    /** Number of channels. */
+    int channels;
+
+    /** Sampling rate. */
+    int rate;
+
+    /** frame length in samples (frame based codecs) */
+    int frame_length;
+
+    /** frame size in bytes */
+    int frame_size;
+
+    /** encoded frame size in bytes */
+    int frame_encoded_size;
+};  
 
 /**
  * \brief File format declaration.

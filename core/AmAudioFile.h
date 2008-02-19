@@ -51,14 +51,14 @@ public:
      * @param name The file format name (ex. "Wav").
      * @param subtype Subtype for the file format (see amci.h).
      */
-    AmAudioFileFormat(const string& name);
+    //AmAudioFileFormat(const string& name);
     /**
      * Constructor for file based formats.
      * All information are taken from the file descriptor.
      * @param name The file format name (ex. "Wav").
      * @param fd A file descriptor filled by the a plug-in's open function.
      */
-    AmAudioFileFormat(const amci_file_desc_t* fd);
+    AmAudioFileFormat(const char* f_name, const amci_file_desc_t* fd);
     
     /** @return Format name. */
     string        getName() { return name; }
@@ -100,7 +100,7 @@ protected:
   int write(unsigned int user_ts, unsigned int size);
 
   /** @return a file format from file name. (ex: '1234.wav') */
-  AmAudioFileFormat* fileName2Fmt(const string& name);
+  amci_file_fmt_t* fileName2Fmt(const string& name);
 
   /** internal function for opening the file */
   int fpopen_int(const string& filename, OpenMode mode, FILE* n_fp);

@@ -105,6 +105,7 @@ class AmAudio;
 class AmAudioFormat
 {
 public:
+
     /** Number of channels. */
     int channels;
 
@@ -120,12 +121,15 @@ public:
     /** encoded frame size in bytes */
     int frame_encoded_size;
     
-    string sdp_format_parameters;
+    string sdp_format_parameters;//FIXME
     
     AmAudioFormat();
-    AmAudioFormat(const char* codec_name, int rate, int channels);
+    AmAudioFormat(const char* codec_name);
     virtual ~AmAudioFormat();
-    
+
+    void setCodecName(const char* name) { codec_name = name; }
+    const char* getCodecName() { return codec_name.c_str(); }
+        
     /** @return The format's codec pointer. */
     amci_codec_t*    getCodec();
     /** @return Handler returned by the codec's init function.*/
@@ -140,8 +144,6 @@ public:
     /** @return false if same format. */
     bool operator != (const AmAudioFormat& r) const;
 
-    void setCodecName(const char* name) { codec_name = name; }
-    
 protected:
     string codec_name;
     
@@ -208,103 +210,108 @@ public:
 class AmAudio
 {
 private:
-  AmMutex fmt_mut;
-  int rec_time; // in samples
-  int max_rec_time;
+    /** 
+     * Mutex for every format related variable
+     * @see lock(), unlock()
+     */
+    AmMutex fmt_mut;
+
+    int rec_time; // in samples
+    int max_rec_time;
 
 #ifdef USE_LIBSAMPLERATE 
-  SRC_STATE* resample_state;
-  float resample_in[PCM16_B2S(AUDIO_BUFFER_SIZE)*2];
-  float resample_out[PCM16_B2S(AUDIO_BUFFER_SIZE)];
-  size_t resample_buf_samples;
+    SRC_STATE* resample_state;
+    float resample_in[PCM16_B2S(AUDIO_BUFFER_SIZE)*2];
+    float resample_out[PCM16_B2S(AUDIO_BUFFER_SIZE)];
+    size_t resample_buf_samples;
 #endif
 
 protected:
-  /** Sample buffer. */
-  DblBuffer samples;
-  
-  /** Audio format. @see AmAudioFormat */
-  auto_ptr<AmAudioFormat> fmt;
+    /** Sample buffer. */
+    DblBuffer samples;
 
-  AmAudio();
-  AmAudio(AmAudioFormat *);
+    /** Audio format. @see AmAudioFormat */
+    auto_ptr<AmAudioFormat> fmt;
+
+    AmAudio();
+    AmAudio(AmAudioFormat *);
 
 
-  /** Gets 'size' bytes directly from stream (Read,Pull). */
-  virtual int read(unsigned int user_ts, unsigned int size) = 0;
-  /** Puts 'size' bytes directly from stream (Write,Push). */
-  virtual int write(unsigned int user_ts, unsigned int size) = 0;
+    /** Gets 'size' bytes directly from stream (Read,Pull). */
+    virtual int read(unsigned int user_ts, unsigned int size) = 0;
+    /** Puts 'size' bytes directly from stream (Write,Push). */
+    virtual int write(unsigned int user_ts, unsigned int size) = 0;
 
-  /** 
-   * Converts a buffer from stereo to mono. 
-   * @param size [in,out] size in bytes
-   * <ul><li>Before call is size = input size</li><li>After the call is size = output size</li></ul>
-   */
-  void stereo2mono(unsigned char* out_buf,unsigned char* in_buf,unsigned int& size);
-
-  /**
-   * Converts from the input format to the internal format.
-   * <ul><li>input = front buffer</li><li>output = back buffer</li></ul>
-   * @param size [in] size in bytes
-   * @return new size in bytes
-   */
-  int decode(unsigned int size);
-  /**
-   * Converts from the internal format to the output format.
-   * <ul><li>input = front buffer</li><li>output = back buffer</li></ul>
-   * @param size [in] size in bytes
-   * @return new size in bytes
-   */
-  int encode(unsigned int size);
-
-  /**
-   * Converts to mono depending on the format.
-   * @return new size in bytes
-   */
-  unsigned int downMix(unsigned int size);
-
-  /**
-   * Get the number of bytes to read from encoded, depending on the format.
-   */
-  unsigned int calcBytesToRead(unsigned int needed_samples) const;
-
-  /**
-   * Convert the size from bytes to samples, depending on the format.
-   */
-  unsigned int bytes2samples(unsigned int bytes) const;
-
+    /** 
+     * Converts a buffer from stereo to mono. 
+     * @param size [in,out] size in bytes
+     * <ul><li>Before call is size = input size</li><li>After the call is size = output size</li></ul>
+     */
+    void stereo2mono(unsigned char* out_buf,unsigned char* in_buf,unsigned int& size);
+    
+    /**
+     * Converts from the input format to the internal format.
+     * <ul><li>input = front buffer</li><li>output = back buffer</li></ul>
+     * @param size [in] size in bytes
+     * @return new size in bytes
+     */
+    int decode(unsigned int size);
+    /**
+     * Converts from the internal format to the output format.
+     * <ul><li>input = front buffer</li><li>output = back buffer</li></ul>
+     * @param size [in] size in bytes
+     * @return new size in bytes
+     */
+    int encode(unsigned int size);
+    
+    /**
+     * Converts to mono depending on the format.
+     * @return new size in bytes
+     */
+    unsigned int downMix(unsigned int size);
+    
+    /**
+     * Get the number of bytes to read from encoded, depending on the format.
+     */
+    unsigned int calcBytesToRead(unsigned int needed_samples) const;
+    
+    /**
+     * Convert the size from bytes to samples, depending on the format.
+     */
+    unsigned int bytes2samples(unsigned int bytes) const;
+    
 public:
-  //bool begin_talk;
+    //bool begin_talk;
 
-  virtual ~AmAudio();
-
-  /** Closes the audio pipe. */
-  virtual void close();
-
-  /** 
-   * Get some samples from input stream.
-   * @warning For packet based payloads / file formats, use:
-   * <pre>           nb_sample = input buffer size / sample size of the reference format
-   * </pre>           whereby the format with/from which the codec works is the reference one.
-   * @return # bytes read, else -1 if error (0 is OK) 
-   */
-  virtual int get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples);
-
-  /** 
-   * Put some samples to the output stream.
-   * @warning For packet based payloads / file formats, use:
-   * <pre>           nb_sample = input buffer size / sample size of the reference format
-   * </pre>           whereby the format with/from which the codec works is the reference one.
-   * @return # bytes written, else -1 if error (0 is OK) 
-   */
-  virtual int put(unsigned int user_ts, unsigned char* buffer, unsigned int size);
-  
-  unsigned int getFrameSize();
-
-  void setRecordTime(unsigned int ms);
-  int  incRecordTime(unsigned int samples);
-
-  void setBufferedOutput(unsigned int buffer_size);
+    virtual ~AmAudio();
+    
+    /** Closes the audio pipe. */
+    virtual void close();
+    
+    /** 
+     * Get some samples from input stream.
+     * @warning For packet based payloads / file formats, use:
+     * <pre>           nb_sample = input buffer size / sample size of the reference format
+     * </pre>           whereby the format with/from which the codec works is the reference one.
+     * @return # bytes read, else -1 if error (0 is OK) 
+     */
+    virtual int get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples);
+    
+    /** 
+     * Put some samples to the output stream.
+     * @warning For packet based payloads / file formats, use:
+     * <pre>           nb_sample = input buffer size / sample size of the reference format
+     * </pre>           whereby the format with/from which the codec works is the reference one.
+     * @return # bytes written, else -1 if error (0 is OK) 
+     */
+    virtual int put(unsigned int user_ts, unsigned char* buffer, unsigned int size);
+    
+    unsigned int getFrameSize();
+    
+    void setRecordTime(unsigned int ms);
+    int  incRecordTime(unsigned int samples);
+    
+    void setBufferedOutput(unsigned int buffer_size);
 };
 
 

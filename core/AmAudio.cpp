@@ -135,22 +135,24 @@ AmAudioRtpFormat::~AmAudioRtpFormat()
 AmAudioFormat::AmAudioFormat()
   : channels(-1), rate(-1), codec(NULL),
     frame_length(20), frame_size(160), frame_encoded_size(320),
-  codec_name()//,codec_id(0)
+    codec_name()
 {
 
 }
 
-AmAudioFormat::AmAudioFormat(const char* codec_name, int rate, int channels)
-    : channels(channels), rate(rate),
+AmAudioFormat::AmAudioFormat(const char* codec_name// , int rate, int channels
+			     )
+    : channels(0), rate(0),//channels(channels), rate(rate),
       frame_length(20), frame_size(160), frame_encoded_size(320),
-    codec_name(codec_name)//,codec_id(0)
-{
-    
+      codec_name(codec_name)
+{    
 }
 
 AmAudioSimpleFormat::AmAudioSimpleFormat(const char* codec_name, int rate, int channels)
-    : AmAudioFormat(codec_name,rate,channels)
+    : AmAudioFormat(codec_name)
 {
+    this->rate = rate;
+    this->channels = channels;
 }
 
 
@@ -193,35 +195,43 @@ bool AmAudioFormat::operator != (const AmAudioFormat& r) const
 
 void AmAudioFormat::initCodec()
 {
-  amci_codec_fmt_info_t fmt_i[4];
+//     amci_codec_fmt_info_t fmt_i[4];
+//     fmt_i[0].id=0;
+    amci_codec_params_t params;
 
-  fmt_i[0].id=0;
+    if( codec && codec->init ) {
 
-  if( codec && codec->init ) {
-    if ((h_codec = (*codec->init)(sdp_format_parameters.c_str(), fmt_i)) == -1) {
-      ERROR("could not initialize codec <%s>\n",codec->name);
-    } else {
-      string s; 
-      int i=0;
-      while (fmt_i[i].id) {
-	switch (fmt_i[i].id) {
-	case AMCI_FMT_FRAME_LENGTH : {
-	  frame_length=fmt_i[i].value; 
-	} break;
-	case AMCI_FMT_FRAME_SIZE: {
-	  frame_size=fmt_i[i].value; 
-	} break;
-	case AMCI_FMT_ENCODED_FRAME_SIZE: {
-	  frame_encoded_size=fmt_i[i].value; 
-	} break;
-	default: {
-	  DBG("Unknown codec format descriptor: %d\n", fmt_i[i].id);
-	} break;
-	}
-	i++;
-      }
-    }  
-  } 
+	if ((h_codec = (*codec->init)(&params)) == -1) {
+	    ERROR("could not initialize codec <%s>\n",codec->name);
+	} else {
+
+	    channels = params.channels;
+	    rate = params.rate;
+	    frame_length = params.frame_length;
+	    frame_size = params.frame_size;
+	    frame_encoded_size = params.frame_encoded_size;
+	    
+// 	    string s; 
+// 	    int i=0;
+// 	    while (fmt_i[i].id) {
+// 		switch (fmt_i[i].id) {
+// 		case AMCI_FMT_FRAME_LENGTH : {
+// 		    frame_length=fmt_i[i].value; 
+// 		} break;
+// 		case AMCI_FMT_FRAME_SIZE: {
+// 		    frame_size=fmt_i[i].value; 
+// 		} break;
+// 		case AMCI_FMT_ENCODED_FRAME_SIZE: {
+// 		    frame_encoded_size=fmt_i[i].value; 
+// 		} break;
+// 		default: {
+// 		    DBG("Unknown codec format descriptor: %d\n", fmt_i[i].id);
+// 		} break;
+// 		}
+// 		i++;
+// 	    }
+	}  
+    } 
 }
 
 void AmAudioFormat::destroyCodec()
