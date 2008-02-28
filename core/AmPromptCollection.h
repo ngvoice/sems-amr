@@ -109,7 +109,7 @@ class AmPromptCollection {
  */
 
 class AudioFileEntry : public AmAudioFile {
-  AmFileCache cache;
+  MemStream cache;
   bool isopen;
 
 public:
