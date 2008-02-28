@@ -40,21 +40,25 @@
 
 using std::string;
 
-AmFileCache::AmFileCache() 
-  : data(NULL), 
-    data_size(0)
+MemStream::MemStream() 
+    : data(NULL),fd(0),
+      cursor(NULL),
+      data_size(0)
 { }
 
-AmFileCache::~AmFileCache() 
+MemStream::~MemStream() 
 {
-  if ((data != NULL) && 
-      munmap(data, data_size)) {
-    ERROR("while unmapping file.\n");
-  }
+    if ((data != NULL) &&
+	munmap(data, data_size)) {
+	ERROR("while unmapping file.\n");
+    }
+
+    if(fd != 0)
+	::close(fd);
 }
 
-int AmFileCache::load(const std::string& filename) {
-  int fd; 
+int MemStream::load(const std::string& filename) 
+{
   struct stat sbuf;
 
   name = filename;
@@ -70,92 +74,123 @@ int AmFileCache::load(const std::string& filename) {
 	  name.c_str());
     return -2;
   }
-	
-  if ((data = mmap((caddr_t)0, sbuf.st_size, PROT_READ, MAP_PRIVATE, 
-		   fd, 0)) == (caddr_t)(-1)) {
+  
+  data = (unsigned char*)mmap((void*)0, sbuf.st_size, 
+			      PROT_READ, MAP_PRIVATE, fd, 0);
+
+  if ((void*)(data) == (void*)(-1)) {
     ERROR("cannot mmap file '%s'.\n", 
 	  name.c_str());
     return -3;
   }
 
   data_size = sbuf.st_size;
+  cursor = data;
 
   return 0;
 }
 
-int AmFileCache::read(void* buf, 
-		      size_t* pos, 
-		      size_t size) {
+//   int read(void* buf, int len);
+//   int write(void* buf, int len);
+//   int seek(long p);
+//   long pos();
+//   int close();
 
-  if (*pos >= data_size)
-    return -1; // eof
+int MemStream::read(void* buf,int len) 
+{
+    if (cursor >= data + data_size)
+	return -1; // eof
 
-  size_t r_size = size;
-  if (*pos+size > data_size)
-    r_size = data_size-*pos;
-
-  if (r_size>0) {
-    memcpy(buf, (unsigned char*)data + *pos, r_size);
-    *pos+=r_size;
-  }
-  return r_size;
+    size_t r_len = len;
+    if (cursor + len > data + data_size)
+	r_len = data + data_size - cursor;
+    
+    memcpy(buf, cursor, r_len);
+    cursor += r_len;
+    
+    return r_len;
 }
 
-inline size_t AmFileCache::getSize() {
+int MemStream::write(void* buf, int len)
+{
+    if (cursor >= data + data_size)
+	return -1; // eof
+
+    size_t r_len = len;
+    if (cursor + len > data + data_size)
+	r_len = data + data_size - cursor;
+    
+    memcpy(buf, cursor, r_len);
+    cursor += r_len;
+    
+    return r_len;
+}
+
+int MemStream::seek(long p)
+{
+    if(p < 0){
+	cursor = data + data_size;
+	return 0;
+    }
+
+    if ((unsigned long)p > data_size)
+	return -1;
+
+    cursor = data + p;
+    return 0;
+}
+
+long MemStream::pos()
+{
+    return (long)(cursor - data);
+}
+
+int MemStream::close()
+{
+    return 0;
+}
+
+inline size_t MemStream::getSize() {
   return data_size;
 }
 
-inline const string& AmFileCache::getFilename() {
+inline const string& MemStream::getFilename() {
   return name;
 }
 
 
-AmCachedAudioFile::AmCachedAudioFile(AmFileCache* cache) 
-  : cache(cache), loop(false), fpos(0), begin(0), good(false)
+AmCachedAudioFile::AmCachedAudioFile(MemStream* cache) 
+  : cache(cache), loop(false), begin(0), good(false)
 {
   if (!cache) {
     ERROR("Need open file cache.\n");
     return;
   }
 
-  AmAudioFileFormat* f_fmt = fileName2Fmt(cache->getFilename());
+  amci_file_fmt_t* f_fmt = fileName2Fmt(cache->getFilename());
   if(!f_fmt){
-    ERROR("while trying to determine the format of '%s'\n",
-	  cache->getFilename().c_str());
-    return;
+      ERROR("while trying to determine the format of '%s'\n",
+	    cache->getFilename().c_str());
+      return;
   }
-  fmt.reset(f_fmt);
 	
   amci_file_desc_t fd;
-  int ret = -1;
+  memset(&fd, 0, sizeof(amci_file_desc_t));
 
-  //fd.subtype = f_fmt->getSubtypeId();
-  fd.channels = f_fmt->channels;
-  fd.rate = f_fmt->rate;
+  assert(f_fmt->open);
+  if( (*f_fmt->open)(cache,AMCI_RDONLY,&fd) != 0 ) {
 
-  long unsigned int ofpos = fpos;
+      ERROR("file format plugin open function failed\n");
+      close();
+      return;
+  }
+  
+  file_fmt = f_fmt;
+    
+  fmt.reset(new AmAudioFileFormat(file_fmt->name,&fd));
 
-//   if( iofmt->mem_open && 
-//       !(ret = (*iofmt->mem_open)((unsigned char*)cache->getData(),cache->getSize(),&ofpos,
-// 				 &fd,AmAudioFile::Read,f_fmt->getHCodecNoInit())) ) {
-//     f_fmt->setSubtypeId(fd.subtype);
-//     f_fmt->channels = fd.channels;
-//     f_fmt->rate = fd.rate;
-
-//     begin = fpos = ofpos;
-//   }
-//   else {
-//     if(!iofmt->mem_open)
-//       ERROR("no mem_open function\n");
-//     else
-//       ERROR("mem_open returned %d\n",ret);
-//     close();
-//     return;
-//   }
-
-//   good = true;
-
-  ERROR("NYI\n");
+  begin = cache->pos();
+  good = true;
 
   return;
 }
@@ -163,7 +198,7 @@ AmCachedAudioFile::AmCachedAudioFile(AmFileCache* cache)
 AmCachedAudioFile::~AmCachedAudioFile() {
 }
 
-AmAudioFileFormat* AmCachedAudioFile::fileName2Fmt(const string& name)
+amci_file_fmt_t* AmCachedAudioFile::fileName2Fmt(const string& name)
 {
   string ext = file_extension(name);
   if(ext == ""){
@@ -171,55 +206,52 @@ AmAudioFileFormat* AmCachedAudioFile::fileName2Fmt(const string& name)
     return NULL;
   }
 
-  file_fmt = AmPlugIn::instance()->fileFormat("",ext);
-  if(!file_fmt){
-    ERROR("fileName2Fmt: could not find a format with that extension: '%s'",ext.c_str());
-    return NULL;
+  amci_file_fmt_t* f_fmt = AmPlugIn::instance()->fileFormat("",ext);
+  if(!f_fmt){
+      ERROR("fileName2Fmt: could not find a format with that extension: '%s'",ext.c_str());
+      return NULL;
   }
 
-  return NULL;//return new AmAudioFileFormat(file_fmt->name);
+  return f_fmt;
 }
 
-void AmCachedAudioFile::rewind() {
-  fpos = begin;
+void AmCachedAudioFile::rewind() 
+{
+    cache->seek(begin);
 }
 
 /** Closes the file. */
-void AmCachedAudioFile::close() {
-  fpos = 0;
+void AmCachedAudioFile::close() 
+{
 }
 
-/** Executes the handler's on_close. */
-void on_close() {
+int AmCachedAudioFile::read(unsigned int user_ts, unsigned int size) 
+{
+    if(!good){
+	ERROR("AmAudioFile::read: file is not opened\n");
+	return -1;
+    }
+    
+    int ret = cache->read((unsigned char*)samples,size);
+    
+    if(loop.get() && (ret <= 0) && cache->pos()==(long)cache->getSize()){
+	DBG("rewinding audio file...\n");
+	rewind();
+	ret = cache->read((unsigned char*)samples,size);
+    }
+    
+    if(ret > 0 && (unsigned int)ret < size){
+	DBG("0-stuffing packet: adding %i bytes (packet size=%i)\n",size-ret,size);
+	memset((unsigned char*)samples + ret,0,size-ret);
+	return size;
+    }
+    
+    return (cache->pos()==(long)cache->getSize() && !loop.get() ? -2 : ret);
 }
 
-int AmCachedAudioFile::read(unsigned int user_ts, unsigned int size) {
-
-  if(!good){
-    ERROR("AmAudioFile::read: file is not opened\n");
+int AmCachedAudioFile::write(unsigned int user_ts, unsigned int size) 
+{
+    ERROR("AmCachedAudioFile writing not supported!\n");
     return -1;
-  }
-
-  int ret = cache->read((void*)((unsigned char*)samples),&fpos,size);
-	
-  //DBG("s = %i; ret = %i\n",s,ret);
-  if(loop.get() && (ret <= 0) && fpos==cache->getSize()){
-    DBG("rewinding audio file...\n");
-    rewind();
-    ret = cache->read((void*)((unsigned char*)samples),&fpos, size);
-  }
-
-  if(ret > 0 && (unsigned int)ret < size){
-    DBG("0-stuffing packet: adding %i bytes (packet size=%i)\n",size-ret,size);
-    memset((unsigned char*)samples + ret,0,size-ret);
-    return size;
-  }
-
-  return (fpos==cache->getSize() && !loop.get() ? -2 : ret);
-}
-
-int AmCachedAudioFile::write(unsigned int user_ts, unsigned int size) {
-  ERROR("AmCachedAudioFile writing not supported!\n");
-  return -1;
 }
 

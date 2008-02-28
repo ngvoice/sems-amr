@@ -35,18 +35,21 @@
 /**
  * \brief memory cache for AmAudioFile 
  * 
- * The AmFileCache class loads a file once into memory 
+ * The MemStream class loads a file once into memory 
  * to be used e.g. by AmCachedAudioFile.
  */
-class AmFileCache 
+class MemStream: public BitStream
 {
-  void* data;
+  int fd;
+  unsigned char*  data;
+  unsigned char*  cursor;
+
   size_t data_size;
   std::string name;
 
  public:
-  AmFileCache();
-  ~AmFileCache();
+  MemStream();
+  ~MemStream();
 
   /** load filename into memory 
    * @return 0 if everything's OK 
@@ -54,12 +57,19 @@ class AmFileCache
   int load(const std::string& filename);
   /** get the size of the file */
   size_t getSize();
-  /** read size bytes from pos into buf */
-  int read(void* buf, size_t* pos, size_t size);
   /** get the filename */
   const string& getFilename();
   /** get a pointer to the file's data - use with caution! */
   void* getData() { return data; }
+
+  //
+  // BitStream interface
+  //
+  int read(void* buf, int len);
+  int write(void* buf, int len);
+  int seek(long p);
+  long pos();
+  int close();
 };
 
 /**
@@ -71,27 +81,25 @@ class AmFileCache
 class AmCachedAudioFile 
 : public AmAudio
 {
-  AmFileCache* cache;
-  /** current position */
-  size_t fpos;
-  /** beginning of data in file */
-  size_t begin; 
-  bool good;
+    MemStream* cache;
+    /** beginning of data in file */
+    size_t begin; 
+    bool good;
+    
+    /** @see AmAudio::read */
+    int read(unsigned int user_ts, unsigned int size);
+    
+    /** @see AmAudio::write */
+    int write(unsigned int user_ts, unsigned int size);
+    
+    /** get the file format from the file name */
+    amci_file_fmt_t* fileName2Fmt(const string& name);
 
-  /** @see AmAudio::read */
-  int read(unsigned int user_ts, unsigned int size);
-
-  /** @see AmAudio::write */
-  int write(unsigned int user_ts, unsigned int size);
-
-  /** get the file format from the file name */
-  AmAudioFileFormat* fileName2Fmt(const string& name);
-
-  /** Format of that file. @see fp, open(). */
-  amci_file_fmt_t* file_fmt;
+    /** Format of that file. @see fp, open(). */
+    amci_file_fmt_t* file_fmt;
 
  public:
-  AmCachedAudioFile(AmFileCache* cache);
+  AmCachedAudioFile(MemStream* cache);
   ~AmCachedAudioFile();
 
   /** loop the file? */
@@ -109,3 +117,7 @@ class AmCachedAudioFile
   bool is_good() { return good; }
 };
 #endif //_AMFILECACHE_H
+
+// Local Variables:
+// mode:C++
+// End:

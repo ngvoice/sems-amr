@@ -43,7 +43,7 @@ using std::string;
 class CacheAnnounceFactory: public AmSessionFactory
 {
 	
-	AmFileCache ann_cache;
+    MemStream ann_cache;
 
 public:
     static string AnnouncePath;
@@ -58,10 +58,10 @@ public:
 class CacheAnnounceDialog : public AmSession
 {
     auto_ptr<AmCachedAudioFile> wav_file;
-    AmFileCache* announce;
+    MemStream* announce;
 
  public:
-    CacheAnnounceDialog(AmFileCache* announce);
+    CacheAnnounceDialog(MemStream* announce);
     ~CacheAnnounceDialog();
 
     void onSessionStart(const AmSipRequest& req);

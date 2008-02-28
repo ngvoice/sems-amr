@@ -50,35 +50,6 @@ public:
     virtual int close()=0;
 };
 
-class MemStream: public BitStream
-{
-public:
-    MemStream() {}
-    virtual ~MemStream(){}
-    
-    int read(void* buf, int len);
-    int write(void* buf, int len);
-    int seek(long p);
-    long pos();
-    virtual int close()=0;
-};
-
-class FileStream: public BitStream
-{
-    FILE* fptr;
-
-public:
-    FileStream(FILE* fptr):fptr(fptr){}
-    virtual ~FileStream(){}
-    
-    int read(void* buf, int len);
-    int write(void* buf, int len);
-    int seek(long p);
-    long pos();
-    int close();
-};
-
-
 /**
  * @file amci.h
  * @brief Definition of the codec interface.

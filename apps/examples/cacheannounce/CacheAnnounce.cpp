@@ -82,7 +82,7 @@ AmSession* CacheAnnounceFactory::onInvite(const AmSipRequest& req)
     return new CacheAnnounceDialog(&ann_cache);
 }
 
-CacheAnnounceDialog::CacheAnnounceDialog(AmFileCache* announce)
+CacheAnnounceDialog::CacheAnnounceDialog(MemStream* announce)
     : announce(announce)
 {
 }

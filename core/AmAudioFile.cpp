@@ -176,10 +176,8 @@ int AmAudioFile::fpopen_int(const string& filename, OpenMode mode, FILE* n_fp)
 
     file_fmt = f_fmt;
     data_size = fd.data_size;
-   
-    DBG("before fmt.reset(): fmt.get() == %p\n",fmt.get());
+    
     fmt.reset(new AmAudioFileFormat(file_fmt->name,&fd));
-    DBG("after fmt.reset()\n");
     setBufferSize(fd.buffer_size, fd.buffer_thresh, fd.buffer_full_thresh);
 
     begin = fp->pos();

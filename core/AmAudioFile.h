@@ -31,6 +31,21 @@
 #include "AmAudio.h"
 #include "AmBufferedAudio.h"
 
+class FileStream: public BitStream
+{
+    FILE* fptr;
+
+public:
+    FileStream(FILE* fptr):fptr(fptr){}
+    virtual ~FileStream(){}
+    
+    int read(void* buf, int len);
+    int write(void* buf, int len);
+    int seek(long p);
+    long pos();
+    int close();
+};
+
 
 /** \brief \ref AmAudioFormat for file */
 class AmAudioFileFormat: public AmAudioFormat
