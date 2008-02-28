@@ -45,7 +45,8 @@ AmFileCache::AmFileCache()
     data_size(0)
 { }
 
-AmFileCache::~AmFileCache() {
+AmFileCache::~AmFileCache() 
+{
   if ((data != NULL) && 
       munmap(data, data_size)) {
     ERROR("while unmapping file.\n");
@@ -128,31 +129,33 @@ AmCachedAudioFile::AmCachedAudioFile(AmFileCache* cache)
   amci_file_desc_t fd;
   int ret = -1;
 
-  fd.subtype = f_fmt->getSubtypeId();
+  //fd.subtype = f_fmt->getSubtypeId();
   fd.channels = f_fmt->channels;
   fd.rate = f_fmt->rate;
 
   long unsigned int ofpos = fpos;
 
-  if( iofmt->mem_open && 
-      !(ret = (*iofmt->mem_open)((unsigned char*)cache->getData(),cache->getSize(),&ofpos,
-				 &fd,AmAudioFile::Read,f_fmt->getHCodecNoInit())) ) {
-    f_fmt->setSubtypeId(fd.subtype);
-    f_fmt->channels = fd.channels;
-    f_fmt->rate = fd.rate;
+//   if( iofmt->mem_open && 
+//       !(ret = (*iofmt->mem_open)((unsigned char*)cache->getData(),cache->getSize(),&ofpos,
+// 				 &fd,AmAudioFile::Read,f_fmt->getHCodecNoInit())) ) {
+//     f_fmt->setSubtypeId(fd.subtype);
+//     f_fmt->channels = fd.channels;
+//     f_fmt->rate = fd.rate;
 
-    begin = fpos = ofpos;
-  }
-  else {
-    if(!iofmt->mem_open)
-      ERROR("no mem_open function\n");
-    else
-      ERROR("mem_open returned %d\n",ret);
-    close();
-    return;
-  }
+//     begin = fpos = ofpos;
+//   }
+//   else {
+//     if(!iofmt->mem_open)
+//       ERROR("no mem_open function\n");
+//     else
+//       ERROR("mem_open returned %d\n",ret);
+//     close();
+//     return;
+//   }
 
-  good = true;
+//   good = true;
+
+  ERROR("NYI\n");
 
   return;
 }
@@ -168,13 +171,13 @@ AmAudioFileFormat* AmCachedAudioFile::fileName2Fmt(const string& name)
     return NULL;
   }
 
-  iofmt = AmPlugIn::instance()->fileFormat("",ext);
-  if(!iofmt){
+  file_fmt = AmPlugIn::instance()->fileFormat("",ext);
+  if(!file_fmt){
     ERROR("fileName2Fmt: could not find a format with that extension: '%s'",ext.c_str());
     return NULL;
   }
 
-  return new AmAudioFileFormat(iofmt->name);
+  return NULL;//return new AmAudioFileFormat(file_fmt->name);
 }
 
 void AmCachedAudioFile::rewind() {

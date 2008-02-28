@@ -263,7 +263,8 @@ long AmAudioFormat::getHCodec()
 }
 
 AmAudio::AmAudio()
-  : fmt(new AmAudioSimpleFormat(CODEC_PCM16)),
+  : fmt(// new AmAudioSimpleFormat(CODEC_PCM16)
+	),
     max_rec_time(-1),
     rec_time(0)
 #ifdef USE_LIBSAMPLERATE 

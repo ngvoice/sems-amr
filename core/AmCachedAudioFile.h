@@ -88,7 +88,7 @@ class AmCachedAudioFile
   AmAudioFileFormat* fileName2Fmt(const string& name);
 
   /** Format of that file. @see fp, open(). */
-  amci_inoutfmt_t* iofmt;
+  amci_file_fmt_t* file_fmt;
 
  public:
   AmCachedAudioFile(AmFileCache* cache);

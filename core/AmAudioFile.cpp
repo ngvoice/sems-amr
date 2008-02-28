@@ -154,40 +154,37 @@ int AmAudioFile::fpopen_int(const string& filename, OpenMode mode, FILE* n_fp)
     amci_file_desc_t fd;
     memset(&fd, 0, sizeof(amci_file_desc_t));
 
-    int ret = -1;
-
-    if( f_fmt->open && 
-	!(ret = (*f_fmt->open)(fp,mode,&fd)) ) {
-
-	if (mode == AmAudioFile::Write) {
-
-	    // select default codec
-	    if(!f_fmt->subtypes || f_fmt->subtypes[0]) {
-		ERROR("file format has no compatible codecs defined\n");
-		return -1;
-	    }
-	    
-	    fd.codec = f_fmt->subtypes[0];
-	}
-
-	file_fmt = f_fmt;
-	data_size = fd.data_size;
-
-	fmt.reset(new AmAudioFileFormat(file_fmt->name,&fd));
-	setBufferSize(fd.buffer_size, fd.buffer_thresh, fd.buffer_full_thresh);
-
-	begin = fp->pos();
+    if (mode == AmAudioFile::Write) {
 	
-    } else {
-	if(!f_fmt->open)
-	    ERROR("no open function\n");
-	else
-	    ERROR("open returned %d: %s\n", ret, strerror(errno));
+	// select default codec
+	if(!f_fmt->subtypes || f_fmt->subtypes[0]) {
+	    ERROR("file format has no compatible codecs defined\n");
+	    return -1;
+	}
+	
+	fd.codec = f_fmt->subtypes[0];
+    }
+    
+    assert(f_fmt->open);
+
+    if( (*f_fmt->open)(fp,mode,&fd) != 0 ) {
+
+	ERROR("file format plugin open function failed\n");
 	close();
-	return ret;
+	return -1;
     }
 
-    return ret;
+    file_fmt = f_fmt;
+    data_size = fd.data_size;
+   
+    DBG("before fmt.reset(): fmt.get() == %p\n",fmt.get());
+    fmt.reset(new AmAudioFileFormat(file_fmt->name,&fd));
+    DBG("after fmt.reset()\n");
+    setBufferSize(fd.buffer_size, fd.buffer_thresh, fd.buffer_full_thresh);
+
+    begin = fp->pos();
+
+    return 0;
 }
 
 
@@ -219,24 +216,24 @@ void AmAudioFile::on_close()
       dynamic_cast<AmAudioFileFormat*>(fmt.get());
 
     if(f_fmt){
-	amci_file_desc_t fmt_desc = { // file_fmt->name,
-	    fmt->getCodecName(),//file_fmt->subtypes[0],
-	    // f_fmt->getSubtypeId(), 
+	amci_file_desc_t fmt_desc = {
+	    fmt->getCodecName(),
 	    f_fmt->rate, 
 	    f_fmt->channels, 
-	    data_size };
+	    data_size 
+	};
 	    
-      if(!file_fmt){
-	ERROR("file format pointer not initialized: on_close will not be called\n");
-      }
-      else if(file_fmt->on_close)
-	(*file_fmt->on_close)(fp,open_mode,&fmt_desc);
+	if(!file_fmt){
+	    ERROR("file format pointer not initialized: on_close will not be called\n");
+	}
+	else if(file_fmt->on_close)
+	    (*file_fmt->on_close)(fp,open_mode,&fmt_desc);
     }
 
     if(open_mode == AmAudioFile::Write){
 
       DBG("After close:\n");
-      //DBG("fmt::subtype = %i\n",f_fmt->getSubtypeId());
+      DBG("fmt::subtype = %s\n",f_fmt->getCodecName().c_str());
       DBG("fmt::channels = %i\n",f_fmt->channels);
       DBG("fmt::rate = %i\n",f_fmt->rate);
     }
