@@ -47,7 +47,7 @@ using std::string;
 #define PCM16_B2S(b) ((b) >> 1)
 #define PCM16_S2B(s) ((s) << 1)
 
-#define SYSTEM_SAMPLERATE 8000 // fixme: sr per session
+#define SYSTEM_SAMPLERATE 16000 // fixme: sr per session
 
 class SdpPayload;
 class CodecContainer;
@@ -199,6 +199,16 @@ public:
   int getCurrentPayload() { return m_currentPayload; };
 };
 
+// for resampling
+struct src_state {
+#ifdef USE_LIBSAMPLERATE 
+  SRC_STATE* resample_state;
+  float resample_in[PCM16_B2S(AUDIO_BUFFER_SIZE)*2];
+  float resample_out[PCM16_B2S(AUDIO_BUFFER_SIZE)];
+  size_t resample_buf_samples;
+#endif
+};
+
 /**
  * \brief base for classes that input or output audio.
  *
@@ -212,12 +222,9 @@ private:
   int rec_time; // in samples
   int max_rec_time;
 
-#ifdef USE_LIBSAMPLERATE 
-  SRC_STATE* resample_state;
-  float resample_in[PCM16_B2S(AUDIO_BUFFER_SIZE)*2];
-  float resample_out[PCM16_B2S(AUDIO_BUFFER_SIZE)];
-  size_t resample_buf_samples;
-#endif
+  src_state* src_state_in;
+  src_state* src_state_out;
+  void initSrc();
 
 protected:
   /** Sample buffer. */
@@ -258,10 +265,21 @@ protected:
   int encode(unsigned int size);
 
   /**
-   * Converts to mono depending on the format.
+   * Converts to internal format(-> mono, SYSTEM_SAMPLERATE)
    * @return new size in bytes
    */
   unsigned int downMix(unsigned int size);
+
+  /**
+   * Converts from internal format (<- mono, SYSTEM_SAMPLERATE)
+   * @return new size in bytes
+   */
+  unsigned int upMix(unsigned int size);
+
+#ifdef USE_LIBSAMPLERATE 
+  /** resampler helper function */
+  unsigned int resample(src_state* m_src_state, double factor, unsigned int size);
+#endif
 
   /**
    * Get the number of bytes to read from encoded, depending on the format.

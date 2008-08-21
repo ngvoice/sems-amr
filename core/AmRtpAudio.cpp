@@ -90,6 +90,7 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
     size = AmRtpStream::receive((unsigned char*)samples,
 				(unsigned int)AUDIO_BUFFER_SIZE, rtp_ts,
 				payload);
+    //    DBG("rtp_ts recvd %u\n", rtp_ts);
     if(size <= 0)
       break;
 
@@ -108,6 +109,21 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
     if(size <= 0){
       ERROR("decode() returned %i\n",size);
       return -1;
+    }
+
+    /* into internal format */
+    size = downMix(size);
+
+
+    // rtp_ts = SYSTEM_SAMPLERATE * rtp_ts / fmt->rate;
+    if (fmt->rate && fmt->rate != SYSTEM_SAMPLERATE) {
+      if (fmt->rate > SYSTEM_SAMPLERATE) {
+	unsigned int f = fmt->rate / SYSTEM_SAMPLERATE;
+	rtp_ts = rtp_ts / f;
+      } else {
+	unsigned int f = SYSTEM_SAMPLERATE / fmt->rate;
+	rtp_ts = rtp_ts * f;
+      }
     }
 
     playout_buffer->write(wallclock_ts, rtp_ts, (ShortSample*)((unsigned char *)samples), 

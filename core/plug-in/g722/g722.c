@@ -52,7 +52,7 @@ CODEC(CODEC_G722_NB, Pcm16_2_G722NB, G722NB_2_Pcm16, AMCI_NO_CODEC_PLC,
 END_CODECS
   
 BEGIN_PAYLOADS
-PAYLOAD(9, "g722", 8000, 1, CODEC_G722_NB, AMCI_PT_AUDIO_FRAME)
+PAYLOAD(9, "g722", 16000, 8000, 1, CODEC_G722_NB, AMCI_PT_AUDIO_FRAME)
 END_PAYLOADS
   
 BEGIN_FILE_FORMATS
@@ -77,14 +77,14 @@ long G722NB_create(const char* format_parameters, amci_codec_fmt_info_t* format_
   }
 
   if (!g722_encode_init(&gs->encode_state, 
-			64000, G722_SAMPLE_RATE_8000)) {
+			64000, 0 /* G722_SAMPLE_RATE_8000 */)) {
     ERROR("error initializing G722 encoder\n");
     free(gs);
     return 0;
   }
 
   if (!g722_decode_init(&gs->decode_state, 
-			64000, G722_SAMPLE_RATE_8000)) {
+			64000, 0 /* G722_SAMPLE_RATE_8000 */)) {
     ERROR("error initializing G722 decoder\n");
     free(gs);
     return 0;
@@ -98,11 +98,11 @@ void G722NB_destroy(long handle)
 }
 
 static unsigned int G722NB_bytes2samples(long h_codec, unsigned int num_bytes) {
-  return  num_bytes;
+  return  num_bytes * 2;
 }
 
 static unsigned int G722NB_samples2bytes(long h_codec, unsigned int num_samples) {
-  return num_samples;
+  return num_samples / 2;
 }
 
 
@@ -116,7 +116,7 @@ int Pcm16_2_G722NB( unsigned char* out_buf, unsigned char* in_buf, unsigned int 
     return 0;
   }
 
-  if (rate != 8000) {
+  if (rate != 16000 /* 8000 */) {
     ERROR("only supports NB (8khz)\n");
     return 0;
   }
@@ -137,7 +137,7 @@ int G722NB_2_Pcm16( unsigned char* out_buf, unsigned char* in_buf, unsigned int 
     return 0;
   }
 
-  if (rate != 8000) {
+  if (rate != 16000 /* 8000 */) {
     ERROR("only supports NB (8khz)\n");
     return 0;
   }

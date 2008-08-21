@@ -59,6 +59,7 @@ void AmPlayoutBuffer::direct_write_buffer(unsigned int ts, ShortSample* buf, uns
 void AmPlayoutBuffer::write(u_int32_t ref_ts, u_int32_t rtp_ts, 
 			    int16_t* buf, u_int32_t len, bool begin_talk)
 {  
+
   unsigned int mapped_ts;
   if(!recv_offset_i)
     {
@@ -70,6 +71,7 @@ void AmPlayoutBuffer::write(u_int32_t ref_ts, u_int32_t rtp_ts,
     }
   else {
     mapped_ts = rtp_ts - recv_offset;
+    //    DBG("write ref_ts %u mapped_ts %u len %u rtp_ts %u\n", ref_ts, mapped_ts, len, rtp_ts);
 
     // resync
     if( ts_less()(mapped_ts, ref_ts - MAX_DELAY/2) || 
@@ -305,7 +307,7 @@ u_int32_t AmAdaptivePlayout::read(u_int32_t ts, int16_t* buf, u_int32_t len)
 
   if(ts_less()(w_ts,ts+len) && (plc_cnt < 6)){
 	
-    if(!plc_cnt){
+    if(!plc_cnt){  
       int nlen = time_scale(w_ts-len,2.0, len);
       wsola_off += nlen-len;
     }

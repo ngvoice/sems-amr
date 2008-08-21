@@ -381,6 +381,12 @@ struct amci_payload_t {
      */
     int sample_rate;
 
+    /** 
+     * Sample rate that is advertised in SDP. 
+     * example: g722 has advertised_sample_rate 8000, and sample_rate 16000.
+     */
+    int advertised_sample_rate;
+
     /**
      * If this type is not bound to a fixed number of channels,
      * set this parameter to -1.
@@ -478,7 +484,7 @@ struct amci_exports_t {
  * @hideinitializer
  */
 #define END_PAYLOADS \
-                    { -1, 0, -1, -1, -1, -1 } \
+                    { -1, 0, -1, -1, -1, -1, -1 } \
                 },
 
 /**
@@ -486,8 +492,8 @@ struct amci_exports_t {
  * see example media plug-in 'wav' (plug-in/wav/wav.c).
  * @hideinitializer
  */
-#define PAYLOAD(id,name,rate,channels,codec_id,type) \
-                    { id, name, rate, channels, codec_id, type },
+#define PAYLOAD(id,name,rate,advertised_rate,channels,codec_id,type)	\
+  { id, name, rate, advertised_rate, channels, codec_id, type },
 
 /**
  * Portable export definition macro

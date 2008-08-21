@@ -245,7 +245,7 @@ void AmMediaProcessorThread::processAudio(unsigned int ts)
     if (s->rtp_str.checkInterval(ts, f_size)) {
       s->lockAudio();
 
-      int got_audio = -1;
+      int rcvd_audio_len = -1;
 
       // get/receive audio
       if (!s->getAudioLocal(AM_AUDIO_IN)) {
@@ -272,25 +272,25 @@ void AmMediaProcessorThread::processAudio(unsigned int ts)
 	      break;
 	    }
 	  } else {
-	    got_audio = s->rtp_str.get(ts,buffer,f_size);
+	    rcvd_audio_len = s->rtp_str.get(ts,buffer,f_size);
 	    
-	    if (s->isDtmfDetectionEnabled() && got_audio > 0)
-	      s->putDtmfAudio(buffer, got_audio, ts);
+	    if (s->isDtmfDetectionEnabled() && rcvd_audio_len > 0)
+	      s->putDtmfAudio(buffer, rcvd_audio_len, ts);
 	  }
 	}
       } else {
 	// input is local - get audio from local_in
 	AmAudio* local_input = s->getLocalInput(); 
 	if (local_input) {
-	  got_audio = local_input->get(ts,buffer,f_size);
+	  rcvd_audio_len = local_input->get(ts,buffer,f_size);
 	}
       }
 
       // process received audio
-      if (got_audio >= 0) {
+      if (rcvd_audio_len >= 0) {
 	AmAudio* input = s->getInput();
 	if (input) {
-	  int ret = input->put(ts,buffer,got_audio);
+	  int ret = input->put(ts,buffer,rcvd_audio_len);
 	  if(ret < 0){
 	    DBG("input->put() returned: %i\n",ret);
 	    postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
@@ -313,6 +313,7 @@ void AmMediaProcessorThread::processAudio(unsigned int ts)
     if(output && s->rtp_str.sendIntReached()){
 		
       int size = output->get(ts,buffer,s->rtp_str.getFrameSize());
+      
       if(size <= 0){
 	DBG("output->get() returned: %i\n",size);
 	postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s)); 

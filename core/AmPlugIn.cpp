@@ -93,6 +93,7 @@ amci_payload_t _payload_tevent = {
   -1,
   "telephone-event",
   8000, // telephone-event has always SR 8000 
+  8000, // telephone-event has always SR 8000 
   -1,
   CODEC_TELEPHONE_EVENT,
   -1 
@@ -688,12 +689,12 @@ int AmPlugIn::addPayload(amci_payload_t* p)
   }
   if (i >= AmConfig::CodecOrder.size()) {
       payload_order.insert(std::make_pair(id + 100, id));
-      DBG("payload '%s' inserted with id %i and order %i\n",
-	  p->name, id, id + 100);
+      DBG("payload '%s'/%d inserted with id %i and order %i\n",
+	  p->name, p->sample_rate, id, id + 100);
   } else {
       payload_order.insert(std::make_pair(i, id));
-      DBG("payload '%s' inserted with id %i and order %i\n",
-	  p->name, id, i);
+      DBG("payload '%s'/%d inserted with id %i and order %i\n",
+	  p->name, p->sample_rate, id, i);
   }
 
   return 0;

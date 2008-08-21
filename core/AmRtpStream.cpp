@@ -335,6 +335,9 @@ int AmRtpStream::receive( unsigned char* buffer, unsigned int size,
 
   memcpy(buffer,rp->getData(),rp->getDataSize());
   ts = rp->timestamp;
+  if (rp->payload == PAYLOAD_ID_G722)
+    ts*=2; // G722 rate registered as 8khz due to historical error
+
   out_payload = rp->payload;
 
   int res = rp->getDataSize();

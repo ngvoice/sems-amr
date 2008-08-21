@@ -9,7 +9,7 @@ SVN_REV?=r$(shell svnversion -n .)
 VERSION = 1
 PATCHLEVEL = 0
 SUBLEVEL = 0
-EXTRAVERSION ?= -pre-$(SVN_REV)
+EXTRAVERSION ?= -wb-$(SVN_REV)
 
 REL_VERSION=$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)
 RELEASE=$(REL_VERSION)$(EXTRAVERSION)
@@ -37,7 +37,7 @@ CPPFLAGS += -D_DEBUG \
 # compile with sample rate conversion from secret rabbit code? 
 # (see http://www.mega-nerd.com/SRC/)
 #
-#USE_LIBSAMPLERATE = yes
+USE_LIBSAMPLERATE = yes
 
 #
 # ZRTP support? (see zfoneproject.com)

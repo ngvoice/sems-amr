@@ -257,7 +257,7 @@ int AmSdp::genRequest(const string& localip, int localport, string& out_buf)
     if(it2 != payloads.end()){
       out_buf += "a=rtpmap:" + int2str(it2->first)
 	+ " " + string(it2->second->name)
-	+ "/" + int2str(it2->second->sample_rate)
+	+ "/" + int2str(it2->second->advertised_sample_rate)
 	+ "\r\n";
     } else {
       ERROR("Payload %d was not found in payloads map!\n", it->second);
@@ -300,7 +300,7 @@ const vector<SdpPayload*>& AmSdp::getCompatiblePayloads(AmPayloadProviderInterfa
 	payload  = &(*it);
 	payload->int_pt = a_pl->payload_id;
 	payload->encoding_name = a_pl->name;
-	payload->clock_rate = a_pl->sample_rate;
+	payload->clock_rate = a_pl->advertised_sample_rate;
 	sup_pl.push_back(payload);
       }
       else {

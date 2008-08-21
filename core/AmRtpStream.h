@@ -52,6 +52,8 @@ using std::auto_ptr;
 #define RTP_UNKNOWN_PL  -5 // unknown payload
 
 
+#define PAYLOAD_ID_G722  9
+
 struct amci_payload_t;
 
 class AmAudio;

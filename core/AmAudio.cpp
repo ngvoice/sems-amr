@@ -123,7 +123,8 @@ int AmAudioRtpFormat::setCurrentPayload(int payload)
 
 AmAudioRtpFormat::~AmAudioRtpFormat()
 {
-  for (std::map<int, CodecContainer *>::iterator it = m_codecContainerByPayload.begin(); it != m_codecContainerByPayload.end(); ++it)
+  for (std::map<int, CodecContainer *>::iterator it = 
+	 m_codecContainerByPayload.begin(); it != m_codecContainerByPayload.end(); ++it)
     delete it->second;
 }
 
@@ -151,10 +152,11 @@ AmAudioFormat::~AmAudioFormat()
 unsigned int AmAudioFormat::calcBytesToRead(unsigned int needed_samples) const
 {
   if (codec && codec->samples2bytes)
-    return codec->samples2bytes(h_codec, needed_samples) * channels; // FIXME: channels
+    return codec->samples2bytes(h_codec, needed_samples) * 
+      rate * channels / SYSTEM_SAMPLERATE; // FIXME: channels, system_channels
 
   WARN("Cannot convert samples to bytes\n");
-  return needed_samples * channels;
+  return needed_samples * channels * rate / SYSTEM_SAMPLERATE;
 }
 
 unsigned int AmAudioFormat::bytes2samples(unsigned int bytes) const
@@ -250,34 +252,49 @@ AmAudio::AmAudio()
   : fmt(new AmAudioSimpleFormat(CODEC_PCM16)),
     max_rec_time(-1),
     rec_time(0)
-#ifdef USE_LIBSAMPLERATE 
-  , resample_state(NULL),
-    resample_buf_samples(0)
-#endif
+
 {
+  initSrc();
 }
 
 AmAudio::AmAudio(AmAudioFormat *_fmt)
   : fmt(_fmt),
     max_rec_time(-1),
     rec_time(0)
-#ifdef USE_LIBSAMPLERATE 
-  , resample_state(NULL),
-    resample_buf_samples(0)
-#endif
 {
+  initSrc();
+}
+
+void AmAudio::initSrc() {
+#ifdef USE_LIBSAMPLERATE   
+  src_state_in = new src_state();
+  src_state_out = new src_state();
+
+  src_state_in->resample_state = NULL;
+  src_state_in->resample_buf_samples = 0;
+  src_state_out->resample_state = NULL;
+  src_state_out->resample_buf_samples = 0;
+#endif
 }
 
 AmAudio::~AmAudio()
 {
 #ifdef USE_LIBSAMPLERATE 
-  if (NULL != resample_state) 
-    src_delete(resample_state);
+  if (NULL != src_state_in) {
+    if (src_state_in->resample_state)
+      src_delete(src_state_in->resample_state);
+    delete src_state_in;
+  }
+  if (NULL != src_state_out) {
+    if (src_state_out->resample_state) 
+      src_delete(src_state_out->resample_state);
+    
+    delete src_state_out;
+  }
 #endif
 }
 
 void AmAudio::setFormat(AmAudioFormat* new_fmt) {
-  DBG("set format to %p --------------------------\n", new_fmt);
   fmt.reset(new_fmt);
   fmt->resetCodec();
 }
@@ -292,8 +309,8 @@ int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_sa
   int size = calcBytesToRead(nb_samples);
 
   size = read(user_ts,size);
-  //DBG("size = %d\n",size);
-  if(size <= 0){
+
+  if(size <= 0) {
     return size;
   }
 
@@ -302,6 +319,7 @@ int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_sa
     DBG("decode returned %i\n",size);
     return -1; 
   }
+  /* into internal format */
   size = downMix(size);
     
   if(size>0)
@@ -323,11 +341,26 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
 
   memcpy((unsigned char*)samples,buffer,size);
 
+  /* from internal format */
+  size = upMix(size);
+  unsigned long wr_ts = user_ts;
+  // unsigned int wr_ts =( (long)user_ts * (long)fmt->rate / (long)SYSTEM_SAMPLERATE);
+  if (fmt->rate != SYSTEM_SAMPLERATE) {
+    if (fmt->rate > SYSTEM_SAMPLERATE) {
+      unsigned int f = fmt->rate / SYSTEM_SAMPLERATE;
+      wr_ts = wr_ts * f; 
+    } else {
+      unsigned int f = SYSTEM_SAMPLERATE / fmt->rate ;
+      wr_ts = wr_ts / f; 
+    }
+  }
+  //  DBG("wr_ts = %ld\n", wr_ts);
+
   unsigned int s = encode(size);
   if(s>0){
     //DBG("%s\n",typeid(this).name());
     incRecordTime(bytes2samples(size));
-    return write(user_ts,(unsigned int)s);
+    return write(wr_ts,(unsigned int)s);
   }
   else{
     return s;
@@ -380,10 +413,11 @@ int AmAudio::encode(unsigned int size)
 {
   int s = size;
 
-//   if(!fmt.get()){
-//     DBG("no encode fmt\n");
-//     return 0;
-//   }
+  // todo: is his check needed? 
+  //   if(!fmt.get()){
+  //     DBG("no encode fmt\n");
+  //     return 0;
+  //   }
 
   amci_codec_t* codec = fmt->getCodec();
   long h_codec = fmt->getHCodec();
@@ -408,54 +442,87 @@ unsigned int AmAudio::downMix(unsigned int size)
 
 #ifdef USE_LIBSAMPLERATE 
   if (fmt->rate != SYSTEM_SAMPLERATE) {
-    if (!resample_state) {
-      int src_error;
-      // for better quality but more CPU usage, use SRC_SINC_ converters
-      resample_state = src_new(SRC_LINEAR, 1, &src_error);
-      if (!resample_state) {
-	ERROR("samplerate initialization error: ");
-      }
-    }
-
-    if (resample_state) {
-      if (resample_buf_samples + PCM16_B2S(s) > PCM16_B2S(AUDIO_BUFFER_SIZE) * 2) {
-	WARN("resample input buffer overflow! (%d)\n",
-	     resample_buf_samples + PCM16_B2S(s));
-      } else {
-	signed short* samples_s = (signed short*)(unsigned char*)samples;
-	src_short_to_float_array(samples_s, &resample_in[resample_buf_samples], PCM16_B2S(s));
-	resample_buf_samples += PCM16_B2S(s);
-      }
-      
-      SRC_DATA src_data;
-      src_data.data_in = resample_in;
-      src_data.input_frames = resample_buf_samples;
-      src_data.data_out = resample_out;
-      src_data.output_frames = PCM16_B2S(AUDIO_BUFFER_SIZE);
-      src_data.src_ratio = (double)SYSTEM_SAMPLERATE / (double)fmt->rate;
-      src_data.end_of_input = 0;
-
-      int src_err = src_process(resample_state, &src_data);
-      if (src_err) {
-	DBG("resample error: '%s'\n", src_strerror(src_err));
-      }else {
-	signed short* samples_s = (signed short*)(unsigned char*)samples;
-	src_float_to_short_array(resample_out, samples_s, src_data.output_frames_gen);
-	s = PCM16_S2B(src_data.output_frames_gen);
-
-	if (resample_buf_samples !=  (unsigned int)src_data.input_frames_used) {
-	  memmove(resample_in, &resample_in[src_data.input_frames_used], 
-		  (resample_buf_samples - src_data.input_frames_used) * sizeof(float));
-	}
-	resample_buf_samples = resample_buf_samples - src_data.input_frames_used;
-      }
-    }
+//     DBG("downmix %d->%d\n", SYSTEM_SAMPLERATE, fmt->rate);
+    s = resample(src_state_in, (double)SYSTEM_SAMPLERATE / (double)fmt->rate, size);
   }
 #endif
  
+  return s;
+}
+
+unsigned int AmAudio::upMix(unsigned int size)
+{
+  unsigned int s = size;
+//   if(fmt->channels == 2){
+//     stereo2mono(samples.back_buffer(),(unsigned char*)samples,s);
+//     samples.swap();
+//   }
+
+#ifdef USE_LIBSAMPLERATE 
+  if (fmt->rate != SYSTEM_SAMPLERATE) {
+//     DBG("upmix %d->%d\n", fmt->rate,SYSTEM_SAMPLERATE);
+    s = resample(src_state_out, (double)fmt->rate / (double)SYSTEM_SAMPLERATE, size);
+  }
+#endif
+ 
+  return s;
+}
+
+#ifdef USE_LIBSAMPLERATE 
+
+unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned int size) {
+  if (!m_src_state)
+    return size;
+
+  unsigned int s = size;
+
+  if (NULL == m_src_state->resample_state) {
+    int src_error;
+    // for better quality but more CPU usage, use SRC_SINC_ converters
+    m_src_state->resample_state = src_new(SRC_LINEAR, 1, &src_error);
+    if (!m_src_state->resample_state) {
+      ERROR("samplerate initialization error");
+      return size;
+    }
+  }
+  
+  if (m_src_state->resample_state) {
+    if (m_src_state->resample_buf_samples + PCM16_B2S(s) > PCM16_B2S(AUDIO_BUFFER_SIZE) * 2) {
+      WARN("resample input buffer overflow! (%d)\n",
+	   m_src_state->resample_buf_samples + PCM16_B2S(s));
+    } else {
+      signed short* samples_s = (signed short*)(unsigned char*)samples;
+      src_short_to_float_array(samples_s, &m_src_state->resample_in[m_src_state->resample_buf_samples], PCM16_B2S(s));
+      m_src_state->resample_buf_samples += PCM16_B2S(s);
+    }
+    
+    SRC_DATA src_data;
+    src_data.data_in = m_src_state->resample_in;
+    src_data.input_frames = m_src_state->resample_buf_samples;
+    src_data.data_out = m_src_state->resample_out;
+    src_data.output_frames = PCM16_B2S(AUDIO_BUFFER_SIZE);
+    src_data.src_ratio = factor;
+    src_data.end_of_input = 0;
+    
+    int src_err = src_process(m_src_state->resample_state, &src_data);
+    if (src_err) {
+      DBG("resample error: '%s'\n", src_strerror(src_err));
+    }else {
+      signed short* samples_s = (signed short*)(unsigned char*)samples;
+      src_float_to_short_array(m_src_state->resample_out, samples_s, src_data.output_frames_gen);
+      s = PCM16_S2B(src_data.output_frames_gen);
+      
+      if (m_src_state->resample_buf_samples !=  (unsigned int)src_data.input_frames_used) {
+	memmove(m_src_state->resample_in, &m_src_state->resample_in[src_data.input_frames_used], 
+		(m_src_state->resample_buf_samples - src_data.input_frames_used) * sizeof(float));
+      }
+      m_src_state->resample_buf_samples -= src_data.input_frames_used;
+    }
+  }
 
   return s;
 }
+#endif
 
 unsigned int AmAudio::getFrameSize()
 {
