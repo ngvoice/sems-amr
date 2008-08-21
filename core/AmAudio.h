@@ -47,7 +47,7 @@ using std::string;
 #define PCM16_B2S(b) ((b) >> 1)
 #define PCM16_S2B(s) ((s) << 1)
 
-#define SYSTEM_SAMPLERATE 16000 // fixme: sr per session
+// #define SYSTEM_SAMPLERATE 16000 // fixme: sr per session
 
 class SdpPayload;
 class CodecContainer;

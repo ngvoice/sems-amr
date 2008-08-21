@@ -22,6 +22,41 @@ CPPFLAGS += -D_DEBUG \
 #         -DOpenSER \
 #	  -DSUPPORT_IPV6 \
 
+# compile with wideband (16khz) support? 
+#
+ SUPPORT_WIDEBAND = yes
+
+# compile with ultra-wideband (32khz)support? (UWB includes WB)
+#
+# SUPPORT_ULTRAWIDEBAND = yes
+
+# or specify internal samplerate directly, e.g.
+#
+# SYSTEM_SAMPLERATE = 48000
+
+ifndef SYSTEM_SAMPLERATE
+ifdef SUPPORT_ULTRAWIDEBAND
+SYSTEM_SAMPLERATE = 32000
+else
+ifdef SUPPORT_WIDEBAND
+SYSTEM_SAMPLERATE = 16000
+else
+SYSTEM_SAMPLERATE = 8000
+endif
+endif
+endif
+
+CPPFLAGS += -DSYSTEM_SAMPLERATE=$(SYSTEM_SAMPLERATE)
+
+# compile with sample rate conversion from secret rabbit code? 
+# (see http://www.mega-nerd.com/SRC/)
+#
+#USE_LIBSAMPLERATE = yes
+# for wideband support SRC is always needed 
+ifneq ($(SYSTEM_SAMPLERATE),8000)
+USE_LIBSAMPLERATE = yes
+endif
+
 # compile with spandsp DTMF detection? see soft-switch.org
 #   this needs a fairly new version of spandsp - tested with 0.0.4pre11
 #   will not work with spandsp 0.0.2 .
@@ -32,12 +67,6 @@ CPPFLAGS += -D_DEBUG \
 #   (might need adjusting spandsp lib path LIBSPANDSP_LDIR - may be /usr/lib)
 #LIBSPANDSP_STATIC = yes
 #LIBSPANDSP_LDIR = /usr/local/lib/
-
-
-# compile with sample rate conversion from secret rabbit code? 
-# (see http://www.mega-nerd.com/SRC/)
-#
-USE_LIBSAMPLERATE = yes
 
 #
 # ZRTP support? (see zfoneproject.com)
