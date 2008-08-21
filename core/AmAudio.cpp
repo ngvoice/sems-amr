@@ -488,7 +488,7 @@ unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned i
   
   if (m_src_state->resample_state) {
     if (m_src_state->resample_buf_samples + PCM16_B2S(s) > PCM16_B2S(AUDIO_BUFFER_SIZE) * 2) {
-      WARN("resample input buffer overflow! (%d)\n",
+      WARN("resample input buffer overflow! (%u)\n",
 	   m_src_state->resample_buf_samples + PCM16_B2S(s));
     } else {
       signed short* samples_s = (signed short*)(unsigned char*)samples;
