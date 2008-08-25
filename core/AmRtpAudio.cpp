@@ -33,7 +33,7 @@
 
 AmRtpAudio::AmRtpAudio(AmSession* _s)
   : AmRtpStream(_s), AmAudio(0), 
-    /*last_ts_i(false),*/ use_default_plc(true),
+    use_default_plc(true),
     send_only(false), playout_buffer(new AmPlayoutBuffer(this)),
     last_check(0),last_check_i(false),send_int(false)
 {
@@ -48,17 +48,31 @@ AmRtpAudio::~AmRtpAudio() {
 #endif // USE_SPANDSP_PLC
 }
 
-bool AmRtpAudio::checkInterval(unsigned int ts, unsigned int frame_size)
+bool AmRtpAudio::checkInterval(unsigned int ts)
 {
+  unsigned int frame_size = getFrameSize();
+
+  unsigned int used_ts = ts;
+
+  if (fmt->rate != SYSTEM_SAMPLERATE) {
+    if (fmt->rate > SYSTEM_SAMPLERATE) {
+      unsigned int f = fmt->rate / SYSTEM_SAMPLERATE;
+      used_ts = used_ts * f; 
+    } else {
+      unsigned int f = SYSTEM_SAMPLERATE / fmt->rate ;
+      used_ts = used_ts / f; 
+    }
+  }
+
   if(!last_check_i){
     send_int     = true;
     last_check_i = true;
-    last_check   = ts;
+    last_check   = used_ts;
   }
   else {
-    if((ts - last_check) >= frame_size){
+    if((used_ts - last_check) >= frame_size){
       send_int = true;
-      last_check = ts;
+      last_check = used_ts;
     }
     else {
       send_int = false;
@@ -90,7 +104,7 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
     size = AmRtpStream::receive((unsigned char*)samples,
 				(unsigned int)AUDIO_BUFFER_SIZE, rtp_ts,
 				payload);
-    //    DBG("rtp_ts recvd %u\n", rtp_ts);
+
     if(size <= 0)
       break;
 
@@ -114,7 +128,6 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
     /* into internal format */
     size = downMix(size);
 
-
     // rtp_ts = SYSTEM_SAMPLERATE * rtp_ts / fmt->rate;
     if (fmt->rate && fmt->rate != SYSTEM_SAMPLERATE) {
       if (fmt->rate > SYSTEM_SAMPLERATE) {
@@ -132,9 +145,22 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
   return size;
 }
 
-int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int nb_samples)
+int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int time_millisec)
 {
+  // for resampling before playout buffer (buffer has SYSTEM_SAMPLERATE), 
+  // otherwise fmt->rate
+  unsigned int nb_samples = time_millisec * SYSTEM_SAMPLERATE / 1000;
+
   int size = read(ref_ts,PCM16_S2B(nb_samples));
+
+  if (size < 0) 
+    return size;
+
+  //   /* convert here for sampling in internal format after playout buffer */
+  //   size = downMix(size);
+  //   if (size < 0) 
+  //     return size;
+
   memcpy(buffer,(unsigned char*)samples,size);
   return size;
 }
@@ -146,6 +172,8 @@ int AmRtpAudio::read(unsigned int ref_ts, unsigned int size)
     ->read(ref_ts,
 	   (ShortSample*)((unsigned char*)samples),
 	   PCM16_B2S(size));
+//   DBG("read ref/@%u want %u got %u samples\n", ref_ts, PCM16_B2S(size), rlen);
+
 
   return PCM16_S2B(rlen);
 }

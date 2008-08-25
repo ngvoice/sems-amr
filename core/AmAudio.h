@@ -111,12 +111,10 @@ public:
   int channels;
   /** Sampling rate. */
   int rate;
-  /* frame length in ms (frame based codecs) - unused */
+  /* frame length in ms (frame based codecs)  */
   int frame_length;
   /* frame size in samples */
   int frame_size;
-  /* encoded frame size in bytes - unused */
-  int frame_encoded_size;
 
   string sdp_format_parameters;
     
@@ -300,13 +298,13 @@ public:
   virtual void close();
 
   /** 
-   * Get some samples from input stream.
+   * Get some audio from input stream.
    * @warning For packet based payloads / file formats, use:
    * <pre>           nb_sample = input buffer size / sample size of the reference format
    * </pre>           whereby the format with/from which the codec works is the reference one.
    * @return # bytes read, else -1 if error (0 is OK) 
    */
-  virtual int get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples);
+  virtual int get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec);
 
   /** 
    * Put some samples to the output stream.
@@ -317,8 +315,12 @@ public:
    */
   virtual int put(unsigned int user_ts, unsigned char* buffer, unsigned int size);
   
+  /** get frame length in samples */
   unsigned int getFrameSize();
 
+  /** get frame length in ms */
+  unsigned int getFrameLength();
+  
   void setRecordTime(unsigned int ms);
   int  incRecordTime(unsigned int samples);
 

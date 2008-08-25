@@ -83,8 +83,8 @@ static int pcm16_2_gsm(unsigned char* out_buf, unsigned char* in_buf, unsigned i
   blocks = div(size,320);
 
   if(blocks.rem){
-    ERROR("pcm16_2_gsm: number of blocks should be integral (block size = 320)\n");
-    return -1;
+    ERROR("pcm16_2_gsm: number of blocks should be integral (block size = 320, got %u)\n", size);
+    //    return -1;
   }
 
   for (i=0;i<blocks.quot;i++)
@@ -143,10 +143,9 @@ static long gsm_create_if(const char* format_parameters, amci_codec_fmt_info_t* 
   format_description[0].value = 20;
   format_description[1].id = AMCI_FMT_FRAME_SIZE;
   format_description[1].value = 160;
-  format_description[2].id =  AMCI_FMT_ENCODED_FRAME_SIZE;
-  format_description[2].value = 33;
-  format_description[3].id = 0;
-
+/*   format_description[2].id =  AMCI_FMT_ENCODED_FRAME_SIZE; */
+/*   format_description[2].value = 33; */
+  format_description[2].id = 0;
     
   return (long)h_codec;
 }

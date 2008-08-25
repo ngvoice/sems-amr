@@ -42,13 +42,13 @@ using std::multiset;
 #define EXP_THRESHOLD 20
 #define SHR_THRESHOLD 180
 
-#define WSOLA_START_OFF  10 * SYSTEM_SAMPLERATE / 1000
+#define WSOLA_START_OFF  (10 * SYSTEM_SAMPLERATE / 1000)
 #define WSOLA_SCALED_WIN 50
 
 // the maximum packet size that will be processed (80ms)
-#define MAX_PACKET_SAMPLES 80 * SYSTEM_SAMPLERATE / 1000
+#define MAX_PACKET_SAMPLES (80 * SYSTEM_SAMPLERATE / 1000)
 // search segments of size TEMPLATE_SEG samples (10 ms)
-#define TEMPLATE_SEG   10 * SYSTEM_SAMPLERATE / 1000
+#define TEMPLATE_SEG   (10 * SYSTEM_SAMPLERATE / 1000)
 
 // Maximum value: AUDIO_BUFFER_SIZE / 2
 // Note: plc result get stored in our back buffer

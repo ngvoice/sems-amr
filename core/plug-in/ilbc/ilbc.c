@@ -153,9 +153,9 @@ long iLBC_create(const char* format_parameters, amci_codec_fmt_info_t* format_de
   format_description[0].value = mode;
   format_description[1].id = AMCI_FMT_FRAME_SIZE;
   format_description[1].value = mode==30 ? 240 : 160;
-  format_description[2].id = AMCI_FMT_ENCODED_FRAME_SIZE;
-  format_description[2].value = mode==30 ? 50 : 38;
-  format_description[3].id = 0;
+/*   format_description[2].id = AMCI_FMT_ENCODED_FRAME_SIZE; */
+/*   format_description[2].value = mode==30 ? 50 : 38; */
+  format_description[2].id = 0;
     
   if (format_parameters) {
     DBG("ilbc with format parameters : '%s', mode=%d.\n", format_parameters, mode);

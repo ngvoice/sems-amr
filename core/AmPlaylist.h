@@ -76,7 +76,7 @@ class AmPlaylist: public AmAudio
   int write(unsigned int user_ts, unsigned int size){ return -1; }
     
   // override AmAudio
-  int get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples);
+  int get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec);
   int put(unsigned int user_ts, unsigned char* buffer, unsigned int size);
 	
  public:

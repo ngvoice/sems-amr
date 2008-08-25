@@ -64,7 +64,6 @@ AmPrecodedRtpFormat::AmPrecodedRtpFormat(precoded_payload_t& precoded_payload,
   frame_size = precoded_payload.frame_ms * precoded_payload.sample_rate / 1000;
   // fill unused stuff
   frame_length = precoded_payload.frame_ms;
-  frame_encoded_size = precoded_payload.frame_bytes;
 }
 
 AmPrecodedRtpFormat::~AmPrecodedRtpFormat() {

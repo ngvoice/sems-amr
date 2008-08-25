@@ -64,7 +64,7 @@ void AmPlaylist::gotoNextItem(bool notify)
   }
 }
 
-int AmPlaylist::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples)
+int AmPlaylist::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec)
 {
   int ret = -1;
 
@@ -73,13 +73,14 @@ int AmPlaylist::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb
 
   while(cur_item && 
 	cur_item->play && 
-	(ret = cur_item->play->get(user_ts,buffer,nb_samples)) <= 0){
+	(ret = cur_item->play->get(user_ts,buffer,time_millisec)) <= 0){
 
     DBG("get: gotoNextItem\n");
     gotoNextItem();
   }
 
   if(!cur_item || !cur_item->play) {
+    unsigned int nb_samples = time_millisec * fmt->rate / 1000;
     ret = calcBytesToRead(nb_samples);
     memset(buffer,0,ret);
   }

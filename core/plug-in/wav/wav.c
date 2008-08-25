@@ -77,6 +77,8 @@
 /** @def WAV_ULAW subtype declaration. */
 #define WAV_ULAW 7 
 
+static long g711_create(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+
 static int ULaw_2_Pcm16( unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 			 unsigned int channels, unsigned int rate, long h_codec );
 
@@ -96,10 +98,10 @@ BEGIN_EXPORTS( "wav" , AMCI_NO_MODULEINIT, AMCI_NO_MODULEDESTROY )
 
      BEGIN_CODECS
 CODEC( CODEC_ULAW, Pcm16_2_ULaw, ULaw_2_Pcm16, 
-       AMCI_NO_CODEC_PLC, AMCI_NO_CODECCREATE, AMCI_NO_CODECDESTROY, 
+       AMCI_NO_CODEC_PLC, g711_create, AMCI_NO_CODECDESTROY, 
        g711_bytes2samples, g711_samples2bytes )
      CODEC( CODEC_ALAW, Pcm16_2_ALaw, ALaw_2_Pcm16, 
-	    AMCI_NO_CODEC_PLC, AMCI_NO_CODECCREATE, AMCI_NO_CODECDESTROY, 
+	    AMCI_NO_CODEC_PLC, g711_create, AMCI_NO_CODECDESTROY, 
 	    g711_bytes2samples, g711_samples2bytes )
      END_CODECS
     
@@ -119,6 +121,18 @@ END_FILE_FORMAT
 END_FILE_FORMATS
 
 END_EXPORTS
+
+     /* to set frame size 160 */
+static long g711_create(const char* format_parameters, amci_codec_fmt_info_t* format_description)
+{
+  format_description[0].id = AMCI_FMT_FRAME_LENGTH;
+  format_description[0].value = 20;
+  format_description[1].id = AMCI_FMT_FRAME_SIZE;
+  format_description[1].value = 160;
+  format_description[2].id = 0;
+
+  return 1;
+}
 
 static unsigned int g711_bytes2samples(long h_codec, unsigned int num_bytes)
 {

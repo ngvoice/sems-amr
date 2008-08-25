@@ -116,7 +116,14 @@ static long G726_create(const char* format_parameters, amci_codec_fmt_info_t* fo
   g72x_init_state(&cinst->to_g726);
   g72x_init_state(&cinst->from_g726);
 
-  format_description[0].id = 0;
+  format_description[0].id = AMCI_FMT_FRAME_LENGTH;
+  format_description[0].value = 20;
+  format_description[1].id = AMCI_FMT_FRAME_SIZE;
+  format_description[1].value = 160;
+/*   format_description[2].id =  AMCI_FMT_ENCODED_FRAME_SIZE; */
+/*   format_description[2].value = 160; */
+  format_description[2].id = 0;
+
   return (long) cinst;
 }
 

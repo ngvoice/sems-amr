@@ -67,12 +67,11 @@ extern "C" {
 /** @def AMCI_WRONLY Write only mode. */
 #define AMCI_WRONLY   2
 
+  /* todo: change in ptr to structure owned by codec */
   /** @def AMCI_FMT_FRAME_LENGTH  frame length in ms (for framed codecs; must be multiple of 10) see codec_init */
 #define AMCI_FMT_FRAME_LENGTH       1
   /** @def AMCI_FMT_FRAME_SIZE frame size in samples */
 #define AMCI_FMT_FRAME_SIZE         2
-  /** @def AMCI_FMT_ENCODED_FRAME_SIZE encoded frame size in bytes */
-#define AMCI_FMT_ENCODED_FRAME_SIZE 3
 
 struct amci_codec_t;
 

@@ -20,9 +20,10 @@ int AmConferenceChannel::put(unsigned int user_ts, unsigned char* buffer, unsign
   return size;
 }
 
-int AmConferenceChannel::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples)
+int AmConferenceChannel::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec)
 {
-  unsigned int size = PCM16_S2B(nb_samples);
+  int size = PCM16_S2B(time_millisec * fmt->rate / 1000);
   status->getMixer()->GetChannelPacket(channel_id,user_ts,buffer,size);
+
   return size;
 }

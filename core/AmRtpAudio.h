@@ -96,7 +96,7 @@ public:
   AmRtpAudio(AmSession* _s=0);
   ~AmRtpAudio();
 
-  bool checkInterval(unsigned int ts, unsigned int frame_size);
+  bool checkInterval(unsigned int ts);
   bool sendIntReached();
 
   int setCurrentPayload(int payload);
@@ -113,7 +113,7 @@ public:
   int write(unsigned int user_ts, unsigned int size);
 
   int get(unsigned int user_ts, unsigned char* buffer, 
-	  unsigned int nb_samples);
+	  unsigned int time_millisec);
 
   // AmRtpStream interface
   void init(const vector<SdpPayload*>& sdp_payloads);

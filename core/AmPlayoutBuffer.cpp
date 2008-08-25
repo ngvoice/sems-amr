@@ -59,7 +59,6 @@ void AmPlayoutBuffer::direct_write_buffer(unsigned int ts, ShortSample* buf, uns
 void AmPlayoutBuffer::write(u_int32_t ref_ts, u_int32_t rtp_ts, 
 			    int16_t* buf, u_int32_t len, bool begin_talk)
 {  
-
   unsigned int mapped_ts;
   if(!recv_offset_i)
     {
@@ -94,6 +93,7 @@ void AmPlayoutBuffer::write(u_int32_t ref_ts, u_int32_t rtp_ts,
      && (mapped_ts - last_ts <= PLC_MAX_SAMPLES))
     {
       unsigned char tmp[AUDIO_BUFFER_SIZE * 2];
+      DBG("loss - conceal from last_ts %u to mapped_ts %u\n", last_ts, mapped_ts);
       int l_size = m_plcbuffer->conceal_loss(mapped_ts - last_ts, tmp);
       if (l_size>0)
         {
@@ -123,7 +123,7 @@ u_int32_t AmPlayoutBuffer::read(u_int32_t ts, int16_t* buf, u_int32_t len)
     u_int32_t rlen=0;
     if(ts_less()(r_ts+PCM16_B2S(AUDIO_BUFFER_SIZE),w_ts))
       rlen = PCM16_B2S(AUDIO_BUFFER_SIZE);
-    else
+    else 
       rlen = w_ts - r_ts;
 
     buffer_get(r_ts,buf,rlen);
@@ -140,6 +140,7 @@ void AmPlayoutBuffer::buffer_put(unsigned int ts, ShortSample* buf, unsigned int
 
   if(ts_less()(w_ts,ts+len))
     w_ts = ts + len;
+//   DBG("@%u put %u\n", ts, len);
 }
 
 void AmPlayoutBuffer::buffer_get(unsigned int ts, ShortSample* buf, unsigned int len)
@@ -148,6 +149,7 @@ void AmPlayoutBuffer::buffer_get(unsigned int ts, ShortSample* buf, unsigned int
 
   if(ts_less()(r_ts,ts+len))
     r_ts = ts + len;
+//   DBG("@%u get %u\n", ts, len);
 }
 
 //

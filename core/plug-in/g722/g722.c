@@ -1,7 +1,7 @@
 /*
   This is a simple interface to the spandsp's g722 implementation.
-  This uses the 8khz compatibility mode - audio is encodec and decoded 
-  in 8khz.
+  In narrowband this uses the 8khz compatibility mode - audio is 
+  encoded and decoded in 8khz.
 
   Copyright (C) 2008 iptego GmbH 
 
@@ -65,7 +65,7 @@ BEGIN_FILE_FORMATS
 END_FILE_FORMATS
 
 END_EXPORTS
-
+ 
 typedef struct {
   g722_encode_state_t encode_state;
   g722_decode_state_t decode_state;    
@@ -107,6 +107,16 @@ long G722NB_create(const char* format_parameters, amci_codec_fmt_info_t* format_
     free(gs);
     return 0;
   }
+
+  format_description[0].id = AMCI_FMT_FRAME_LENGTH;
+  format_description[0].value = 20;
+  format_description[1].id = AMCI_FMT_FRAME_SIZE;
+#if SYSTEM_SAMPLERATE >=16000
+  format_description[1].value = 320; /* 20 ms at 16khz */ 
+#else
+  format_description[1].value = 160;
+#endif
+  format_description[2].id = 0;
 
   return (long)gs;
 }

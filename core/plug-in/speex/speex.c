@@ -233,16 +233,17 @@ long speexNB_create(const char* format_parameters, amci_codec_fmt_info_t* format
   format_description[1].id = AMCI_FMT_FRAME_SIZE;
   format_description[1].value = SPEEX_NB_SAMPLES_PER_FRAME * ss->frames_per_packet;
     
-  format_description[2].id = AMCI_FMT_ENCODED_FRAME_SIZE;
-  format_description[2].value = bits/8 + (bits % 8 ? 1 : 0) + 1;
+/*   format_description[2].id = AMCI_FMT_ENCODED_FRAME_SIZE; */
+/*   format_description[2].value = bits/8 + (bits % 8 ? 1 : 0) + 1; */
 
   DBG("set AMCI_FMT_FRAME_LENGTH to %d\n", format_description[0].value);
   DBG("set AMCI_FMT_FRAME_SIZE to %d\n", format_description[1].value);
-  DBG("set AMCI_FMT_ENCODED_FRAME_SIZE to %d\n", format_description[2].value);
+/*   DBG("set AMCI_FMT_ENCODED_FRAME_SIZE to %d\n", format_description[2].value); */
     
-  format_description[3].id = 0;
+  format_description[2].id = 0;
     
-  DBG("SpeexState %p inserted with mode %d and %d frames per packet,\n", ss, ss->mode, ss->frames_per_packet);
+  DBG("SpeexState %p inserted with mode %d and %d frames per packet,\n", 
+      ss, ss->mode, ss->frames_per_packet);
     
   return (long)ss;
 }

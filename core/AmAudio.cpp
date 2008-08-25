@@ -45,7 +45,6 @@ struct CodecContainer
   amci_codec_t *codec;
   int frame_size;
   int frame_length;
-  int frame_encoded_size;
   long h_codec;
 };
 
@@ -97,7 +96,6 @@ int AmAudioRtpFormat::setCurrentPayload(int payload)
 	cc->codec = codec;
 	cc->frame_size = frame_size;
 	cc->frame_length = frame_length;
-	cc->frame_encoded_size = frame_encoded_size;
 	cc->h_codec = h_codec;
 	m_codecContainerByPayload[payload] = cc;
       }
@@ -107,7 +105,6 @@ int AmAudioRtpFormat::setCurrentPayload(int payload)
       codec = c->second->codec;
       frame_size = c->second->frame_size;
       frame_length = c->second->frame_length;
-      frame_encoded_size = c->second->frame_encoded_size;
       h_codec = c->second->h_codec;
     }
     if (m_currentPayloadP && codec) {
@@ -130,7 +127,7 @@ AmAudioRtpFormat::~AmAudioRtpFormat()
 
 AmAudioFormat::AmAudioFormat()
   : channels(-1), rate(-1), codec(NULL),
-    frame_length(20), frame_size(20*SYSTEM_SAMPLERATE/1000), frame_encoded_size(320)
+    frame_length(20), frame_size(20*SYSTEM_SAMPLERATE/1000)
 {
 
 }
@@ -152,11 +149,10 @@ AmAudioFormat::~AmAudioFormat()
 unsigned int AmAudioFormat::calcBytesToRead(unsigned int needed_samples) const
 {
   if (codec && codec->samples2bytes)
-    return codec->samples2bytes(h_codec, needed_samples) * 
-      rate * channels / SYSTEM_SAMPLERATE; // FIXME: channels, system_channels
+    return codec->samples2bytes(h_codec, needed_samples) * channels; // FIXME: channels, system_channels
 
   WARN("Cannot convert samples to bytes\n");
-  return needed_samples * channels * rate / SYSTEM_SAMPLERATE;
+  return needed_samples * channels;
 }
 
 unsigned int AmAudioFormat::bytes2samples(unsigned int bytes) const
@@ -201,9 +197,6 @@ void AmAudioFormat::initCodec()
 	case AMCI_FMT_FRAME_SIZE: {
 	  frame_size=fmt_i[i].value; 
 	} break;
-	case AMCI_FMT_ENCODED_FRAME_SIZE: {
-	  frame_encoded_size=fmt_i[i].value; 
-	} break;
 	default: {
 	  DBG("Unknown codec format descriptor: %d\n", fmt_i[i].id);
 	} break;
@@ -230,7 +223,6 @@ void AmAudioFormat::resetCodec() {
 
 amci_codec_t* AmAudioFormat::getCodec()
 {
-
   if(!codec){
     int codec_id = getCodecId();
     codec = AmPlugIn::instance()->codec(codec_id);
@@ -252,7 +244,6 @@ AmAudio::AmAudio()
   : fmt(new AmAudioSimpleFormat(CODEC_PCM16)),
     max_rec_time(-1),
     rec_time(0)
-
 {
   initSrc();
 }
@@ -294,7 +285,8 @@ AmAudio::~AmAudio()
 #endif
 }
 
-void AmAudio::setFormat(AmAudioFormat* new_fmt) {
+void AmAudio::setFormat(AmAudioFormat* new_fmt) 
+{
   fmt.reset(new_fmt);
   fmt->resetCodec();
 }
@@ -304,21 +296,23 @@ void AmAudio::close()
 }
 
 // returns bytes read, else -1 if error (0 is OK)
-int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int nb_samples)
+int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec)
 {
+  unsigned int nb_samples = time_millisec * fmt->rate / 1000;
+  
   int size = calcBytesToRead(nb_samples);
-
   size = read(user_ts,size);
 
-  if(size <= 0) {
+  if (size <= 0)
     return size;
-  }
 
   size = decode(size);
-  if(size < 0) {
+
+  if (size < 0) {
     DBG("decode returned %i\n",size);
     return -1; 
   }
+
   /* into internal format */
   size = downMix(size);
     
@@ -335,7 +329,7 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
     return 0;
   }
 
-  if(max_rec_time > -1 && rec_time >= max_rec_time)
+  if((max_rec_time > -1) && (rec_time >= max_rec_time))
     return -1;
 
 
@@ -343,8 +337,10 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
 
   /* from internal format */
   size = upMix(size);
+
   unsigned long wr_ts = user_ts;
-  // unsigned int wr_ts =( (long)user_ts * (long)fmt->rate / (long)SYSTEM_SAMPLERATE);
+
+  // wr_ts =( (long)user_ts * (long)fmt->rate / (long)SYSTEM_SAMPLERATE);
   if (fmt->rate != SYSTEM_SAMPLERATE) {
     if (fmt->rate > SYSTEM_SAMPLERATE) {
       unsigned int f = fmt->rate / SYSTEM_SAMPLERATE;
@@ -354,15 +350,12 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
       wr_ts = wr_ts / f; 
     }
   }
-  //  DBG("wr_ts = %ld\n", wr_ts);
 
   int s = encode(size);
-  if(s>0){
-    //DBG("%s\n",typeid(this).name());
+  if (s>0) {
     incRecordTime(bytes2samples(size));
     return write(wr_ts,(unsigned int)s);
-  }
-  else{
+  } else {
     return s;
   }
 }
@@ -373,7 +366,7 @@ void AmAudio::stereo2mono(unsigned char* out_buf,unsigned char* in_buf,unsigned 
   short* end = (short*)(in_buf + size);
   short* out = (short*)out_buf;
     
-  while(in != end){
+  while (in != end) {
     *(out++) = (*in + *(in+1)) / 2;
     in += 2;
   }
@@ -399,10 +392,10 @@ int AmAudio::decode(unsigned int size)
   // 	return -1;
   //     }
 
-  if(codec->decode){
+  if (codec->decode) {
     s = (*codec->decode)(samples.back_buffer(),samples,s,
 			 fmt->channels,fmt->rate,h_codec);
-    if(s<0) return s;
+    if (s<0) return s;
     samples.swap();
   }
     
@@ -422,7 +415,7 @@ int AmAudio::encode(unsigned int size)
   amci_codec_t* codec = fmt->getCodec();
   long h_codec = fmt->getHCodec();
 
-  if(codec->encode){
+  if (codec->encode) {
     s = (*codec->encode)(samples.back_buffer(),samples,(unsigned int) size,
 			 fmt->channels,fmt->rate,h_codec);
     if(s<0) return s;
@@ -435,14 +428,14 @@ int AmAudio::encode(unsigned int size)
 unsigned int AmAudio::downMix(unsigned int size)
 {
   unsigned int s = size;
-  if(fmt->channels == 2){
+
+  if (fmt->channels == 2) {
     stereo2mono(samples.back_buffer(),(unsigned char*)samples,s);
     samples.swap();
   }
 
 #ifdef USE_LIBSAMPLERATE 
   if (fmt->rate != SYSTEM_SAMPLERATE) {
-//     DBG("downmix %d->%d\n", SYSTEM_SAMPLERATE, fmt->rate);
     s = resample(src_state_in, (double)SYSTEM_SAMPLERATE / (double)fmt->rate, size);
   }
 #endif
@@ -453,14 +446,10 @@ unsigned int AmAudio::downMix(unsigned int size)
 unsigned int AmAudio::upMix(unsigned int size)
 {
   unsigned int s = size;
-//   if(fmt->channels == 2){
-//     stereo2mono(samples.back_buffer(),(unsigned char*)samples,s);
-//     samples.swap();
-//   }
+  // todo: system_channels, convert from/to stereo ? 
 
 #ifdef USE_LIBSAMPLERATE 
   if (fmt->rate != SYSTEM_SAMPLERATE) {
-//     DBG("upmix %d->%d\n", fmt->rate,SYSTEM_SAMPLERATE);
     s = resample(src_state_out, (double)fmt->rate / (double)SYSTEM_SAMPLERATE, size);
   }
 #endif
@@ -470,7 +459,8 @@ unsigned int AmAudio::upMix(unsigned int size)
 
 #ifdef USE_LIBSAMPLERATE 
 
-unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned int size) {
+unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned int size) 
+{
   if (!m_src_state)
     return size;
 
@@ -526,11 +516,18 @@ unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned i
 
 unsigned int AmAudio::getFrameSize()
 {
-
   if (!fmt.get())
     fmt.reset(new AmAudioSimpleFormat(CODEC_PCM16));
 
   return fmt->frame_size;
+}
+
+unsigned int AmAudio::getFrameLength()
+{
+  if (!fmt.get())
+    fmt.reset(new AmAudioSimpleFormat(CODEC_PCM16));
+
+  return fmt->frame_length;
 }
 
 unsigned int AmAudio::calcBytesToRead(unsigned int nb_samples) const
