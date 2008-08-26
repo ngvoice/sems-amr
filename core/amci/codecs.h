@@ -55,4 +55,14 @@
 #define CODEC_L16     12
 
 #define CODEC_G722_NB 13
+
+#define CODEC_ULAW16 14
+#define CODEC_ALAW16 15
+
+#define CODEC_ULAW32 16
+#define CODEC_ALAW32 17
+
+#define CODEC_ULAW48 18
+#define CODEC_ALAW48 19
+
 #endif

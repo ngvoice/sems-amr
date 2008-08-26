@@ -78,6 +78,15 @@
 #define WAV_ULAW 7 
 
 static long g711_create(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+#if SYSTEM_SAMPLERATE >=16000
+static long g711_create_16(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+#if SYSTEM_SAMPLERATE >=32000
+static long g711_create_32(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+#if SYSTEM_SAMPLERATE >=48000
+static long g711_create_48(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+#endif
+#endif
+#endif
 
 static int ULaw_2_Pcm16( unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 			 unsigned int channels, unsigned int rate, long h_codec );
@@ -96,18 +105,57 @@ static unsigned int g711_samples2bytes(long, unsigned int);
 
 BEGIN_EXPORTS( "wav" , AMCI_NO_MODULEINIT, AMCI_NO_MODULEDESTROY )
 
-     BEGIN_CODECS
+BEGIN_CODECS
 CODEC( CODEC_ULAW, Pcm16_2_ULaw, ULaw_2_Pcm16, 
        AMCI_NO_CODEC_PLC, g711_create, AMCI_NO_CODECDESTROY, 
        g711_bytes2samples, g711_samples2bytes )
-     CODEC( CODEC_ALAW, Pcm16_2_ALaw, ALaw_2_Pcm16, 
-	    AMCI_NO_CODEC_PLC, g711_create, AMCI_NO_CODECDESTROY, 
-	    g711_bytes2samples, g711_samples2bytes )
-     END_CODECS
+CODEC( CODEC_ALAW, Pcm16_2_ALaw, ALaw_2_Pcm16, 
+       AMCI_NO_CODEC_PLC, g711_create, AMCI_NO_CODECDESTROY, 
+       g711_bytes2samples, g711_samples2bytes )
+
+/* todo: make encoded size as parameter of payload; use CODEC_ALAW for all */
+#if SYSTEM_SAMPLERATE >=16000
+CODEC( CODEC_ULAW16, Pcm16_2_ULaw, ULaw_2_Pcm16,
+       AMCI_NO_CODEC_PLC, g711_create_16, AMCI_NO_CODECDESTROY,
+       g711_bytes2samples, g711_samples2bytes )
+CODEC( CODEC_ALAW16, Pcm16_2_ALaw, ALaw_2_Pcm16,
+       AMCI_NO_CODEC_PLC, g711_create_16, AMCI_NO_CODECDESTROY,
+       g711_bytes2samples, g711_samples2bytes )
+#if SYSTEM_SAMPLERATE >=32000
+CODEC( CODEC_ULAW32, Pcm16_2_ULaw, ULaw_2_Pcm16, 
+       AMCI_NO_CODEC_PLC, g711_create_32, AMCI_NO_CODECDESTROY, 
+       g711_bytes2samples, g711_samples2bytes )
+CODEC( CODEC_ALAW32, Pcm16_2_ALaw, ALaw_2_Pcm16, 
+       AMCI_NO_CODEC_PLC, g711_create_32, AMCI_NO_CODECDESTROY, 
+       g711_bytes2samples, g711_samples2bytes )
+#if SYSTEM_SAMPLERATE >=48000
+CODEC( CODEC_ULAW48, Pcm16_2_ULaw, ULaw_2_Pcm16, 
+       AMCI_NO_CODEC_PLC, g711_create_48, AMCI_NO_CODECDESTROY, 
+       g711_bytes2samples, g711_samples2bytes )
+CODEC( CODEC_ALAW48, Pcm16_2_ALaw, ALaw_2_Pcm16, 
+       AMCI_NO_CODEC_PLC, g711_create_48, AMCI_NO_CODECDESTROY, 
+       g711_bytes2samples, g711_samples2bytes )
+#endif
+#endif
+#endif
+END_CODECS
     
 BEGIN_PAYLOADS
 PAYLOAD( 0, "PCMU", 8000, 8000, 1, CODEC_ULAW, AMCI_PT_AUDIO_LINEAR )
 PAYLOAD( 8, "PCMA", 8000, 8000, 1, CODEC_ALAW, AMCI_PT_AUDIO_LINEAR )
+#if SYSTEM_SAMPLERATE >=16000
+PAYLOAD( -1, "PCMU", 16000, 16000, 1, CODEC_ULAW16, AMCI_PT_AUDIO_LINEAR )
+PAYLOAD( -1, "PCMA", 16000, 16000, 1, CODEC_ALAW16, AMCI_PT_AUDIO_LINEAR )
+#if SYSTEM_SAMPLERATE >=32000
+PAYLOAD( -1, "PCMU", 32000, 32000, 1, CODEC_ULAW32, AMCI_PT_AUDIO_LINEAR )
+PAYLOAD( -1, "PCMA", 32000, 32000, 1, CODEC_ALAW32, AMCI_PT_AUDIO_LINEAR )
+#if SYSTEM_SAMPLERATE >=48000
+PAYLOAD( -1, "PCMU", 48000, 48000, 1, CODEC_ULAW48, AMCI_PT_AUDIO_LINEAR )
+PAYLOAD( -1, "PCMA", 48000, 48000, 1, CODEC_ALAW48, AMCI_PT_AUDIO_LINEAR )
+#endif
+#endif
+#endif
+
 END_PAYLOADS
 
 BEGIN_FILE_FORMATS
@@ -122,7 +170,7 @@ END_FILE_FORMATS
 
 END_EXPORTS
 
-     /* to set frame size 160 */
+/* to set frame size/length 160 */
 static long g711_create(const char* format_parameters, amci_codec_fmt_info_t* format_description)
 {
   format_description[0].id = AMCI_FMT_FRAME_LENGTH;
@@ -130,9 +178,42 @@ static long g711_create(const char* format_parameters, amci_codec_fmt_info_t* fo
   format_description[1].id = AMCI_FMT_FRAME_SIZE;
   format_description[1].value = 160;
   format_description[2].id = 0;
-
   return 1;
 }
+
+#if SYSTEM_SAMPLERATE >=16000
+static long g711_create_16(const char* format_parameters, amci_codec_fmt_info_t* format_description)
+{
+  format_description[0].id = AMCI_FMT_FRAME_LENGTH;
+  format_description[0].value = 20;
+  format_description[1].id = AMCI_FMT_FRAME_SIZE;
+  format_description[1].value = 320;
+  format_description[2].id = 0;
+  return 1;
+}
+#if SYSTEM_SAMPLERATE >=32000
+static long g711_create_32(const char* format_parameters, amci_codec_fmt_info_t* format_description)
+{
+  format_description[0].id = AMCI_FMT_FRAME_LENGTH;
+  format_description[0].value = 20;
+  format_description[1].id = AMCI_FMT_FRAME_SIZE;
+  format_description[1].value = 640;
+  format_description[2].id = 0;
+  return 1;
+}
+#if SYSTEM_SAMPLERATE >=48000
+static long g711_create_48(const char* format_parameters, amci_codec_fmt_info_t* format_description)
+{
+  format_description[0].id = AMCI_FMT_FRAME_LENGTH;
+  format_description[0].value = 10; /* package in 10 ms to keep packet small */
+  format_description[1].id = AMCI_FMT_FRAME_SIZE;
+  format_description[1].value = 480;
+  format_description[2].id = 0;
+  return 1;
+}
+#endif
+#endif
+#endif
 
 static unsigned int g711_bytes2samples(long h_codec, unsigned int num_bytes)
 {
