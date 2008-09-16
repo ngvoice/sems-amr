@@ -111,6 +111,8 @@ public:
   int channels;
   /** Sampling rate. */
   int rate;
+  /** Advertised sampling rate (used in RTP TS clock, only differs from rate for g722). */
+  int advertised_rate;
   /* frame length in ms (frame based codecs)  */
   int frame_length;
   /* frame size in samples */

@@ -110,6 +110,7 @@ int AmAudioRtpFormat::setCurrentPayload(int payload)
     if (m_currentPayloadP && codec) {
       channels = m_currentPayloadP->channels;
       rate = m_currentPayloadP->sample_rate;
+      advertised_rate = m_currentPayloadP->advertised_sample_rate;
     } else {
       ERROR("Could not find payload <%i>\n", payload);
       return -1;
@@ -126,7 +127,7 @@ AmAudioRtpFormat::~AmAudioRtpFormat()
 }
 
 AmAudioFormat::AmAudioFormat()
-  : channels(-1), rate(-1), codec(NULL),
+  : channels(-1), rate(-1), advertised_rate(-1), codec(NULL),
     frame_length(20), frame_size(20*SYSTEM_SAMPLERATE/1000)
 {
 
@@ -338,26 +339,26 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
   /* from internal format */
   size = upMix(size);
 
+  int s = encode(size);
+  if (s<=0) 
+    return s;
+  
   unsigned long wr_ts = user_ts;
 
   // wr_ts =( (long)user_ts * (long)fmt->rate / (long)SYSTEM_SAMPLERATE);
-  if (fmt->rate != SYSTEM_SAMPLERATE) {
-    if (fmt->rate > SYSTEM_SAMPLERATE) {
-      unsigned int f = fmt->rate / SYSTEM_SAMPLERATE;
+  if (fmt->advertised_rate != SYSTEM_SAMPLERATE) {
+    if (fmt->advertised_rate > SYSTEM_SAMPLERATE) {
+      unsigned int f = fmt->advertised_rate / SYSTEM_SAMPLERATE;
       wr_ts = wr_ts * f; 
     } else {
-      unsigned int f = SYSTEM_SAMPLERATE / fmt->rate ;
+      unsigned int f = SYSTEM_SAMPLERATE / fmt->advertised_rate ;
       wr_ts = wr_ts / f; 
     }
   }
 
-  int s = encode(size);
-  if (s>0) {
-    incRecordTime(bytes2samples(size));
-    return write(wr_ts,(unsigned int)s);
-  } else {
-    return s;
-  }
+  incRecordTime(bytes2samples(size));
+  return write(wr_ts,(unsigned int)s);
+  
 }
 
 void AmAudio::stereo2mono(unsigned char* out_buf,unsigned char* in_buf,unsigned int& size)
@@ -478,7 +479,7 @@ unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned i
   
   if (m_src_state->resample_state) {
     if (m_src_state->resample_buf_samples + PCM16_B2S(s) > PCM16_B2S(AUDIO_BUFFER_SIZE) * 2) {
-      WARN("resample input buffer overflow! (%lu)\n",
+      WARN("resample input buffer overflow! (%u)\n",
 	   m_src_state->resample_buf_samples + PCM16_B2S(s));
     } else {
       signed short* samples_s = (signed short*)(unsigned char*)samples;
