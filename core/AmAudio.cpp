@@ -346,7 +346,7 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
   unsigned long wr_ts = user_ts;
 
   // wr_ts =( (long)user_ts * (long)fmt->rate / (long)SYSTEM_SAMPLERATE);
-  if (fmt->advertised_rate != SYSTEM_SAMPLERATE) {
+  if (fmt->advertised_rate > 0 && (fmt->advertised_rate != SYSTEM_SAMPLERATE)) {
     if (fmt->advertised_rate > SYSTEM_SAMPLERATE) {
       unsigned int f = fmt->advertised_rate / SYSTEM_SAMPLERATE;
       wr_ts = wr_ts * f; 
