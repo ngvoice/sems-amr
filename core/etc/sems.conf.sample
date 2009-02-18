@@ -262,13 +262,16 @@ sip_port=5080
 #
 # single_codec_in_ok=no
 
-# optional parameter: codec_order=codec_name_1,codec_name2,...
+# optional parameter: codec_order=codec_name_1[/codec_rate_1],codec_name2,...
 #
 # - Codec order used when sending INVITE requests.  Codecs in codec_order
 #   will be on the top of the list followed by other supported codecs
 #   (if any).
 #
 #   default=empty
+#
+# to prefer wideband codecs:
+#  codec_order=L16/16000,PCMU/16000,PCMA/16000,g722/16000
 #
 # codec_order=iLBC,GSM
 

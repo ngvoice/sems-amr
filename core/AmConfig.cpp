@@ -68,7 +68,7 @@ unsigned int AmConfig::SessionLimit            = 0;
 unsigned int AmConfig::SessionLimitErrCode     = 503;
 string       AmConfig::SessionLimitErrReason   = "Server overload";
 
-vector <string> AmConfig::CodecOrder;
+vector <pair<string, unsigned int> > AmConfig::CodecOrder;
 
 Dtmf::InbandDetectorType 
 AmConfig::DefaultDTMFDetector     = Dtmf::SEMSInternal;
@@ -325,7 +325,24 @@ int AmConfig::readConfiguration()
   }
 
   // codec_order
-  CodecOrder = explode(cfg.getParameter("codec_order"), ",");
+  vector<string> CodecOrderEntries = 
+    explode(cfg.getParameter("codec_order"), ",");
+
+  // todo: stereo
+  for (vector<string>::iterator it=
+	 CodecOrderEntries.begin(); it != CodecOrderEntries.end(); it++) {
+    vector<string> co_entry = explode(*it, "/");
+    if (co_entry.size() == 1)
+      CodecOrder.push_back(make_pair(co_entry[0], 0));
+    else if (co_entry.size() == 2) {
+      unsigned int co_rate = 0;
+      str2i(co_entry[1], co_rate);
+      CodecOrder.push_back(make_pair(co_entry[0], co_rate));
+    }  else {
+      ERROR("undecipherable codec_order entry '%s'\n",
+	    it->c_str());
+    }
+  }
 
   // dead_rtp_time
   if(cfg.hasParameter("dead_rtp_time")){

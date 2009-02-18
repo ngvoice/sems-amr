@@ -685,8 +685,13 @@ int AmPlugIn::addPayload(amci_payload_t* p)
   }
 
   for (i = 0; i < AmConfig::CodecOrder.size(); i++) {
-      if (p->name == AmConfig::CodecOrder[i]) break;
+    if (((p->name == AmConfig::CodecOrder[i].first) && 
+	 ((unsigned int)p->sample_rate == AmConfig::CodecOrder[i].second)) ||
+	((p->name == AmConfig::CodecOrder[i].first) && 
+	 (0 == AmConfig::CodecOrder[i].second)))
+	break;
   }
+
   if (i >= AmConfig::CodecOrder.size()) {
       payload_order.insert(std::make_pair(id + 100, id));
       DBG("payload '%s'/%d inserted with id %i and order %i\n",

@@ -34,6 +34,7 @@
 #include <string>
 using std::string;
 #include <utility>
+using std::pair;
 
 #include <sys/types.h>
 #include <regex.h>
@@ -90,7 +91,7 @@ struct AmConfig
   static string Signature;
   /** If 200 OK reply should be limited to preferred codec only */
   static bool SingleCodecInOK;
-  static vector <string> CodecOrder;
+  static vector <pair<string, unsigned int> > CodecOrder;
   
   enum ApplicationSelector {
     App_RURIUSER,
