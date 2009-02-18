@@ -119,6 +119,8 @@ exclude_plugins=binrpcctrl;unixsockctrl;precoded_announce
 #  exclude_payloads=iLBC;speex;
 # only use G711 (exclude everything else):
 #  exclude_payloads=iLBC;speex;G726-40;G726-32;G721;G726-24;G726-16;GSM;L16
+# or exclude some narrowband codecs:
+#  exclude_payloads=PCMU/8000;PCMA/8000;L16/8000;
 
 # optional parameter: rtp_low_port=<port>
 #

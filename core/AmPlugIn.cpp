@@ -126,8 +126,19 @@ void AmPlugIn::init() {
     explode(AmConfig::ExcludePayloads, ";");
   for (vector<string>::iterator it = 
 	 excluded_payloads_v.begin(); 
-       it != excluded_payloads_v.end();it++)
-    excluded_payloads.insert(*it);
+       it != excluded_payloads_v.end();it++) {
+    vector<string> e = explode(*it, "/");
+    if (e.size()==1) {
+      excluded_payloads.insert(make_pair(*it, 0));
+    } else if (e.size()==2) {
+      unsigned int rate = 0;
+      str2i(e[1], rate);
+      excluded_payloads.insert(make_pair(e[0], rate));	  
+    } else {
+      ERROR("deciphering excluded payload '%s'\n",
+	    it->c_str());
+    }      
+  }
 
   DBG("adding built-in codecs...\n");
   addCodec(&_codec_pcm16);
@@ -656,10 +667,12 @@ int AmPlugIn::addCodec(amci_codec_t* c)
 
 int AmPlugIn::addPayload(amci_payload_t* p)
 {
-  if (excluded_payloads.find(p->name) != 
-      excluded_payloads.end()) {
-    DBG("Not enabling excluded payload '%s'\n", 
-	p->name);
+  if ((excluded_payloads.find(std::make_pair(p->name, p->sample_rate)) != 
+       excluded_payloads.end()) || 
+      (excluded_payloads.find(std::make_pair(p->name, 0)) != 
+       excluded_payloads.end())) {
+    DBG("Not enabling excluded payload '%s'/%d\n", 
+	p->name, p->sample_rate);
     return 0;
   }
 

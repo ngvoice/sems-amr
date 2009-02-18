@@ -2,7 +2,7 @@
  * $Id$
  *
  * Copyright (C) 2002-2003 Fhg Fokus
- * Copyright (C) 2006 iptego GmbH
+ * Copyright (C) 2006-2009 iptego GmbH
  *
  * This file is part of sems, a free SIP media server.
  *
@@ -33,8 +33,10 @@
 #include <map>
 #include <vector>
 #include <set>
+#include <utility>
 using std::string;
 using std::vector;
+using std::pair;
 
 class AmPluginFactory;
 class AmSessionFactory;
@@ -102,7 +104,7 @@ class AmPlugIn : public AmPayloadProviderInterface
   AmCtrlInterfaceFactory *ctrlIface;
 
   int dynamic_pl; // range: 96->127, see RFC 1890
-  std::set<string> excluded_payloads;  // don't load these payloads (named)
+  std::set<pair<string, unsigned int> > excluded_payloads;  // don't load these payloads (named)
     
   AmPlugIn();
   virtual ~AmPlugIn();
