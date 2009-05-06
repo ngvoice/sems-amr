@@ -403,8 +403,11 @@ int AmPlugIn::getDynPayload(const string& name, int rate, int encoding_param) {
       pl_it != payloads.end(); ++pl_it)
     if( (name == pl_it->second->name)
 	&& (rate == pl_it->second->sample_rate) ) {
-      if ((encoding_param > 0) && (pl_it->second->channels > 0) && 
-	  (encoding_param != pl_it->second->channels))
+      int r_channels = encoding_param;
+      if (r_channels == 0) // not present is assumed mono (1 channel)
+	r_channels = 1;	
+      if ((r_channels > 0) && (pl_it->second->channels > 0) && 
+	  (r_channels != pl_it->second->channels))
 	continue;
 	  
       return pl_it->first;
