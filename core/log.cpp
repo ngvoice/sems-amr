@@ -96,10 +96,31 @@ void set_log_facility(const char* facility) {
 void dprint(int level, const char* fct, const char* file, int line, const char* fmt, ...)
 {
   va_list ap;
-    
-  fprintf(stderr, "(%i) %s: %s (%s:%i): ",(int)getpid(), level2txt(level), fct, file, line);
+
+#ifdef USE_COLORED_DEBUG
+  const char *const green   = "\033[0;40;32m";
+  const char *const magenta = "\033[0;40;35m";
+  const char *const red     = "\033[0;40;31m";
+  const char *const normal  = "\033[0m";
+  const char *col=normal;
+  switch(level) {
+  case L_ERR:  col = red; break;
+  case L_WARN: col = magenta; break;
+  case L_INFO: col = green; break;
+  default: break;
+  }
+#define col_fmt "%s"
+#define col_var ,col
+#else
+#define col_fmt
+#define col_var
+#endif //USE_COLORED_DEBUG
+  fprintf(stderr, col_fmt "(%i) %s: %s (%s:%i): " col_var, (int)getpid(), level2txt(level), fct, file, line);
   va_start(ap, fmt);
   vfprintf(stderr,fmt,ap);
+#ifdef USE_COLORED_DEBUG
+  fprintf(stderr,"%s", normal);
+#endif //USE_COLORED_DEBUG
   fflush(stderr);
   va_end(ap);
 }
