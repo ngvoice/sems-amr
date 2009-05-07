@@ -30,6 +30,7 @@
 #include <assert.h>
 #include "AmSession.h"
 #include "AmPlayoutBuffer.h"
+#include "amci/codecs.h"
 
 AmRtpAudio::AmRtpAudio(AmSession* _s)
   : AmRtpStream(_s), AmAudio(0), 
@@ -86,6 +87,23 @@ bool AmRtpAudio::sendIntReached()
 {
   return send_int;
 }
+
+unsigned int AmRtpAudio::getFrameSize()
+{
+  if (!fmt.get())
+    fmt.reset(new AmAudioSimpleFormat(CODEC_PCM16));
+
+  return fmt->frame_size;
+}
+
+unsigned int AmRtpAudio::getFrameLength()
+{
+  if (!fmt.get())
+    fmt.reset(new AmAudioSimpleFormat(CODEC_PCM16));
+
+  return fmt->frame_length;
+}
+
 
 unsigned int AmRtpAudio::bytes2samples(unsigned int bytes) const
 {

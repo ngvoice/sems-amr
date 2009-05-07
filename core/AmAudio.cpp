@@ -308,7 +308,7 @@ int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_
     return size;
 
   size = decode(size);
-
+  
   if (size < 0) {
     DBG("decode returned %i\n",size);
     return -1; 
@@ -316,7 +316,7 @@ int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_
 
   /* into internal format */
   size = downMix(size);
-    
+
   if(size>0)
     memcpy(buffer,(unsigned char*)samples,size);
 
@@ -434,7 +434,7 @@ unsigned int AmAudio::downMix(unsigned int size)
     stereo2mono(samples.back_buffer(),(unsigned char*)samples,s);
     samples.swap();
   }
-
+  
 #ifdef USE_LIBSAMPLERATE 
   if (fmt->rate != SYSTEM_SAMPLERATE) {
     s = resample(src_state_in, (double)SYSTEM_SAMPLERATE / (double)fmt->rate, size);
@@ -514,22 +514,6 @@ unsigned int AmAudio::resample(src_state* m_src_state, double factor, unsigned i
   return s;
 }
 #endif
-
-unsigned int AmAudio::getFrameSize()
-{
-  if (!fmt.get())
-    fmt.reset(new AmAudioSimpleFormat(CODEC_PCM16));
-
-  return fmt->frame_size;
-}
-
-unsigned int AmAudio::getFrameLength()
-{
-  if (!fmt.get())
-    fmt.reset(new AmAudioSimpleFormat(CODEC_PCM16));
-
-  return fmt->frame_length;
-}
 
 unsigned int AmAudio::calcBytesToRead(unsigned int nb_samples) const
 {

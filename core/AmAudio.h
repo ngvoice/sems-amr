@@ -317,12 +317,6 @@ public:
    */
   virtual int put(unsigned int user_ts, unsigned char* buffer, unsigned int size);
   
-  /** get frame length in samples */
-  unsigned int getFrameSize();
-
-  /** get frame length in ms */
-  unsigned int getFrameLength();
-  
   void setRecordTime(unsigned int ms);
   int  incRecordTime(unsigned int samples);
 

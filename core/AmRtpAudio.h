@@ -127,6 +127,12 @@ public:
   // Conceals packet loss into the out_buffer
   // @return length in bytes of the recivered segment
   unsigned int conceal_loss(unsigned int ts_diff, unsigned char *out_buffer);
+
+  /** get frame length in samples */
+  unsigned int getFrameSize();
+
+  /** get frame length in ms */
+  unsigned int getFrameLength();
 };
 
 #endif
