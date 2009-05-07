@@ -45,8 +45,6 @@ enum PlayoutType {
   SIMPLE_PLAYOUT
 };
 
-
-
 /** 
  * \brief interface for PLC buffer
  */
@@ -61,6 +59,36 @@ class AmPLCBuffer {
   virtual unsigned int conceal_loss(unsigned int ts_diff, unsigned char *out_buffer) = 0;
   AmPLCBuffer() { }
   virtual ~AmPLCBuffer() { }
+};
+
+/** \brief RTP audio format */
+class AmAudioRtpFormat: public AmAudioFormat
+{
+  vector<SdpPayload *> m_payloads;
+  int m_currentPayload;
+  amci_payload_t *m_currentPayloadP;
+  std::map<int, SdpPayload *> m_sdpPayloadByPayload;
+  std::map<int, amci_payload_t *> m_payloadPByPayload;
+  std::map<int, CodecContainer *> m_codecContainerByPayload;
+
+protected:
+  virtual int getCodecId();
+
+public:
+  /**
+   * Constructor for payload based formats.
+   * All the information are taken from the 
+   * payload description in the originating plug-in.
+   */
+  AmAudioRtpFormat(const vector<SdpPayload *>& payloads);
+  ~AmAudioRtpFormat();
+
+  /**
+   * changes payload. returns != 0 on error.
+   */
+  int setCurrentPayload(int payload);
+
+  int getCurrentPayload() { return m_currentPayload; };
 };
 
 /** 

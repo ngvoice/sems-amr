@@ -39,93 +39,6 @@
 
 #include <typeinfo>
 
-/** \brief structure to hold loaded codec instances */
-struct CodecContainer
-{
-  amci_codec_t *codec;
-  int frame_size;
-  int frame_length;
-  long h_codec;
-};
-
-AmAudioRtpFormat::AmAudioRtpFormat(const vector<SdpPayload *>& payloads)
-  : AmAudioFormat(), m_payloads(payloads), m_currentPayload(-1)
-{
-  for (vector<SdpPayload *>::iterator it = m_payloads.begin();
-	  it != m_payloads.end(); ++it)
-  {
-    m_sdpPayloadByPayload[(*it)->payload_type] = *it;
-  }
-  setCurrentPayload(m_payloads[0]->payload_type);
-}
-
-int AmAudioRtpFormat::setCurrentPayload(int payload)
-{
-  if (m_currentPayload != payload)
-  {
-    std::map<int, SdpPayload *>::iterator p = m_sdpPayloadByPayload.find(payload);
-    if (p == m_sdpPayloadByPayload.end())
-    {
-      ERROR("Could not find payload <%i>\n", payload);
-      return -1;
-    }
-    std::map<int, amci_payload_t *>::iterator pp = m_payloadPByPayload.find(payload);
-    if (pp == m_payloadPByPayload.end())
-    {
-      m_currentPayloadP = AmPlugIn::instance()->payload(p->second->int_pt);
-      if (m_currentPayloadP == NULL)
-      {
-	ERROR("Could not find payload <%i>\n", payload);
-	return -1;
-      }
-      m_payloadPByPayload[payload] = m_currentPayloadP;
-    }
-    else
-      m_currentPayloadP = pp->second;
-    m_currentPayload = payload;
-    sdp_format_parameters = p->second->sdp_format_parameters;
-
-    std::map<int, CodecContainer *>::iterator c = m_codecContainerByPayload.find(payload);
-    if (c == m_codecContainerByPayload.end())
-    {
-      codec = NULL;
-      getCodec();
-      if (codec)
-      {
-	CodecContainer *cc = new CodecContainer();
-	cc->codec = codec;
-	cc->frame_size = frame_size;
-	cc->frame_length = frame_length;
-	cc->h_codec = h_codec;
-	m_codecContainerByPayload[payload] = cc;
-      }
-    }
-    else
-    {
-      codec = c->second->codec;
-      frame_size = c->second->frame_size;
-      frame_length = c->second->frame_length;
-      h_codec = c->second->h_codec;
-    }
-    if (m_currentPayloadP && codec) {
-      channels = m_currentPayloadP->channels;
-      rate = m_currentPayloadP->sample_rate;
-      advertised_rate = m_currentPayloadP->advertised_sample_rate;
-    } else {
-      ERROR("Could not find payload <%i>\n", payload);
-      return -1;
-    }
-  }
-  return 0;
-}
-
-AmAudioRtpFormat::~AmAudioRtpFormat()
-{
-  for (std::map<int, CodecContainer *>::iterator it = 
-	 m_codecContainerByPayload.begin(); it != m_codecContainerByPayload.end(); ++it)
-    delete it->second;
-}
-
 AmAudioFormat::AmAudioFormat()
   : channels(-1), rate(-1), advertised_rate(-1), codec(NULL),
     frame_length(20), frame_size(20*SYSTEM_SAMPLERATE/1000)
@@ -554,14 +467,4 @@ unsigned char* DblBuffer::back_buffer()
 void DblBuffer::swap()
 {
   active_buf = !active_buf;
-}
-
-int AmAudioRtpFormat::getCodecId()
-{
-  if(!m_currentPayloadP){
-    ERROR("AmAudioRtpFormat::getCodecId: could not find payload %i\n", m_currentPayload);
-    return -1;
-  }
-  else 
-    return m_currentPayloadP->codec_id;
 }

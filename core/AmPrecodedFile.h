@@ -33,6 +33,7 @@
 #include "amci/amci.h"
 #include "AmAudioFile.h"
 #include "AmAudio.h"
+#include "AmRtpAudio.h"
 
 #include <string>
 #include <map>
