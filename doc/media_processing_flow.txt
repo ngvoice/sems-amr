@@ -1,0 +1,93 @@
+
+AmMediaprocessor loops every 10ms through all 
+sessions it processes. On those where rtp_str 
+(which is of type RTPAudio) says 
+sendIntReached()==true, it executes the following
+loop. 
+
+
+ RTPAudio                        Session
+                                               |
+-------------------+                           |
+RtpAudio::receive()|        +--------------    |
+RtpAudio::get()    |        |   IN             |
+                   |        |  input::put()    |
+                   |        +--------------    | time
+                   |        +--------------    |
+                   |        |   OUT            |         
+                   |        |  output::get()   |
+                   |        +--------------    |
+RtpAudio::put()    |                           v
+-------------------+
+=============================================
+AmAudio::put is
+ upMix()
+ encode()
+ write()
+
+AmAudio::get is
+ read()
+ decode()
+ downMix()
+
+AmRtpAudio overwrites some AmAudio functions:
+=============================================
+RtpAudio::receive()
+ AmRtpStream::receive()
+ AmAudio::decode()
+ AmAudio::downMix()
+ playout_buffer->write()
+
+RtpAudio::get()
+ RtpAudio::read()
+  playout_buffer->read() 
+                               input::put()
+                                 AmAudio::upMix()
+                                 AmAudio::encode()
+                                 AmAudio::write()
+
+                               output::get()
+                                 AmAudio::read()
+                                 AmAudio::decode()
+                                 AmAudio::downMix()
+
+RtpAudio::put()
+ upMix()
+ encode()
+ write()
+  RtpStream::send()
+
+=== with size ==========================================
+RtpAudio::receive()
+ size = AmRtpStream::receive()
+ size = AmAudio::decode(size)
+ size = AmAudio::downMix(size)
+ playout_buffer->write(size)
+
+time_millisec = getFrameLength()
+rcvd_audio_len = RtpAudio::get(time_millisec)
+ = RtpAudio::read(time_millisec*SYSTEM_SAMPLERATE)
+   = playout_buffer->read(PCM16_S2B(time_millisec*SYSTEM_SAMPLERATE)) 
+
+                               input::put(rcvd_audio_len)
+                                 size = AmAudio::upMix(rcvd_audio_len)
+                                 size = AmAudio::encode(size)
+                                 size = AmAudio::write(size)
+
+time_millisec = getFrameLength()
+                               output::get(time_millisec)
+                                 samples = time_millisec * fmt->rate 
+                                 size = calcBytesToRead(samples)
+                                 size = AmAudio::read(size)
+                                 size = AmAudio::decode(size)
+                                 size = AmAudio::downMix(size)
+
+AmAudio::put(size)
+size = upMix(size)
+size = encode(size)
+write(size)
+  RtpStream::send(size)
+
+
+
+
