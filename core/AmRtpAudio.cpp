@@ -246,7 +246,9 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
     }
 
     /* into internal format */
-    size = downMix(size);
+    size = downMixChannels(size);
+    
+    size = downMixRate(size);
 
     // rtp_ts = SYSTEM_SAMPLERATE * rtp_ts / fmt->rate;
     if (fmt->rate && fmt->rate != SYSTEM_SAMPLERATE) {
@@ -277,7 +279,8 @@ int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int tim
     return size;
 
   //   /* convert here for sampling in internal format after playout buffer */
-  //   size = downMix(size);
+  //   size = downMixChannels(size);
+  //   size = downMixRate(size);
   //   if (size < 0) 
   //     return size;
 

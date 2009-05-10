@@ -234,16 +234,22 @@ protected:
   int encode(unsigned int size);
 
   /**
-   * Converts to internal format(-> mono, SYSTEM_SAMPLERATE)
+   * Converts to internal format(-> SYSTEM_SAMPLERATE)
    * @return new size in bytes
    */
-  unsigned int downMix(unsigned int size);
+  unsigned int downMixRate(unsigned int size);
 
   /**
-   * Converts from internal format (<- mono, SYSTEM_SAMPLERATE)
+   * Converts from internal format (<- SYSTEM_SAMPLERATE)
    * @return new size in bytes
    */
-  unsigned int upMix(unsigned int size);
+  unsigned int upMixRate(unsigned int size);
+
+  /**
+   * Converts to internal channels count (-> mono)
+   * @return new size in bytes
+   */
+  unsigned int downMixChannels(unsigned int size);
 
 #ifdef USE_LIBSAMPLERATE 
   /** resampler helper function */

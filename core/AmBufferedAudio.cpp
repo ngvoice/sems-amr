@@ -133,7 +133,10 @@ void AmBufferedAudio::input_get_audio(unsigned int user_ts) {
     }
 
 //     DBG("decode returned %i\n",size);
-    size = downMix(size);
+    size = downMixChannels(size);
+    
+    size = downMixRate(size);
+
     
     if(size>0) {
       memcpy(&output_buffer[w],(unsigned char*)samples,size);

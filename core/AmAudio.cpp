@@ -63,7 +63,7 @@ AmAudioFormat::~AmAudioFormat()
 unsigned int AmAudioFormat::calcBytesToRead(unsigned int needed_samples) const
 {
   if (codec && codec->samples2bytes)
-    return codec->samples2bytes(h_codec, needed_samples) * channels; // FIXME: channels, system_channels
+    return codec->samples2bytes(h_codec, needed_samples) * channels;
 
   WARN("Cannot convert samples to bytes\n");
   return needed_samples * channels;
@@ -228,7 +228,9 @@ int AmAudio::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_
   }
 
   /* into internal format */
-  size = downMix(size);
+  size = downMixChannels(size);
+
+  size = downMixRate(size);
 
   if(size>0)
     memcpy(buffer,(unsigned char*)samples,size);
@@ -250,7 +252,7 @@ int AmAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
   memcpy((unsigned char*)samples,buffer,size);
 
   /* from internal format */
-  size = upMix(size);
+  size = upMixRate(size);
 
   int s = encode(size);
   if (s<=0) 
@@ -339,32 +341,38 @@ int AmAudio::encode(unsigned int size)
   return s;
 }
 
-unsigned int AmAudio::downMix(unsigned int size)
+unsigned int AmAudio::downMixRate(unsigned int size)
 {
   unsigned int s = size;
-
-  if (fmt->channels == 2) {
-    stereo2mono(samples.back_buffer(),(unsigned char*)samples,s);
-    samples.swap();
-  }
   
 #ifdef USE_LIBSAMPLERATE 
   if (fmt->rate != SYSTEM_SAMPLERATE) {
-    s = resample(src_state_in, (double)SYSTEM_SAMPLERATE / (double)fmt->rate, size);
+    s = resample(src_state_in, (double)SYSTEM_SAMPLERATE / (double)fmt->rate, s);
   }
 #endif
  
   return s;
 }
 
-unsigned int AmAudio::upMix(unsigned int size)
+unsigned int AmAudio::downMixChannels(unsigned int size) {
+  unsigned int s = size;
+
+  if (fmt->channels == 2) {
+    stereo2mono(samples.back_buffer(),(unsigned char*)samples,s);
+    samples.swap();
+  }
+
+  return s;
+}
+
+unsigned int AmAudio::upMixRate(unsigned int size)
 {
   unsigned int s = size;
   // todo: system_channels, convert from/to stereo ? 
 
 #ifdef USE_LIBSAMPLERATE 
   if (fmt->rate != SYSTEM_SAMPLERATE) {
-    s = resample(src_state_out, (double)fmt->rate / (double)SYSTEM_SAMPLERATE, size);
+    s = resample(src_state_out, (double)fmt->rate / (double)SYSTEM_SAMPLERATE, s);
   }
 #endif
  
