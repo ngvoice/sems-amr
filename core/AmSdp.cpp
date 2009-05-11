@@ -255,9 +255,12 @@ int AmSdp::genRequest(const string& localip, int localport, string& out_buf)
   for (it = payload_order.begin(); it != payload_order.end(); ++it) {
     map<int,amci_payload_t*>::const_iterator it2 = payloads.find(it->second);
     if(it2 != payloads.end()){
+      string chan_str = (it2->second->channels >=0 && it2->second->channels != 1)?
+	string("/"+int2str(it2->second->channels)):"";
       out_buf += "a=rtpmap:" + int2str(it2->first)
 	+ " " + string(it2->second->name)
 	+ "/" + int2str(it2->second->advertised_sample_rate)
+	+ chan_str 
 	+ "\r\n";
     } else {
       ERROR("Payload %d was not found in payloads map!\n", it->second);
