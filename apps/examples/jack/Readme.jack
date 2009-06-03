@@ -1,0 +1,34 @@
+jack - connect to jackaudio 
+---------------------------
+
+This is a proof of concept of connecting SEMS audio channels to 
+jack (jackaudio.org). jack ports may have one or more channels 
+(mono or stereo).
+
+It uses a locked, timed buffer in the process() callback, so be 
+prepared to encounter xruns on a slower machine or when using 
+realtime. The lock free ring buffer of newer jack version would 
+possibly make more sense to use.
+
+Run jack daemon with a small block size (best is equivalent of 20ms),
+and best with the sample rate of SEMS (e.g. 16khz, use plughw on alsa
+backend to have alsa resample).
+
+See the application on connecting to jack ports, by default it tries 
+to connect to system:playback and system:capture.
+
+About stereo
+------------
+In SEMS, input from RTP is assumed to be always mono - if not it 
+is downmixed in the receiving AmRtpAudio in AmAudio::downMix in 
+AmAudio::get so that the dejitter-buffering / playout buffering 
+works.
+
+Output channels (to RTP) may be stereo, but in that case 
+ * the codec needs to work with interleaved samples, and
+ * AmAudio::get of the output device must be overwritten to 
+   not call downMixChannels, like here in AmAudioJackAudio::get.
+
+For compiling L16 codec with stereo see Makefile in core/plug-in/l16.
+Other codecs probably need adjustments to work with interleaved 
+samples.
