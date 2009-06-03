@@ -12,3 +12,63 @@ star key pressed on the phone switches between adaptive playout
 buffer and fifo playout buffer. Thus the effect of the adaptive 
 playout buffering can easily be verified.
 
+The following is a patch to use echo with stereo (16 khz).
+.........................snip......................................
+Index: AmAudioEcho.cpp
+===================================================================
+--- AmAudioEcho.cpp	(revision 1356)
++++ AmAudioEcho.cpp	(working copy)
+@@ -44,8 +44,39 @@
+ 
+ AmAudioEcho::AmAudioEcho()
+ {
++  fmt->channels = 2;
++  fmt->rate = 16000;
+ }
+ 
+ AmAudioEcho::~AmAudioEcho()
+ {
+ }
++
++// returns bytes read, else -1 if error (0 is OK)
++int AmAudioEcho::get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec)
++{
++  unsigned int nb_samples = time_millisec * fmt->rate / 1000;
++  
++  int size = calcBytesToRead(nb_samples);
++  size = read(user_ts,size);
++
++  if (size <= 0)
++    return size;
++
++  size = decode(size);
++  
++  if (size < 0) {
++    DBG("decode returned %i\n",size);
++    return -1; 
++  }
++
++  /* into internal format */
++  size = downMixRate(size);
++
++//   size = downMixChannels(size);
++ 
++  if(size>0)
++    memcpy(buffer,(unsigned char*)samples,size);
++
++  return size;
++}
+Index: AmAudioEcho.h
+===================================================================
+--- AmAudioEcho.h	(revision 1356)
++++ AmAudioEcho.h	(working copy)
+@@ -42,6 +42,7 @@
+ public:
+   AmAudioEcho();
+   ~AmAudioEcho();
++  int get(unsigned int user_ts, unsigned char* buffer, unsigned int time_millisec);
+ };
+ 
+ #endif
+
+.........................snip......................................
