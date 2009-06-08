@@ -405,7 +405,7 @@ string AmArg::print(const AmArg &a) {
     case Bool:
       return a.asBool()?"true":"false";
     case Double:
-      return int2str((int)a.asDouble()); //TODO: FIXME
+      return double2str(a.asDouble());
     case CStr:
       return '"' + string(a.asCStr()) + '"';
     case Array:
