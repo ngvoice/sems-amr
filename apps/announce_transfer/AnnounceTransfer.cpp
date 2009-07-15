@@ -136,16 +136,23 @@ void AnnounceTransferDialog::onSipRequest(const AmSipRequest& req)
 {
   AmSession::onSipRequest(req);
 
-  if((status == Transfering) && 
+  if((status == Transfering || status == Hangup) && 
      (req.method == "NOTIFY")) {
     try {
 
-      if (getHeader(req.hdrs,"Event") != "refer") 
+      if (strip_header_params(getHeader(req.hdrs,"Event", "o")) != "refer") 
 	throw AmSession::Exception(481, "Subscription does not exist");
 
-      if ((strip_header_params(getHeader(req.hdrs,"Content-Type")) 
+      string content_type = req.content_type;
+      if (content_type.empty())
+	content_type = getHeader(req.hdrs,"Content-Type", "c");
+
+      if ((strip_header_params(content_type) 
 	   != "message/sipfrag"))
 	throw AmSession::Exception(415, "Unsupported Media Type");
+
+      if (req.body.length()<8)
+	throw AmSession::Exception(400, "Short Body");
 			
       string sipfrag_sline = req.body.substr(8, req.body.find("\n") - 8);
       DBG("extracted start line from sipfrag '%s'\n", sipfrag_sline.c_str());
@@ -159,13 +166,16 @@ void AnnounceTransferDialog::onSipRequest(const AmSipRequest& req)
       }
 
       if ((code >= 200)&&(code < 300)) {
-	status = Hangup;
-	DBG("refer succeeded... stopSession\n");
-	dlg.bye();
+	if (status != Hangup) {
+	  status = Hangup;
+	  dlg.bye();
+	}
+	DBG("refer succeeded... stop session\n");
 	setStopped();
       } else if (code > 300) {
 	DBG("refer failed...\n");
-	dlg.bye();
+	if (status != Hangup) 
+	  dlg.bye();
 	setStopped();
       }
       dlg.reply(req, 200, "OK", "", "");
@@ -177,7 +187,7 @@ void AnnounceTransferDialog::onSipRequest(const AmSipRequest& req)
 }
 
 void AnnounceTransferDialog::onSipReply(const AmSipReply& rep) {
-  if (status==Transfering && 
+  if ((status==Transfering ||status==Hangup)  && 
       dlg.get_uac_trans_method(rep.cseq) == "REFER") {
     if (rep.code >= 300) {
       DBG("refer not accepted, stop session.\n");
@@ -191,8 +201,14 @@ void AnnounceTransferDialog::onSipReply(const AmSipReply& rep) {
 
 void AnnounceTransferDialog::onBye(const AmSipRequest& req)
 {
-  DBG("onBye: stopSession\n");
-  setStopped();
+  if (status == Transfering) {
+    // don't stop session, wait for remote side REFER status 
+    // (dialog stays open for the subscription created by REFER)
+    status = Hangup; 
+  } else {
+    DBG("onBye: stopSession\n");
+    setStopped();
+  }
 }
 
 void AnnounceTransferDialog::process(AmEvent* event)
