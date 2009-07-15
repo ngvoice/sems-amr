@@ -227,7 +227,7 @@ void AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
 {
   string content_type = reply.content_type;
   if (content_type.empty())
-    content_type = getHeader(reply.hdrs,"Content-Type");
+    content_type = getHeader(reply.hdrs,"Content-Type", "c");
   dlg.reply(orig,reply.code,reply.reason,
 	    content_type,
 	    reply.body,reply.hdrs,SIP_FLAGS_VERBATIM);
