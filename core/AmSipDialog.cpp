@@ -453,7 +453,7 @@ int AmSipDialog::refer(const string& refer_to)
 {
   switch(status){
   case Connected:
-    return sendRequest("REFER", "", "", "Refer-To: "+refer_to);
+    return sendRequest("REFER", "", "", "Refer-To: " + refer_to + CRLF);
   case Disconnecting:
   case Pending:
     DBG("refer(): we are not yet connected."
