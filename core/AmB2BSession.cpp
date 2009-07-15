@@ -225,10 +225,12 @@ void AmB2BSession::relaySip(const AmSipRequest& req)
 
 void AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
 {
-    //string content_type = getHeader(reply.hdrs,"Content-Type");
-    dlg.reply(orig,reply.code,reply.reason,
-	      reply.content_type,
-	      reply.body,reply.hdrs,SIP_FLAGS_VERBATIM);
+  string content_type = reply.content_type;
+  if (content_type.empty())
+    content_type = getHeader(reply.hdrs,"Content-Type");
+  dlg.reply(orig,reply.code,reply.reason,
+	    content_type,
+	    reply.body,reply.hdrs,SIP_FLAGS_VERBATIM);
 }
 
 // 

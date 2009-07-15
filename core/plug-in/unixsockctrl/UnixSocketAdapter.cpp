@@ -270,6 +270,8 @@ bool UnixSocketAdapter::receive(AmSipRequest &req)
   SAFECTRLCALL1(getLines,req.body);
   DBG("body = <%s>\n",req.body.c_str());
 
+  req.content_type = getHeader(req.hdrs,"Content-Type");
+
   if(req.from.empty() || 
      req.to.empty() || 
      req.callid.empty() || 
