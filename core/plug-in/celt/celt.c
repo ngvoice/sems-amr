@@ -114,8 +114,8 @@ typedef struct {
   int encoded_size; /* in bytes */
 } CeltState;
 
-#define BITRATE 128000
-#define FRAME_MS 10             /* 10 ms frame size */
+#define BITRATE 64000 /* 128000 */
+#define FRAME_MS 10   /* 10 ms frame size */
 
 long CELT_create(unsigned int rate, unsigned int channels, 
 		   const char* format_parameters, amci_codec_fmt_info_t* format_description) {
@@ -126,7 +126,7 @@ long CELT_create(unsigned int rate, unsigned int channels,
 
   cs->rate = rate;
   cs->channels = channels;
-  cs->frame_size = FRAME_MS * rate / 1000;
+  cs->frame_size = 640; /* FRAME_MS * rate / 1000; */
   cs->celt_mode = celt_mode_create(rate, channels, cs->frame_size, NULL);
 
   if (!cs->celt_mode) {
@@ -136,7 +136,7 @@ long CELT_create(unsigned int rate, unsigned int channels,
 
   /* stolen from baresip */
   celt_mode_info(cs->celt_mode, CELT_GET_FRAME_SIZE, &cs->frame_size);  
-  cs->encoded_size = (BITRATE * cs->frame_size / rate + 4)/8;
+  cs->encoded_size = (BITRATE * cs->frame_size / rate + 4) / 8;
 
   DBG("CELTxy_create: rate=%u, channels=%u, frame_size=%u, encoded_size=%u\n", 
       rate, channels, cs->frame_size, cs->encoded_size);
@@ -251,13 +251,13 @@ int Pcm16_2_CELT(unsigned char* out_buf, unsigned char* in_buf, unsigned int siz
     return 0;
   }
 
-  if (PCM16_B2S(size) / channels != cs->frame_size) {
-    ERROR("expected %u, got %u bytes\n", PCM16_S2B(cs->frame_size) * channels, size);
+  if (size / channels != cs->frame_size) {
+    ERROR("got different size than expected (%u vs %u)\n", size/channels, cs->frame_size);
     return 0; /* todo! */
   }
 
   res = celt_encode(cs->encoder, (celt_int16_t*)in_buf, NULL, out_buf, cs->encoded_size);
-  /*   DBG("encoded %d from %d, encoded = %u\n", res, size, cs->encoded_size); */
+  /*   DBG("encoded %d from %d, encoded = %u\n", res, size, cs->encoded_size);  */
   return res;
 }
 
@@ -272,6 +272,10 @@ int CELT_2_Pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned int siz
     return 0;
   
   res = celt_decode(cs->decoder, in_buf, size, (celt_int16_t*) out_buf);
-/*   DBG("decoded %d from %d\n", res, size); */
-  return  res;
+  if (CELT_OK != res) {
+    WARN("celt_decode returned error %d\n", res); 
+    return 0;
+  }
+  /*   DBG("decoded %d\n", cs->channels * cs->frame_size * 2); */
+  return  PCM16_S2B(cs->channels * cs->frame_size);
 }
