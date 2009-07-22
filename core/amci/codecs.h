@@ -65,4 +65,12 @@
 #define CODEC_ULAW48 18
 #define CODEC_ALAW48 19
 
+#define CODEC_CELT32 20
+#define CODEC_CELT44 21
+#define CODEC_CELT48 22
+
+#define CODEC_CELT32_2 23
+#define CODEC_CELT44_2 24
+#define CODEC_CELT48_2 25
+
 #endif
