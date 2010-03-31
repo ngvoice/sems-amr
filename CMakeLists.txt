@@ -25,7 +25,7 @@ OPTION(MAX_RTP_SESSIONS:int   "How many rtp sessions SEMS will handle simultaneo
 SET(CMAKE_DL_LIBS ${CMAKE_DL_LIBS} m pthread)
 
 IF (NOT SEMS_CFG_PREFIX)
-	SET(SEMS_CFG_PREFIX "/usr/local")
+	SET(SEMS_CFG_PREFIX "")
 ENDIF (NOT SEMS_CFG_PREFIX)
 MESSAGE(STATUS "SEMS cfg prefix was set to: ${SEMS_CFG_PREFIX}")
 
