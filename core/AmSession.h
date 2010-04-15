@@ -111,7 +111,9 @@ private:
   friend class AmMediaProcessorThread;
   friend class AmSessionContainer;
   friend class AmSessionFactory;
-	
+
+  auto_ptr<AmRtpAudio> _rtp_str;
+  
 protected:
   AmSdp               sdp;
 
@@ -126,7 +128,7 @@ protected:
 
 public:
 
-  AmRtpAudio          rtp_str;
+  AmRtpAudio* RTPStream();
 
 #ifdef WITH_ZRTP
   zrtp_conn_ctx_t*    zrtp_session; // ZRTP session
@@ -253,10 +255,10 @@ public:
   void clearAudio();
 
   /** setter for rtp_str->mute */
-  void setMute(bool mute) { rtp_str.mute = mute; }
+  void setMute(bool mute) { RTPStream()->mute = mute; }
 
   /** setter for rtp_str->receiving */
-  void setReceiving(bool receive) { rtp_str.receiving = receive; }
+  void setReceiving(bool receive) { RTPStream()->receiving = receive; }
 
   /** Gets the Session's call ID */
   const string& getCallID() const;
@@ -476,6 +478,15 @@ public:
   // The IP address to put as c= in SDP bodies and to use for Contact:.
   string advertisedIP();
 };
+
+inline AmRtpAudio* AmSession::RTPStream() {
+  if (NULL == _rtp_str.get()) {
+    DBG("creating RTP stream instance for session [%p]\n", 
+	this);
+    _rtp_str.reset(new AmRtpAudio(this));
+  }
+  return _rtp_str.get();
+}
 
 #endif
 
