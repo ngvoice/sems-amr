@@ -5,10 +5,7 @@ CtrlServer.cpp
 )
 
 ADD_SUBDIRECTORY (libbinrpc)
-
 INCLUDE_DIRECTORIES (libbinrpc/include)
-
-SET_PROPERTY(TARGET libbinrpc PROPERTY IMPORTED_LOCATION ./libbinrpc/src/binrpcctrl.a)
 
 SET(sems_module_name binrpcctrl)
 SET(sems_module_libs libbinrpc)

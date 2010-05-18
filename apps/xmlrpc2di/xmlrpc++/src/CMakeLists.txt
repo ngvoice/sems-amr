@@ -19,4 +19,5 @@ XmlRpcValue.cpp
 # Solaris: -lsocket -lnsl
 
 ADD_LIBRARY(xmlrpcpp STATIC ${xmlrpcpp_SRCS})
+ADD_CUSTOM_COMMAND(TARGET xmlrpcpp POST_BUILD COMMAND cp ARGS libxmlrpcpp.a liblibxmlrpcpp.a)
 

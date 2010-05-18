@@ -25,4 +25,5 @@ syntFilter.c
 )
 
 ADD_LIBRARY(libilbc STATIC ${ilbc_SRCS})
+ADD_CUSTOM_COMMAND(TARGET libilbc POST_BUILD COMMAND cp ARGS liblibilbc.a libliblibilbc.a)
 

@@ -18,4 +18,5 @@ sippy_sems_libstring.cpp
 
 EXECUTE_PROCESS(COMMAND python configure.py WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 ADD_LIBRARY(sip STATIC ${sip_SRCS})
+ADD_CUSTOM_COMMAND(TARGET sip POST_BUILD COMMAND cp ARGS libsip.a liblibsip.a)
 

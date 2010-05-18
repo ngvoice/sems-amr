@@ -9,4 +9,5 @@ IF(OPENSSL_FOUND)
 ENDIF(OPENSSL_FOUND)
 
 ADD_LIBRARY(libdbase STATIC ${libdbase_SRCS})
+ADD_CUSTOM_COMMAND(TARGET libdbase POST_BUILD COMMAND cp ARGS liblibdbase.a libliblibdbase.a)
 
