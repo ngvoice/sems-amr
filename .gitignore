@@ -1,0 +1,10 @@
+*.d
+*.o
+*.so
+*.pyc
+*.a
+core/compat/getarch
+core/compat/getos
+core/plug-in/stats/sems-stats
+*~
+core/sems
