@@ -7,16 +7,12 @@ GIT = $(shell which git)
 SVNVERSION = $(shell which svnversion)
 
 ifneq ($(GIT),)
-   SCM_REV=$(shell if git --help describe |grep dirty 2>&1 >/dev/null ; then git describe --always --dirty 2>/dev/null; else git describe --always 2>/dev/null; fi) 
+   SCM_REV=$(shell if git --help describe |grep dirty 2>&1 >/dev/null ; then git describe --always --dirty 2>/dev/null; else git describe --always 2>/dev/null;fi)
 endif
 ifeq ($(SCM_REV),)
 ifneq ($(SVNVERSION),)
    SCM_REV=r$(shell svnversion -n .)
 endif
-endif
-
-ifeq ($(SCM_REV),)
-    SCM_REV=exported
 endif
 
 #version number
