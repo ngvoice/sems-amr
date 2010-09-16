@@ -155,7 +155,8 @@ bool UACAuth::onSipReply(const AmSipReply& reply)
 	    //	 		    stripHeader(ri->second.hdrs, "Proxy-Authorization"));
 	    hdrs += result;
 
-	    if (dlg->getStatus() < AmSipDialog::Connected) {
+	    if ((dlg->getStatus() < AmSipDialog::Connected) &&
+		(ri->second.method != "BYE")) {
 	      // reset remote tag so remote party 
 	      // thinks its new dlg
 	      dlg->remote_tag = "";
