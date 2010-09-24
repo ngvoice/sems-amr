@@ -10,8 +10,7 @@ TTS ?= y
 PYTHON_DYNLOAD_MODULES = $(wildcard $(PYTHON_LIBDIR)/lib-dynload/*.so) \
 	$(wildcard $(PYTHON_LIBDIR)/site-packages/*.so)
 PYTHON_module_cflags = -Wno-write-strings -fno-strict-aliasing -I$(PYTHON_DIR) -Isip/
-PYTHON_module_ldflags = -Xlinker --export-dynamic \
-			-L$(PYTHON_LIBDIR)/config \
+PYTHON_module_ldflags = -L$(PYTHON_LIBDIR)/config \
 			-lpython$(PY_VER) 
 
 #\
@@ -40,6 +39,12 @@ module_cflags  = \
 	$(PYTHON_module_cflags) \
 	$(PY_SEMS_TTS_module_cflags) \
 	$(module_additional_cflags)
+
+ifneq ($(OS),darwin)
+ifneq ($(OS),solaris)
+PYTHON_module_ldflags += -Xlinker --export-dynamic
+endif
+endif
 
 module_extra_objs = sip/py_sems_lib.a
 extra_target  = sip/py_sems_lib.a python_files

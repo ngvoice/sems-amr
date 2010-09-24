@@ -15,10 +15,6 @@ PYTHON_module_cflags = -I$(PYTHON_DIR) -fno-strict-aliasing -Wno-write-strings
 PYTHON_module_ldflags = -L$(PYTHON_LIBDIR)/config \
 			-lpython$(PY_VER)
 
-#PYTHON_module_ldflags = -Xlinker --export-dynamic \
-#			-L$(PYTHON_LIBDIR)/config \
-#			-lpython$(PY_VER)
-
 
 
 ifeq ($(TTS), y)
@@ -88,7 +84,9 @@ endif
 include $(COREPATH)/plug-in/Makefile.app_module
 
 ifneq ($(OS),darwin)
+ifneq ($(OS),solaris)
 PYTHON_module_ldflags += -Xlinker --export-dynamic
+endif
 endif
 
 .PHONY: install_python_files
