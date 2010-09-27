@@ -140,7 +140,7 @@ plugin_path=${SEMS_EXEC_PREFIX}/${SEMS_LIBDIR}/sems/plug-in/
 #
 # o binrpcctrl and unixsockctrl: excluded as sipctrl is default ctrl
 # o precoded_announce: no precoded sample files present
-exclude_plugins=binrpcctrl;unixsockctrl;precoded_announce
+exclude_plugins=binrpcctrl;unixsockctrl;precoded_announce;sw_prepaid_sip
 
 # optional parameter: application
 # 
