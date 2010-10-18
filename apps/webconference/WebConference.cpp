@@ -71,6 +71,8 @@ int WebConferenceFactory::RoomExpiredDelay;
 int WebConferenceFactory::RoomSweepInterval;
 bool WebConferenceFactory::ignore_pin = false;
 
+bool WebConferenceFactory::PrivateRoomsMode = false;
+
 int WebConferenceFactory::onLoad()
 {
   return getInstance()->load();
@@ -97,6 +99,7 @@ int WebConferenceFactory::load()
   AM_PROMPT_ADD(DROP_SOUND,        WEBCONF_ANNOUNCE_PATH "beep.wav");
   AM_PROMPT_ADD(ENTER_PIN,         WEBCONF_ANNOUNCE_PATH "enter_pin.wav");
   AM_PROMPT_ADD(WRONG_PIN,         WEBCONF_ANNOUNCE_PATH "wrong_pin.wav");
+  AM_PROMPT_ADD(WRONG_PIN_BYE,     WEBCONF_ANNOUNCE_PATH "wrong_pin_bye.wav");
   AM_PROMPT_ADD(ENTERING_CONFERENCE, WEBCONF_ANNOUNCE_PATH "entering_conference.wav");
   AM_PROMPT_END(prompts, cfg, APP_NAME);
 
@@ -209,15 +212,39 @@ int WebConferenceFactory::load()
     }
   }
 
+  if (cfg.getParameter("private_rooms") == "yes") 
+    PrivateRoomsMode = true;
+  DBG("Private rooms mode %sabled.\n", PrivateRoomsMode ? "en":"dis");
+
+  if (cfg.getParameter("support_rooms_timeout") == "yes") {
+    cleaner = new WebConferenceCleaner(this);
+    cleaner->start();
+  }
+
   return 0;
 }
 
-void WebConferenceFactory::newParticipant(const string& conf_id, 
+bool WebConferenceFactory::isValidConference(const string& conf_id) {
+  if (!PrivateRoomsMode)
+    return true;
+  rooms_mut.lock();
+  bool res = rooms.find(conf_id) != rooms.end();
+  rooms_mut.unlock();
+  return res;
+}
+
+bool WebConferenceFactory::newParticipant(const string& conf_id, 
 					  const string& localtag, 
 					  const string& number) {
   rooms_mut.lock();
+  if (PrivateRoomsMode && rooms.find(conf_id) == rooms.end()) {
+    rooms_mut.unlock();
+    return false;
+  }
+
   rooms[conf_id].newParticipant(localtag, number);
   rooms_mut.unlock();
+  return true;
 }
 
 void WebConferenceFactory::updateStatus(const string& conf_id, 
@@ -225,7 +252,9 @@ void WebConferenceFactory::updateStatus(const string& conf_id,
 					ConferenceRoomParticipant::ParticipantStatus status,
 					const string& reason) {
   rooms_mut.lock();
-  rooms[conf_id].updateStatus(localtag, status, reason);
+  if (!PrivateRoomsMode || rooms.find(conf_id) != rooms.end()) {
+    rooms[conf_id].updateStatus(localtag, status, reason);
+  }
   rooms_mut.unlock();
 }
 
@@ -240,16 +269,21 @@ string WebConferenceFactory::getAdminpin(const string& room) {
 }
 
 ConferenceRoom* WebConferenceFactory::getRoom(const string& room, 
-					      const string& adminpin) {
+					      const string& adminpin,
+					      bool ignore_adminpin = false) {
   ConferenceRoom* res = NULL;
   map<string, ConferenceRoom>::iterator it = rooms.find(room);
   if (it == rooms.end()) {
+    if (PrivateRoomsMode)
+      return NULL;
+
     // (re)open room
     rooms[room] = ConferenceRoom();
     rooms[room].adminpin = adminpin;   
     res = &rooms[room];
   } else {
     if ((!ignore_pin) &&
+	(!ignore_adminpin) && 
 	(!it->second.adminpin.empty()) && 
 	(it->second.adminpin != adminpin)) {
       // wrong pin
@@ -340,13 +374,17 @@ void WebConferenceFactory::invoke(const string& method,
 {
   
 
-  if(method == "roomCreate"){
+  if (method == "roomCreate"){
     args.assertArrayFmt("s");
     roomCreate(args, ret);
     ret.push(getServerInfoString().c_str());
   } else if(method == "roomInfo"){
     args.assertArrayFmt("ss");
     roomInfo(args, ret);
+    ret.push(getServerInfoString().c_str());
+  } else if(method == "roomDelete"){
+    args.assertArrayFmt("ss");
+    roomDelete(args, ret);
     ret.push(getServerInfoString().c_str());
   } else if(method == "dialout"){
     args.assertArrayFmt("sssssss");
@@ -402,6 +440,7 @@ void WebConferenceFactory::invoke(const string& method,
     ret.push(getServerInfoString().c_str());    
   } else if(method == "_list"){
     ret.push("roomCreate");
+    ret.push("roomDelete");
     ret.push("roomInfo");
     ret.push("dialout");
     ret.push("mute");
@@ -460,6 +499,13 @@ void WebConferenceFactory::sweepRooms() {
 
 void WebConferenceFactory::roomCreate(const AmArg& args, AmArg& ret) {
   string room = args.get(0).asCStr();
+  time_t expiry_time = 0;
+  if (args.size() > 1 && (args.get(1).asInt() > 0)) {
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    expiry_time = now.tv_sec + args.get(1).asInt();
+  }
+
   rooms_mut.lock();
   
   // sweep rooms (if necessary)
@@ -469,6 +515,7 @@ void WebConferenceFactory::roomCreate(const AmArg& args, AmArg& ret) {
   if (it == rooms.end()) {
     rooms[room] = ConferenceRoom();
     rooms[room].adminpin = getRandomPin();
+    rooms[room].expiry_time = expiry_time;
     ret.push(0);
     ret.push("OK");
     ret.push(rooms[room].adminpin.c_str());
@@ -491,21 +538,76 @@ void WebConferenceFactory::roomInfo(const AmArg& args, AmArg& ret) {
   string room = args.get(0).asCStr();
   string adminpin = args.get(1).asCStr();
 
-   rooms_mut.lock();
-   ConferenceRoom* r = getRoom(room, adminpin);
-   if (NULL == r) {
+  rooms_mut.lock();
+  ConferenceRoom* r = getRoom(room, adminpin);
+  if (NULL == r) {
     ret.push(1);
-    ret.push("wrong adminpin");
+    ret.push("wrong adminpin or inexisting room");
     // for consistency, add an empty array
     AmArg a;
     a.assertArray(0);
     ret.push(a);
-   } else {
-     ret.push(0);
-     ret.push("OK");
-     ret.push(r->asArgArray());
-   }
-   rooms_mut.unlock();
+  } else {
+    ret.push(0);
+    ret.push("OK");
+    ret.push(r->asArgArray());
+  }
+  rooms_mut.unlock();
+}
+
+void WebConferenceFactory::roomDelete(const string& room, const string& adminpin,
+				      AmArg& ret, bool ignore_adminpin = false) {
+  rooms_mut.lock();
+
+  map<string, ConferenceRoom>::iterator it = rooms.find(room);
+  if (it == rooms.end()) {
+    rooms_mut.unlock();
+    ret.push(2);
+    ret.push("room does not exist\n");
+    return;
+  }
+
+  rooms_mut.unlock();   
+
+  postAllConfEvent(room, adminpin, ret, 
+		   WebConferenceEvent::Kick, ignore_adminpin);
+
+  if (ret.get(0).asInt()==0) {
+    DBG("erasing room '%s'\n", room.c_str());
+    rooms_mut.lock();
+    rooms.erase(room);
+    rooms_mut.unlock();
+  }
+}
+
+void WebConferenceFactory::roomDelete(const AmArg& args, AmArg& ret) {
+  rooms_mut.lock();
+  string room        = args.get(0).asCStr();
+  string adminpin    = args.get(1).asCStr();
+
+  roomDelete(room, adminpin, ret);
+}
+
+void WebConferenceFactory::closeExpiredRooms() {
+  struct timeval now;
+  gettimeofday(&now, NULL);
+
+  vector<string> expired_rooms;
+
+  rooms_mut.lock();
+  for (map<string, ConferenceRoom>::iterator it = 
+	 rooms.begin(); it !=rooms.end(); it++) {
+    if (it->second.hard_expired(now))
+      expired_rooms.push_back(it->first);
+  }
+  rooms_mut.unlock();
+
+  for (vector<string>::iterator it=
+	 expired_rooms.begin(); it != expired_rooms.end(); it++) {
+    DBG("deleting expired room '%s'\n", it->c_str());
+    AmArg ret;
+    roomDelete(*it, "", ret, true);
+  }
 }
 
 void WebConferenceFactory::dialout(const AmArg& args, AmArg& ret) {
@@ -555,11 +657,12 @@ void WebConferenceFactory::dialout(const AmArg& args, AmArg& ret) {
   // sweep rooms (if necessary)
   sweepRooms();
 
-  ConferenceRoom* r = getRoom(room, adminpin);
+  bool is_valid_room = getRoom(room, adminpin) != NULL;
   rooms_mut.unlock();
-  if (NULL == r) {
+
+  if (!is_valid_room) {
       ret.push(1);
-      ret.push("wrong adminpin");
+      ret.push("wrong adminpin or inexisting room");
       ret.push("");
       return;
   }
@@ -592,6 +695,29 @@ void WebConferenceFactory::dialout(const AmArg& args, AmArg& ret) {
   }
 }
 
+void WebConferenceFactory::postAllConfEvent(const string& room, const string& adminpin, 
+					    AmArg& ret, int id, bool ignore_adminpin = false) {
+  vector<string> ltags;
+  rooms_mut.lock(); {
+    ConferenceRoom* r = getRoom(room, adminpin, ignore_adminpin);
+    if (NULL == r) {
+      rooms_mut.unlock();  
+      return;
+    }
+    
+    ltags = r->participantLtags();
+  } rooms_mut.unlock();
+
+  for (vector<string>::iterator it = 
+	 ltags.begin(); it != ltags.end(); it++) {
+    AmSessionContainer::instance()->postEvent(*it,
+					      new WebConferenceEvent(id));
+  }
+
+  ret.push(0);
+  ret.push("OK");
+}
+
 void WebConferenceFactory::postConfEvent(const AmArg& args, AmArg& ret,
 					 int id, int mute) {
   string room        = args.get(0).asCStr();
@@ -603,16 +729,15 @@ void WebConferenceFactory::postConfEvent(const AmArg& args, AmArg& ret,
   rooms_mut.lock();
   ConferenceRoom* r = getRoom(room, adminpin);
   if (NULL == r) {
-      ret.push(1);
-      ret.push("wrong adminpin");
-      rooms_mut.unlock();  
-      return;
+    ret.push(1);
+    ret.push("wrong adminpin or inexisting room");
+    rooms_mut.unlock();  
+    return;
   } 
   bool p_exists = r->hasParticipant(call_tag);  
   if (p_exists && (mute >= 0))
     r->setMuted(call_tag, mute);
-
-  rooms_mut.unlock();  
+  rooms_mut.unlock();
 
   if (p_exists) {
     AmSessionContainer::instance()->postEvent(call_tag, 
@@ -649,7 +774,7 @@ void WebConferenceFactory::getRoomPassword(const AmArg& args, AmArg& ret) {
   if ((!MasterPassword.length()) || 
       pwd != MasterPassword) {
     ret.push(403);
-    ret.push("Wrong Master Password.\n");
+    ret.push("Wrong Master Password.");
     return;
   }
   int res_code = 404;
@@ -675,7 +800,7 @@ void WebConferenceFactory::changeRoomAdminpin(const AmArg& args, AmArg& ret) {
   ConferenceRoom* r = getRoom(room, adminpin);
   if (NULL == r) {
     ret.push(1);
-    ret.push("wrong adminpin");
+    ret.push("wrong adminpin or inexisting room");
   } else {
     r->adminpin = new_adminpin;
     ret.push(0);
@@ -692,13 +817,14 @@ void WebConferenceFactory::listRooms(const AmArg& args, AmArg& ret) {
       pwd != MasterPassword) {
     ret.push(407);
     AmArg res;
-    res.push("Wrong Master Password.\n");
+    res.push("Wrong Master Password.");
     ret.push(res);
     return;
   }
 
   AmArg room_list;
-  
+  room_list.assertArray();
+
   rooms_mut.lock();
   for (map<string, ConferenceRoom>::iterator it = 
 	 rooms.begin(); it != rooms.end(); it++) {
@@ -790,3 +916,14 @@ void WebConferenceFactory::callStats(bool success, unsigned int connect_t) {
   }
 }
 
+void WebConferenceCleaner::on_stop() {
+  is_stopped.set(true);
+}
+
+void WebConferenceCleaner::run(){
+  sleep(1);
+  while (!is_stopped.get()) {
+    factory->closeExpiredRooms();
+    sleep(1);
+  }
+}
