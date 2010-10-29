@@ -1,0 +1,78 @@
+CallCenter Module
+
+This is an example of using AmB2BForkSession classes.
+
+NOTE: In this version AmB2BForkSession PROXYING RTP traffic!
+
+
+Module takes information about ring groups from SQL DB (mysqlpp should be installed for compilation)
+
+Table 1:
+ring_groups (information about ring groups)
+CREATE TABLE `ring_groups` (
+    `id` int(11) NOT NULL auto_increment,
+    `caption` varchar(64) default NULL,
+    `fork_type` tinyint(4) NOT NULL,
+    `reinvite_after` tinyint(4) unsigned NOT NULL,
+    `service_header` varchar(128) default NULL,
+    `requeue_after` tinyint(4) NOT NULL,
+    `busy_check` tinyint(4) NOT NULL,
+    PRIMARY KEY  (`id`),
+    UNIQUE KEY `id` (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+Fields description:
+fork_type 0|1 : 0 is parallel forking, 1 is serial forking
+reinvite_after : if callee inviting was failed this parameter indicates delay before next invite in seconds.
+service_header (example: P-Service-Type: callcenter) : since SIP routers have ability to handle failure requests
+		we should indicate that failure response on our request should be processed to SEMS without handling
+		(otherwise we will connect to voicemail, for example)
+		So, you can just add in your failure block detection of this line.
+		For example (openSIPS):
+		
+		# on INVITE REQUEST
+		if (is_present_hf("P-Service-Type"))
+		{
+		    xlog("*** ROUTE: CALLCENTER!\n");
+		    $avp(i:99) = 1;
+		}
+		
+		# in failure_route
+		if ( (t_check_status("480|408|486")) && ($avp(i:99) == 0) )
+		{
+		    ...
+		}
+requeue_after : doesn't used in this version
+busy_check : callcenter module will check every 'busy_check' seconds presentity of an established session and plays wav file
+		AmB2BForkCallerSession::setBusyTimer(busy_check)
+		AmB2BForkCallerSession::onBusyTimer()
+		
+		
+Table 2:
+ring_users (information about callees)
+CREATE TABLE `ring_users` (
+    `id` int(11) NOT NULL auto_increment,
+    `group_id` int(11) NOT NULL,
+    `remote_uri` varchar(64) NOT NULL,
+    `remote_party` varchar(64) NOT NULL,
+	PRIMARY KEY  (`id`),
+	UNIQUE KEY `id` (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+
+
+Module's configuration parameters:
+
+# Database settings
+db_url=127.0.0.1
+db_user=user
+db_password=password
+db_name=voip
+
+# Audio Path
+audio_base_dir=/usr/local/lib/sems/audio/callcenter/
+Module will play waiting file (audio_base_dir/group_id/waiting.wav) while calling is in progress. While calling is in progress every 'busy_check'
+seconds AmB2BForkCallerSession::onBusyTimer() is calling and callcenter module pauses waiting file, plays all_busy file (audio_base_dir/group_id/all_busy.wav),
+and continue playing waiting file.
+
+You can make statistics using AmB2BForkCallerSession::onCallStarted(..), AmB2BForkCallerSession::onCallFailed(..) and AmB2BForkSession::onCalleeRinging(..)
