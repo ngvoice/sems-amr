@@ -25,3 +25,7 @@ SET(sems_module_name voicemail)
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/module.rules.txt)
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/audio.rules.txt)
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/config.rules.txt)
+
+INSTALL(
+	FILES ./default.template  DESTINATION ${SEMS_CFG_PREFIX}/etc/sems/
+)
