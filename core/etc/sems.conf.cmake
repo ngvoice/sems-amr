@@ -162,7 +162,7 @@ plugin_path=${SEMS_EXEC_PREFIX}/${SEMS_LIBDIR}/sems/plug-in/
 # This has only effect it load_plugins is not set.
 #
 # o precoded_announce: no precoded sample files present
-exclude_plugins=binrpcctrl;unixsockctrl;precoded_announce;sw_prepaid_sip
+exclude_plugins=binrpcctrl;unixsockctrl;precoded_announce;sw_prepaid_sip;py_sems
 
 # optional parameter: application
 # 
