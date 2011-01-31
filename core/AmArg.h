@@ -255,6 +255,7 @@ class AmArg
   ArgObject*  asObject() const { return v_obj; }
   AmDynInvoke* asDynInv() const { return v_inv; }
   ArgBlob*    asBlob()   const { return v_blob; }
+  ValueStruct* asStruct() const { return v_struct; }
 
   vector<string>     asStringVector()    const; 
   vector<int>        asIntVector()       const; 
@@ -335,6 +336,9 @@ class AmArg
 
   const char* t2str(int type);
 };
+
+// equality
+bool operator==(const AmArg& lhs, const AmArg& rhs);
 
 #endif
 
