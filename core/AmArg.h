@@ -209,12 +209,18 @@ class AmArg
 #define isArgADynInv(a) (AmArg::ADynInv == a.getType())
 #define isArgBlob(a) (AmArg::Blob == a.getType())
 
+#define _THROW_TYPE_MISMATCH(exp,got) \
+	do { \
+		ERROR("type mismatch: expected: %d; received: %d.", AmArg::exp, got.getType()); \
+		throw AmArg::TypeMismatchException(); \
+	} while (0) 
+
 #define assertArgArray(a)			\
   if (!isArgArray(a))				\
-    throw AmArg::TypeMismatchException();
+	_THROW_TYPE_MISMATCH(Array,a);
 #define assertArgDouble(a)			\
   if (!isArgDouble(a))				\
-    throw AmArg::TypeMismatchException();
+	_THROW_TYPE_MISMATCH(Double,a);
 #define assertArgInt(a)				\
   if (!isArgInt(a))				\
 	_THROW_TYPE_MISMATCH(Int,a);
@@ -223,7 +229,7 @@ class AmArg
 	_THROW_TYPE_MISMATCH(Bool,a);
 #define assertArgCStr(a)			\
   if (!isArgCStr(a))				\
-    throw AmArg::TypeMismatchException();
+	_THROW_TYPE_MISMATCH(CStr,a);
 #define assertArgAObject(a)			\
   if (!isArgAObject(a))				\
 	_THROW_TYPE_MISMATCH(AObject,a);
@@ -232,10 +238,10 @@ class AmArg
 	_THROW_TYPE_MISMATCH(ADynInv,a);
 #define assertArgBlob(a)			\
   if (!isArgBlob(a))				\
-    throw AmArg::TypeMismatchException();
+	_THROW_TYPE_MISMATCH(Blob,a);
 #define assertArgStruct(a)			\
   if (!isArgStruct(a))				\
-    throw AmArg::TypeMismatchException();
+	_THROW_TYPE_MISMATCH(Struct,a);
 
   void setBorrowedPointer(ArgObject* v) {
     type = AObject;
@@ -321,6 +327,7 @@ class AmArg
   void assertArrayFmt(const char* format) const;
 
   void clear();
+  friend bool operator==(const AmArg& lhs, const AmArg& rhs);
 
   friend bool json2arg(std::istream& input, AmArg& res);
 

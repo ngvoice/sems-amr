@@ -348,11 +348,6 @@ void AmArg::erase(const std::string& name) {
   v_struct->erase(name);
 }
 
-void AmArg::erase(const std::string& name) {
-  assertStruct();
-  v_struct->erase(name);
-}
-
 void AmArg::assertArrayFmt(const char* format) const {
   size_t fmt_len = strlen(format);
   string got;

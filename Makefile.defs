@@ -37,6 +37,7 @@ CPPFLAGS += -D_DEBUG \
 #         -DMAX_RTP_SESSIONS=8192 \
 #         -DOpenSER \
 #	  -DSUPPORT_IPV6 \
+#	  -DNO_THREADID_LOG \
 
 # compile with wideband (16khz) support? 
 #
