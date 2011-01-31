@@ -279,6 +279,8 @@ class AmArg
   void assertArrayFmt(const char* format) const;
 
   void clear();
+
+  static string print(const AmArg &a);
 };
 
 #endif
