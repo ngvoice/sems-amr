@@ -73,4 +73,6 @@
 #define CODEC_CELT44_2 24
 #define CODEC_CELT48_2 25
 
+#define CODEC_SPEEX_WB 26
+
 #endif
