@@ -114,6 +114,22 @@ void WebConferenceDialog::connectConference(const string& room) {
 void WebConferenceDialog::onSessionStart(const AmSipRequest& req) { 
   time(&connect_ts);
 
+  if (WebConferenceFactory::participant_id_paramname.length()) {
+    string appparams = getHeader(req.hdrs, PARAM_HDR);
+    if (appparams.length()) {
+      participant_id = get_header_param(appparams,
+					WebConferenceFactory::participant_id_paramname);
+    }
+  } else if (WebConferenceFactory::participant_id_hdr.length()) {
+    participant_id = getHeader(req.hdrs, WebConferenceFactory::participant_id_hdr);
+  }
+
+  if (participant_id.empty()) {
+    DBG("no Participant ID set\n");
+  } else {
+    DBG("Participant ID set to '%s'\n", participant_id.c_str());
+  }
+
   // direct room access?
   if (conf_id.empty()) {
     state = EnteringPin;
@@ -124,7 +140,8 @@ void WebConferenceDialog::onSessionStart(const AmSipRequest& req) {
     DBG("########## direct connect conference #########\n");
     if (!factory->newParticipant(conf_id, 
 				 getLocalTag(), 
-				 dlg.remote_party)) {
+				 dlg.remote_party,
+				 participant_id)) {
       DBG("inexisting conference room\n");
       state = PlayErrorFinish;
       setInOut(&play_list,&play_list);
@@ -272,7 +289,8 @@ void WebConferenceDialog::process(AmEvent* ev)
 
       if (!factory->newParticipant(pin_str, 
 				   getLocalTag(), 
-				   dlg.remote_party)) {
+				   dlg.remote_party,
+				   participant_id)) {
 	DBG("inexisting conference room\n");
 	state = PlayErrorFinish;
 	setInOut(&play_list,&play_list);
