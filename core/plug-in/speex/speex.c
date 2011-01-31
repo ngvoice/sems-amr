@@ -354,6 +354,7 @@ static unsigned int speexNB_bytes2samples(long h_codec, unsigned int num_bytes) 
     return 0;
 
   if (ss->is_wb) {
+    /* don't really care about the result here */
     return SPEEX_WB_SAMPLES_PER_FRAME * num_bytes / WB_BYTES_PER_FRAME;
   } else {
     return SPEEX_NB_SAMPLES_PER_FRAME * num_bytes / BYTES_PER_FRAME;
