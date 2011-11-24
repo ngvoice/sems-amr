@@ -5,4 +5,4 @@
 #
 # default: /var/spool/voicebox/
 #
-#storage_dir=/var/spool/voicebox/
+storage_dir=/var/spool/sems/voicebox/
