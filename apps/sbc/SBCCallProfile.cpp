@@ -33,6 +33,10 @@
 #include "AmConfig.h"
 
 #include "ampi/SBCCallControlAPI.h"
+#include "RTPParameters.h"
+
+typedef vector<SdpPayload>::iterator PayloadIterator;
+static string payload2str(SdpPayload &p);
 
 bool SBCCallProfile::readFromConfiguration(const string& name,
 					   const string profile_file_name) {
@@ -302,6 +306,13 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
     sdpfilter_enabled = true;
     sdpfilter = Transparent;
   }
+  
+  if (!read(cfg.getParameter("transcoder_audio_codecs"), transcoder_audio_codecs)) 
+    return false;
+  if (transcoder_audio_codecs.size() && (!sdpfilter_enabled)) {
+    sdpfilter_enabled = true;
+    sdpfilter = Transparent;
+  }
 
   md5hash = "<unknown>";
   if (!cfg.getMD5(profile_file_name, md5hash)){
@@ -429,6 +440,12 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
     INFO("SBC:         - %s\n", i->print().c_str());
   }
 
+  if (transcoder_audio_codecs.size() > 0) {
+    INFO("SBC:      transcode audio:\n");
+    for (PayloadIterator i = transcoder_audio_codecs.begin(); i != transcoder_audio_codecs.end(); ++i)
+      INFO("SBC:         - %s\n", payload2str(*i).c_str());
+  }
+
   return true;
 }
 
@@ -491,6 +508,7 @@ bool SBCCallProfile::operator==(const SBCCallProfile& rhs) const {
       auth_aleg_credentials.pwd == rhs.auth_aleg_credentials.pwd;
   }
   res = res && payloadDescsEqual(payload_order, rhs.payload_order);
+  // TODO: transcoder_audio_codecs
   return res;
 }
 
@@ -541,6 +559,7 @@ string SBCCallProfile::print() const {
     res += i->print();
   }
   res += "\n";
+  // TODO: transcoder_audio_codecs
 
 
   if (reply_translations.size()) {
@@ -734,6 +753,49 @@ bool SBCCallProfile::readPayloadOrder(const std::string &src)
     PayloadDesc payload;
     if (!payload.read(*it)) return false;
     payload_order.push_back(payload);
+  }
+  return true;
+}
+
+static bool readPayload(SdpPayload &p, const string &src)
+{
+  vector<string> elems = explode(src, "/");
+
+  if (elems.size() < 1) return false;
+
+  if (elems.size() > 2) str2int(elems[1], p.encoding_param);
+  if (elems.size() > 1) str2int(elems[1], p.clock_rate);
+  else p.clock_rate = 8000; // default value
+  p.encoding_name = elems[0];
+  
+  // fix static payload type numbers
+  // (http://www.iana.org/assignments/rtp-parameters/rtp-parameters.xml)
+  for (int i = 0; i < IANA_RTP_PAYLOADS_SIZE; i++) {
+    if (p.encoding_name == IANA_RTP_PAYLOADS[i].payload_name && 
+        (unsigned)p.clock_rate == IANA_RTP_PAYLOADS[i].clock_rate && 
+        (p.encoding_param == -1 || ((unsigned)p.encoding_param == IANA_RTP_PAYLOADS[i].channels))) 
+      p.payload_type = i;
+  }
+
+  return true;
+}
+
+static string payload2str(SdpPayload &p)
+{
+  string s(p.encoding_name);
+  s += "/";
+  s += p.clock_rate;
+  return s;
+}
+
+bool SBCCallProfile::read(const std::string &src, vector<SdpPayload> &codecs)
+{
+  vector<string> elems = explode(src, ",");
+
+  for (vector<string>::iterator it=elems.begin(); it != elems.end(); ++it) {
+    SdpPayload p;
+    if (!readPayload(p, *it)) return false;
+    codecs.push_back(p);
   }
   return true;
 }

@@ -38,6 +38,8 @@ using std::string;
 int filterSDP(AmSdp& sdp, FilterType sdpfilter, const std::set<string>& sdpfilter_list);
 int filterSDPalines(AmSdp& sdp, FilterType sdpalinesfilter, const std::set<string>& sdpalinesfilter_list);
 
+int appendTranscoderCodecs(AmSdp& sdp, const std::vector<SdpPayload>& audio);
+
 /** normalize SDP, fixing some common issues */
 int normalizeSDP(AmSdp& sdp, bool anonymize_sdp);
 

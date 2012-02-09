@@ -148,6 +148,8 @@ struct SBCCallProfile
   string outbound_interface;
   int outbound_interface_value;
 
+  std::vector<SdpPayload> transcoder_audio_codecs;
+
   std::vector<PayloadDesc> payload_order;
   bool readPayloadOrder(const std::string &src);
   void orderSDP(AmSdp& sdp); // do the SDP changes
@@ -186,6 +188,7 @@ struct SBCCallProfile
       AmUriParser& ruri_parser, AmUriParser& from_parser,
       AmUriParser& to_parser);
 
+  bool read(const std::string &src, vector<SdpPayload> &codecs);
 };
 
 #endif // _SBCCallProfile_h

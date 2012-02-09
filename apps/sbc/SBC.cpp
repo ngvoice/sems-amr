@@ -882,6 +882,7 @@ int SBCDialog::filterBody(AmSdp& sdp, bool is_a2b) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
     call_profile.orderSDP(sdp);
+    appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
   }
   if (call_profile.sdpalinesfilter_enabled) {
     // filter SDP "a=lines"
@@ -1570,6 +1571,7 @@ int SBCCalleeSession::filterBody(AmSdp& sdp, bool is_a2b) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
     call_profile.orderSDP(sdp);
+    appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
   }
   if (call_profile.sdpalinesfilter_enabled) {
     // filter SDP "a=lines"
