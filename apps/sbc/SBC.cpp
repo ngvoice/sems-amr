@@ -836,8 +836,7 @@ void SBCDialog::process(AmEvent* ev)
 }
 
 int SBCDialog::relayEvent(AmEvent* ev) {
-  if ((call_profile.headerfilter != Transparent) &&
-      (ev->event_id == B2BSipRequest)) {
+  if (isActiveFilter(call_profile.headerfilter) && (ev->event_id == B2BSipRequest)) {
     // header filter
     B2BSipRequestEvent* req_ev = dynamic_cast<B2BSipRequestEvent*>(ev);
     assert(req_ev);
@@ -845,12 +844,12 @@ int SBCDialog::relayEvent(AmEvent* ev) {
 			call_profile.headerfilter_list, call_profile.headerfilter);
   } else {
     if (ev->event_id == B2BSipReply) {
-      if ((call_profile.headerfilter != Transparent) ||
-	  (call_profile.reply_translations.size())) {
+      if (isActiveFilter(call_profile.headerfilter) ||
+	  call_profile.reply_translations.size()) {
 	B2BSipReplyEvent* reply_ev = dynamic_cast<B2BSipReplyEvent*>(ev);
 	assert(reply_ev);
 	// header filter
-	if (call_profile.headerfilter != Transparent) {
+	if (isActiveFilter(call_profile.headerfilter)) {
 	  inplaceHeaderFilter(reply_ev->reply.hdrs,
 			      call_profile.headerfilter_list,
 			      call_profile.headerfilter);
@@ -878,7 +877,7 @@ int SBCDialog::filterBody(AmSdp& sdp, bool is_a2b) {
     // normalize SDP
     normalizeSDP(sdp, call_profile.anonymize_sdp);
     // filter SDP
-    if (call_profile.sdpfilter != Transparent) {
+    if (isActiveFilter(call_profile.sdpfilter)) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
     call_profile.orderSDP(sdp);
@@ -886,7 +885,7 @@ int SBCDialog::filterBody(AmSdp& sdp, bool is_a2b) {
   }
   if (call_profile.sdpalinesfilter_enabled) {
     // filter SDP "a=lines"
-    if (call_profile.sdpalinesfilter != Transparent) {
+    if (isActiveFilter(call_profile.sdpalinesfilter)) {
       filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
     }
   }
@@ -905,7 +904,7 @@ void SBCDialog::onSipRequest(const AmSipRequest& req) {
       CALL_EVENT_H(onSipRequest,req);
   }
 
-  if (fwd && call_profile.messagefilter != Transparent) {
+  if (fwd && isActiveFilter(call_profile.messagefilter)) {
     bool is_filtered = (call_profile.messagefilter == Whitelist) ^ 
       (call_profile.messagefilter_list.find(req.method) != 
        call_profile.messagefilter_list.end());
@@ -1225,7 +1224,6 @@ bool SBCDialog::CCStart(const AmSipRequest& req) {
 	  saveCallTimer(cc_timer_id, timeout);
 	  cc_timer_id++;
 	} break;
-
 	default: {
 	  ERROR("unknown call control action: '%s'\n", AmArg::print(ret[i]).c_str());
 	  continue;
@@ -1460,8 +1458,7 @@ inline UACAuthCred* SBCCalleeSession::getCredentials() {
 }
 
 int SBCCalleeSession::relayEvent(AmEvent* ev) {
-  if ((call_profile.headerfilter != Transparent) &&
-      (ev->event_id == B2BSipRequest)) {
+  if (isActiveFilter(call_profile.headerfilter) && ev->event_id == B2BSipRequest) {
     // header filter
     B2BSipRequestEvent* req_ev = dynamic_cast<B2BSipRequestEvent*>(ev);
     assert(req_ev);
@@ -1469,13 +1466,13 @@ int SBCCalleeSession::relayEvent(AmEvent* ev) {
 			call_profile.headerfilter_list, call_profile.headerfilter);
   } else {
     if (ev->event_id == B2BSipReply) {
-      if ((call_profile.headerfilter != Transparent) ||
+      if (isActiveFilter(call_profile.headerfilter) ||
 	  (call_profile.reply_translations.size())) {
 	B2BSipReplyEvent* reply_ev = dynamic_cast<B2BSipReplyEvent*>(ev);
 	assert(reply_ev);
 
 	// header filter
-	if (call_profile.headerfilter != Transparent) {
+	if (isActiveFilter(call_profile.headerfilter)) {
 	  inplaceHeaderFilter(reply_ev->reply.hdrs,
 			      call_profile.headerfilter_list,
 			      call_profile.headerfilter);
@@ -1509,7 +1506,7 @@ void SBCCalleeSession::onSipRequest(const AmSipRequest& req) {
       CALL_EVENT_H(onSipRequest,req);
   }
 
-  if (fwd && call_profile.messagefilter != Transparent) {
+  if (fwd && isActiveFilter(call_profile.messagefilter)) {
     bool is_filtered = (call_profile.messagefilter == Whitelist) ^ 
       (call_profile.messagefilter_list.find(req.method) != 
        call_profile.messagefilter_list.end());
@@ -1567,17 +1564,16 @@ int SBCCalleeSession::filterBody(AmSdp& sdp, bool is_a2b) {
     // normalize SDP
     normalizeSDP(sdp, call_profile.anonymize_sdp);
     // filter SDP
-    if (call_profile.sdpfilter != Transparent) {
+    if (isActiveFilter(call_profile.sdpfilter)) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
     call_profile.orderSDP(sdp);
     appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
   }
-  if (call_profile.sdpalinesfilter_enabled) {
+  if (call_profile.sdpalinesfilter_enabled &&
+      isActiveFilter(call_profile.sdpalinesfilter)) {
     // filter SDP "a=lines"
-    if (call_profile.sdpalinesfilter != Transparent) {
-      filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
-    }
+    filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
   }
   return 0;
 }
