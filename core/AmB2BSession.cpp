@@ -718,7 +718,7 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
     string r_body;
     if (rtp_relay_enabled &&
 	(req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
-	 req.method == SIP_METH_ACK || req.method == SIP_METH_ACK)) {
+	 req.method == SIP_METH_ACK || req.method == SIP_METH_PRACK)) {
       if (replaceConnectionAddress(req.content_type, *body, r_body)) {
 	body = &r_body;
       }
@@ -786,7 +786,7 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
   string r_body;
   if (rtp_relay_enabled &&
       (orig.method == SIP_METH_INVITE || orig.method == SIP_METH_UPDATE ||
-       orig.method == SIP_METH_ACK || orig.method == SIP_METH_ACK)) {
+       orig.method == SIP_METH_ACK || orig.method == SIP_METH_PRACK)) {
     if (replaceConnectionAddress(reply.content_type, *body, r_body)) {
       body = &r_body;
     }
