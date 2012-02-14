@@ -760,7 +760,7 @@ static string payload2str(SdpPayload &p)
 {
   string s(p.encoding_name);
   s += "/";
-  s += p.clock_rate;
+  s += int2str(p.clock_rate);
   return s;
 }
 
