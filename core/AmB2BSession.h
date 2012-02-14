@@ -226,20 +226,13 @@ class AmB2BSession: public AmSession
    */
   virtual bool onOtherReply(const AmSipReply& reply);
 
-  /** filter body ( b2b_mode == SDPFilter ) */
-  virtual int filterBody(string& content_type, string& body,
-			 AmSdp& filter_sdp, bool is_a2b);
-
-  /** filter SDP body ( b2b_mode == SDPFilter ) */
-  virtual int filterBody(AmSdp& sdp, bool is_a2b);
-
   /** filter body of request to be relayed
    * use a_leg member to see the direction */
-  virtual void filterBody(AmSipRequest &req, AmSdp &sdp);
+  virtual void filterBody(AmSipRequest &req, AmSdp &sdp) { /* don't filter by default */ }
   
   /** filter body of reply to be relayed
    * use a_leg member to see the direction */
-  virtual void filterBody(AmSipReply &reply, AmSdp &sdp);
+  virtual void filterBody(AmSipReply &reply, AmSdp &sdp) { /* don't filter by default */ }
 
   AmB2BSession(const string& other_local_tag = "");
 

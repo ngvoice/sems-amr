@@ -60,6 +60,67 @@ RegexMapper SBCFactory::regex_mappings;
 EXPORT_MODULE_FACTORY(SBCFactory);
 DEFINE_MODULE_INSTANCE(SBCFactory, MOD_NAME);
 
+// helper functions
+
+static int filterBody(string& content_type, string& body, AmSdp& sdp, SBCCallProfile call_profile) 
+{
+  // filter only SDP & non-empty body
+  if (body.empty()) return 0;
+  if (content_type != SIP_APPLICATION_SDP) return 0;
+
+  int res = sdp.parse(body.c_str());
+  if (0 != res) {
+    DBG("SDP parsing failed!\n");
+    return res;
+  }
+
+  // do the real filtering:
+
+  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
+    // normalize SDP
+    normalizeSDP(sdp, call_profile.anonymize_sdp);
+    // filter SDP
+    if (isActiveFilter(call_profile.sdpfilter)) {
+      filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
+    }
+    call_profile.orderSDP(sdp);
+    appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
+  }
+  if (call_profile.sdpalinesfilter_enabled &&
+      isActiveFilter(call_profile.sdpalinesfilter)) {
+    // filter SDP "a=lines"
+    filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
+  }
+
+  // filtering done
+
+  sdp.print(body);
+  return 0;
+}
+
+static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile call_profile)
+{
+  DBG("filtering body for request '%s' (c/t '%s')\n",
+      req.method.c_str(), req.content_type.c_str());
+  if (req.method == SIP_METH_INVITE || 
+      req.method == SIP_METH_UPDATE ||
+      req.method == SIP_METH_ACK) {
+
+    // todo: handle filtering errors
+    filterBody(req.content_type, req.body, sdp, call_profile);
+  }
+}
+
+static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile call_profile)
+{
+  DBG("filtering body of relayed reply %d\n", reply.code);
+  if (reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE) {
+    filterBody(reply.content_type, reply.body, sdp, call_profile);
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+
 SBCFactory::SBCFactory(const string& _app_name)
   : AmSessionFactory(_app_name), AmDynInvokeFactory(_app_name)
 {
@@ -866,25 +927,16 @@ int SBCDialog::relayEvent(AmEvent* ev) {
   return AmB2BCallerSession::relayEvent(ev);
 }
 
-int SBCDialog::filterBody(AmSdp& sdp, bool is_a2b) {
-  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
-    // normalize SDP
-    normalizeSDP(sdp, call_profile.anonymize_sdp);
-    // filter SDP
-    if (isActiveFilter(call_profile.sdpfilter)) {
-      filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
-    }
-    call_profile.orderSDP(sdp);
-    appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
-  }
-  if (call_profile.sdpalinesfilter_enabled) {
-    // filter SDP "a=lines"
-    if (isActiveFilter(call_profile.sdpalinesfilter)) {
-      filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
-    }
-  }
-  return 0;
+void SBCDialog::filterBody(AmSipRequest &req, AmSdp &sdp)
+{
+  ::filterBody(req, sdp, call_profile);
 }
+
+void SBCDialog::filterBody(AmSipReply &reply, AmSdp &sdp)
+{
+  ::filterBody(reply, sdp, call_profile);
+}
+
 
 void SBCDialog::onSipRequest(const AmSipRequest& req) {
   // AmB2BSession does not call AmSession::onSipRequest for 
@@ -1547,23 +1599,14 @@ void SBCCalleeSession::onSendRequest(AmSipRequest& req, int flags)
   AmB2BCalleeSession::onSendRequest(req, flags);
 }
 
-int SBCCalleeSession::filterBody(AmSdp& sdp, bool is_a2b) {
-  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
-    // normalize SDP
-    normalizeSDP(sdp, call_profile.anonymize_sdp);
-    // filter SDP
-    if (isActiveFilter(call_profile.sdpfilter)) {
-      filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
-    }
-    call_profile.orderSDP(sdp);
-    appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
-  }
-  if (call_profile.sdpalinesfilter_enabled &&
-      isActiveFilter(call_profile.sdpalinesfilter)) {
-    // filter SDP "a=lines"
-    filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
-  }
-  return 0;
+void SBCCalleeSession::filterBody(AmSipRequest &req, AmSdp &sdp)
+{
+  ::filterBody(req, sdp, call_profile);
+}
+
+void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
+{
+  ::filterBody(reply, sdp, call_profile);
 }
 
 void assertEndCRLF(string& s) {

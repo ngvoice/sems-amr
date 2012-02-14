@@ -192,7 +192,8 @@ class SBCDialog : public AmB2BCallerSession, public CredentialHolder
   bool onOtherReply(const AmSipReply& reply);
   void onOtherBye(const AmSipRequest& req);
 
-  int filterBody(AmSdp& sdp, bool is_a2b);
+  virtual void filterBody(AmSipRequest &req, AmSdp &sdp);
+  virtual void filterBody(AmSipReply &reply, AmSdp &sdp);
 
   void createCalleeSession();
 };
@@ -212,7 +213,8 @@ class SBCCalleeSession
 
   /* bool onOtherReply(const AmSipReply& reply); */
 
-  int filterBody(AmSdp& sdp, bool is_a2b);
+  virtual void filterBody(AmSipRequest &req, AmSdp &sdp);
+  virtual void filterBody(AmSipReply &reply, AmSdp &sdp);
 
  public:
   SBCCalleeSession(const AmB2BCallerSession* caller,

@@ -793,51 +793,6 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
   return 0;
 }
 
-int AmB2BSession::filterBody(string& content_type, string& body, AmSdp& filter_sdp,
-			     bool is_a2b) {
-  if (body.empty())
-    return 0;
-
-  if (content_type == SIP_APPLICATION_SDP) {
-    int res = filter_sdp.parse(body.c_str());
-    if (0 != res) {
-      DBG("SDP parsing failed!\n");
-      return res;
-    }
-    filterBody(filter_sdp, is_a2b);
-    // TODO: do the filtering here
-    filter_sdp.print(body);
-  }
-
-  return 0;
-}
-
-int AmB2BSession::filterBody(AmSdp& sdp, bool is_a2b) {
-  // default: transparent
-  return 0;
-}
-
-void AmB2BSession::filterBody(AmSipRequest &req, AmSdp &sdp)
-{
-  DBG("filtering body for request '%s' (c/t '%s')\n",
-      req.method.c_str(), req.content_type.c_str());
-  if (req.method == SIP_METH_INVITE || 
-      req.method == SIP_METH_UPDATE ||
-      req.method == SIP_METH_ACK) {
-
-    // todo: handle filtering errors
-    filterBody(req.content_type, req.body, sdp, a_leg);
-  }
-}
-
-void AmB2BSession::filterBody(AmSipReply &reply, AmSdp &sdp)
-{
-  DBG("filtering body of relayed reply %d\n", reply.code);
-  if (reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE) {
-    filterBody(reply.content_type, reply.body, sdp, a_leg);
-  }
-}
-
 void AmB2BSession::enableRtpRelay(const AmSipRequest& initial_invite_req) {
   DBG("enabled RTP relay mode for B2B call '%s'\n",
       getLocalTag().c_str());
