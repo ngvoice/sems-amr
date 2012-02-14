@@ -722,12 +722,6 @@ void SBCDialog::onInvite(const AmSipRequest& req)
   removeHeader(invite_req.hdrs,PARAM_HDR);
   removeHeader(invite_req.hdrs,"P-App-Name");
 
-  if ((call_profile.sdpfilter_enabled) || 
-      (call_profile.sdpalinesfilter_enabled) || 
-      call_profile.payload_order.size()) {
-    filter_body = true;
-  }
-
   if (call_profile.sst_enabled_value) {
     removeHeader(invite_req.hdrs,SIP_HDR_SESSION_EXPIRES);
     removeHeader(invite_req.hdrs,SIP_HDR_MIN_SE);
@@ -873,7 +867,7 @@ int SBCDialog::relayEvent(AmEvent* ev) {
 }
 
 int SBCDialog::filterBody(AmSdp& sdp, bool is_a2b) {
-  if (call_profile.sdpfilter_enabled) {
+  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
     // normalize SDP
     normalizeSDP(sdp, call_profile.anonymize_sdp);
     // filter SDP
@@ -1437,12 +1431,6 @@ SBCCalleeSession::SBCCalleeSession(const AmB2BCallerSession* caller,
 {
   dlg.setRel100State(Am100rel::REL100_IGNORED);
 
-  if ((call_profile.sdpfilter_enabled) || 
-      (call_profile.sdpalinesfilter_enabled) || 
-      call_profile.payload_order.size()) {
-    filter_body = true;
-  }
-
   if (!call_profile.contact.empty()) {
     dlg.contact_uri = SIP_HDR_COLSP(SIP_HDR_CONTACT) + call_profile.contact + CRLF;
   }
@@ -1560,7 +1548,7 @@ void SBCCalleeSession::onSendRequest(AmSipRequest& req, int flags)
 }
 
 int SBCCalleeSession::filterBody(AmSdp& sdp, bool is_a2b) {
-  if (call_profile.sdpfilter_enabled) {
+  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
     // normalize SDP
     normalizeSDP(sdp, call_profile.anonymize_sdp);
     // filter SDP

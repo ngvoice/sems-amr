@@ -141,7 +141,6 @@ class AmB2BSession: public AmSession
    */
   bool sip_relay_only;
 
-  bool filter_body;
   bool a_leg;
 
   /** 
@@ -234,6 +233,14 @@ class AmB2BSession: public AmSession
   /** filter SDP body ( b2b_mode == SDPFilter ) */
   virtual int filterBody(AmSdp& sdp, bool is_a2b);
 
+  /** filter body of request to be relayed
+   * use a_leg member to see the direction */
+  virtual void filterBody(AmSipRequest &req, AmSdp &sdp);
+  
+  /** filter body of reply to be relayed
+   * use a_leg member to see the direction */
+  virtual void filterBody(AmSipReply &reply, AmSdp &sdp);
+
   AmB2BSession(const string& other_local_tag = "");
 
   virtual ~AmB2BSession();
@@ -268,7 +275,6 @@ class AmB2BSession: public AmSession
 
  public:
   void set_sip_relay_only(bool r);
-  bool shouldFilterBody() const { return filter_body; }
 
   /** set RTP relay mode enabled for initial INVITE */
   void enableRtpRelay(const AmSipRequest& initial_invite_req);

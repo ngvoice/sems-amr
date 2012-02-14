@@ -41,7 +41,6 @@
 AmB2BSession::AmB2BSession(const string& other_local_tag)
   : other_id(other_local_tag),
     sip_relay_only(true),
-    filter_body(false),
     rtp_relay_mode(RTP_Direct),
     rtp_relay_force_symmetric_rtp(false),
     relay_rtp_streams(NULL), relay_rtp_streams_cnt(0),
@@ -227,7 +226,7 @@ void AmB2BSession::onB2BEvent(B2BEvent* ev)
 
   //ERROR("unknown event caught\n");
 }
-
+  
 void AmB2BSession::onSipRequest(const AmSipRequest& req)
 {
   bool fwd = sip_relay_only &&
@@ -248,20 +247,13 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
   B2BSipRequestEvent* r_ev = new B2BSipRequestEvent(req,fwd);
   
   auto_ptr<AmSdp> req_sdp;
-
-  // filter relayed INVITE/UPDATE body
-  if (fwd && filter_body &&
-      (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
-       req.method == SIP_METH_ACK)) {
+  if (fwd) {
     if (req.cseq == est_invite_cseq && req.method == SIP_METH_INVITE)
       req_sdp.reset(invite_sdp.release());
     if (NULL == req_sdp.get())
       req_sdp.reset(new AmSdp());
-
-    DBG("filtering body for request '%s' (c/t '%s')\n",
-	req.method.c_str(), req.content_type.c_str());
-    // todo: handle filtering errors
-    filterBody(r_ev->req.content_type, r_ev->req.body, *req_sdp.get(), a_leg);
+    // filter relayed INVITE/UPDATE body
+    filterBody(r_ev->req, *req_sdp.get());
   }
 
   if (rtp_relay_mode == RTP_Relay &&
@@ -459,10 +451,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
     AmSdp filter_sdp;
 
     // filter relayed INVITE/UPDATE body
-    if (filter_body &&
-	(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) {
-      filterBody(n_reply.content_type, n_reply.body, filter_sdp, a_leg);
-    }
+    filterBody(n_reply, filter_sdp);
     
     if (rtp_relay_mode == RTP_Relay &&
 	(reply.code >= 180  && reply.code < 300) &&
@@ -816,6 +805,7 @@ int AmB2BSession::filterBody(string& content_type, string& body, AmSdp& filter_s
       return res;
     }
     filterBody(filter_sdp, is_a2b);
+    // TODO: do the filtering here
     filter_sdp.print(body);
   }
 
@@ -825,6 +815,27 @@ int AmB2BSession::filterBody(string& content_type, string& body, AmSdp& filter_s
 int AmB2BSession::filterBody(AmSdp& sdp, bool is_a2b) {
   // default: transparent
   return 0;
+}
+
+void AmB2BSession::filterBody(AmSipRequest &req, AmSdp &sdp)
+{
+  DBG("filtering body for request '%s' (c/t '%s')\n",
+      req.method.c_str(), req.content_type.c_str());
+  if (req.method == SIP_METH_INVITE || 
+      req.method == SIP_METH_UPDATE ||
+      req.method == SIP_METH_ACK) {
+
+    // todo: handle filtering errors
+    filterBody(req.content_type, req.body, sdp, a_leg);
+  }
+}
+
+void AmB2BSession::filterBody(AmSipReply &reply, AmSdp &sdp)
+{
+  DBG("filtering body of relayed reply %d\n", reply.code);
+  if (reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE) {
+    filterBody(reply.content_type, reply.body, sdp, a_leg);
+  }
 }
 
 void AmB2BSession::enableRtpRelay(const AmSipRequest& initial_invite_req) {
@@ -1100,10 +1111,8 @@ void AmB2BCallerSession::connectCallee(const string& remote_party,
 
   B2BConnectEvent* ev = new B2BConnectEvent(remote_party,remote_uri);
 
-  if (filter_body) {
-    AmSdp filter_sdp;
-    filterBody(invite_req.content_type, invite_req.body, filter_sdp, true);
-  }
+  AmSdp filter_sdp;
+  filterBody(invite_req, filter_sdp); // FIXME: a_leg == true here, right?
 
   ev->content_type = invite_req.content_type;
   ev->body         = invite_req.body;
@@ -1190,7 +1199,6 @@ AmB2BCalleeSession::AmB2BCalleeSession(const AmB2BCallerSession* caller)
   : AmB2BSession(caller->getLocalTag())
 {
   a_leg = false;
-  filter_body = caller->shouldFilterBody();
   rtp_relay_mode = caller->getRtpRelayMode();
   rtp_relay_force_symmetric_rtp = caller->getRtpRelayForceSymmetricRtp();
 }
