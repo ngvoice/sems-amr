@@ -120,6 +120,21 @@ class AmB2BSession: public AmSession
     B2BMode_SDPFilter     // reconstruct SDP
   };
 
+  enum RTPRelayMode {
+    /* audio will go directly between caller and callee
+     * SDP bodies of relayed requests are filtered */  
+    RTP_Direct,
+
+    /* audio will be realyed through us
+     * SDP bodies of relayed requests are filtered and connection addresses are
+     * replaced by us */  
+    RTP_Relay,
+
+    /* RTP transcoded or relayed depending on payload
+     * SDP offer/answer generated  */
+    RTP_Process
+  };
+
  protected:
   /** local tag of the other leg */
   string other_id;
@@ -228,7 +243,7 @@ class AmB2BSession: public AmSession
   virtual ~AmB2BSession();
 
   /** flag to enable RTP relay mode */
-  bool rtp_relay_enabled;
+  RTPRelayMode rtp_relay_mode;
   /** force symmetric RTP */
   bool rtp_relay_force_symmetric_rtp;
   /** transparent seqno for RTP relay */
@@ -263,11 +278,9 @@ class AmB2BSession: public AmSession
   void enableRtpRelay(const AmSipRequest& initial_invite_req);
   /** set RTP relay mode enabled */
   void enableRtpRelay();
-  /** set RTP relay mode disabled */
-  void disableRtpRelay();
   /** link RTP streams of other_session to our streams */
   void setupRelayStreams(AmB2BSession* from_session);
-  bool getRtpRelayEnabled() const { return rtp_relay_enabled; }
+  RTPRelayMode getRtpRelayMode() const { return rtp_relay_mode; }
   bool getRtpRelayForceSymmetricRtp() const { return rtp_relay_force_symmetric_rtp; }
   void setRtpRelayInterface(int relay_interface);
   void setRtpRelayTransparentSeqno(bool transparent);

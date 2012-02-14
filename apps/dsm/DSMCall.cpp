@@ -235,8 +235,7 @@ void DSMCall::onBye(const AmSipRequest& req)
  
   engine.runEvent(this, this, DSMCondition::Hangup, &params);
 
-  if (rtp_relay_enabled)
-    clearRtpReceiverRelay();
+  clearRtpReceiverRelay();
 }
 
 void DSMCall::onCancel(const AmSipRequest& cancel) {

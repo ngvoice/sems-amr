@@ -42,7 +42,7 @@ AmB2BSession::AmB2BSession(const string& other_local_tag)
   : other_id(other_local_tag),
     sip_relay_only(true),
     b2b_mode(B2BMode_Transparent),
-    rtp_relay_enabled(false),
+    rtp_relay_mode(RTP_Direct),
     rtp_relay_force_symmetric_rtp(false),
     relay_rtp_streams(NULL), relay_rtp_streams_cnt(0),
     rtp_relay_transparent_seqno(true), rtp_relay_transparent_ssrc(true),
@@ -53,8 +53,7 @@ AmB2BSession::AmB2BSession(const string& other_local_tag)
 
 AmB2BSession::~AmB2BSession()
 {
-  if (rtp_relay_enabled)
-    clearRtpReceiverRelay();
+  clearRtpReceiverRelay();
 
   if (NULL != relay_rtp_streams){
     for(unsigned int i=0; i<relay_rtp_streams_cnt; i++)
@@ -269,7 +268,7 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
     filterBody(r_ev->req.content_type, r_ev->req.body, *req_sdp.get(), a_leg);
   }
 
-  if (rtp_relay_enabled &&
+  if (rtp_relay_mode == RTP_Relay &&
       (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
        req.method == SIP_METH_ACK || req.method == SIP_METH_ACK)
       // don't update for initial INVITE again
@@ -469,7 +468,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
       filterBody(n_reply.content_type, n_reply.body, filter_sdp, a_leg);
     }
     
-    if (rtp_relay_enabled &&
+    if (rtp_relay_mode == RTP_Relay &&
 	(reply.code >= 180  && reply.code < 300) &&
 	(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE ||
 	 reply.cseq_method == SIP_METH_ACK || reply.cseq_method == SIP_METH_ACK)) {
@@ -553,8 +552,7 @@ void AmB2BSession::terminateLeg()
 {
   setStopped();
 
-  if (rtp_relay_enabled)
-    clearRtpReceiverRelay();
+  clearRtpReceiverRelay();
 
   dlg.bye("", SIP_FLAGS_VERBATIM);
 }
@@ -654,7 +652,7 @@ int AmB2BSession::sendEstablishedReInvite() {
   try {
     const string* body = &established_body;
     string r_body;
-    if (rtp_relay_enabled &&
+    if (rtp_relay_mode == RTP_Relay &&
 	replaceConnectionAddress(established_content_type, *body, r_body)) {
       body = &r_body;
     }
@@ -716,7 +714,7 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
 
     const string* body = &req.body;
     string r_body;
-    if (rtp_relay_enabled &&
+    if (rtp_relay_mode == RTP_Relay &&
 	(req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
 	 req.method == SIP_METH_ACK || req.method == SIP_METH_PRACK)) {
       if (replaceConnectionAddress(req.content_type, *body, r_body)) {
@@ -784,7 +782,7 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
 
   const string* body = &reply.body;
   string r_body;
-  if (rtp_relay_enabled &&
+  if (rtp_relay_mode == RTP_Relay &&
       (orig.method == SIP_METH_INVITE || orig.method == SIP_METH_UPDATE ||
        orig.method == SIP_METH_ACK || orig.method == SIP_METH_PRACK)) {
     if (replaceConnectionAddress(reply.content_type, *body, r_body)) {
@@ -836,7 +834,7 @@ int AmB2BSession::filterBody(AmSdp& sdp, bool is_a2b) {
 void AmB2BSession::enableRtpRelay(const AmSipRequest& initial_invite_req) {
   DBG("enabled RTP relay mode for B2B call '%s'\n",
       getLocalTag().c_str());
-  rtp_relay_enabled = true;
+  rtp_relay_mode = RTP_Relay;
 
   // save AmSdp object of initial INVITE body
   invite_sdp.reset(new AmSdp());
@@ -847,17 +845,11 @@ void AmB2BSession::enableRtpRelay(const AmSipRequest& initial_invite_req) {
 void AmB2BSession::enableRtpRelay() {
   DBG("enabled RTP relay mode for B2B call '%s'\n",
       getLocalTag().c_str());
-  rtp_relay_enabled = true;
-}
-
-void AmB2BSession::disableRtpRelay() {
-  DBG("disabled RTP relay mode for B2B call '%s'\n",
-      getLocalTag().c_str());
-  rtp_relay_enabled = false;
+  rtp_relay_mode = RTP_Relay;
 }
 
 void AmB2BSession::setupRelayStreams(AmB2BSession* other_session) {
-  if (!rtp_relay_enabled)
+  if (rtp_relay_mode != RTP_Relay)
     return;
 
   if (NULL == other_session) {
@@ -903,15 +895,17 @@ void AmB2BSession::setRtpRelayTransparentSSRC(bool transparent) {
 }
 
 void AmB2BSession::clearRtpReceiverRelay() {
-  for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
-    // clear the other call's RTP relay streams from RTP receiver
-    if (other_stream_fds[i]) {
-      AmRtpReceiver::instance()->removeStream(other_stream_fds[i]);
-      other_stream_fds[i] = 0;
-    }
-    // clear our relay streams from RTP receiver
-    if (relay_rtp_streams[i]->hasLocalSocket()) {
-      AmRtpReceiver::instance()->removeStream(relay_rtp_streams[i]->getLocalSocket());
+  if (rtp_relay_mode == RTP_Relay) {
+    for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
+      // clear the other call's RTP relay streams from RTP receiver
+      if (other_stream_fds[i]) {
+        AmRtpReceiver::instance()->removeStream(other_stream_fds[i]);
+        other_stream_fds[i] = 0;
+      }
+      // clear our relay streams from RTP receiver
+      if (relay_rtp_streams[i]->hasLocalSocket()) {
+        AmRtpReceiver::instance()->removeStream(relay_rtp_streams[i]->getLocalSocket());
+      }
     }
   }
 }
@@ -1081,17 +1075,14 @@ void AmB2BCallerSession::onSystemEvent(AmSystemEvent* ev) {
 
 void AmB2BCallerSession::onRemoteDisappeared(const AmSipReply& reply) {
   DBG("remote unreachable, ending B2BUA call\n");
-  if (rtp_relay_enabled)
-    clearRtpReceiverRelay();
+  clearRtpReceiverRelay();
 
   AmB2BSession::onRemoteDisappeared(reply);
 }
 
 void AmB2BCallerSession::onBye(const AmSipRequest& req)
 {
-  if (rtp_relay_enabled)
-    clearRtpReceiverRelay();
-
+  clearRtpReceiverRelay();
   AmB2BSession::onBye(req);
 }
 
@@ -1181,7 +1172,7 @@ AmB2BCalleeSession* AmB2BCallerSession::newCalleeSession()
 }
 
 void AmB2BCallerSession::initializeRTPRelay(AmB2BCalleeSession* callee_session) {
-  if (!callee_session || !rtp_relay_enabled)
+  if (!callee_session || (rtp_relay_mode != RTP_Relay))
     return;
 
   callee_session->enableRtpRelay();
@@ -1204,7 +1195,7 @@ AmB2BCalleeSession::AmB2BCalleeSession(const AmB2BCallerSession* caller)
 {
   a_leg = false;
   b2b_mode = caller->getB2BMode();
-  rtp_relay_enabled = caller->getRtpRelayEnabled();
+  rtp_relay_mode = caller->getRtpRelayMode();
   rtp_relay_force_symmetric_rtp = caller->getRtpRelayForceSymmetricRtp();
 }
 
@@ -1234,7 +1225,7 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
 
     const string* body = &co_ev->body;
     string r_body;
-    if (rtp_relay_enabled) {
+    if (rtp_relay_mode == RTP_Relay) {
       try {
 	if (replaceConnectionAddress(co_ev->content_type, *body, r_body)) {
 	  body = &r_body;
@@ -1249,6 +1240,13 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
 	  throw;
       }
     }
+
+    // FIXME: vku - here is the right place for updating outgoing INVITE with
+    // transcoder codecs; we can't avoid empty body because at least transcoder
+    // codecs should be used
+    // another possibility would be to leave the INVITE body empty and handle
+    // just the reply if it matches something, but we need not to have other
+    // party codecs that time so we can really offer just those transcoder ones
 
     if (dlg.sendRequest(SIP_METH_INVITE,
 			co_ev->content_type, *body,
