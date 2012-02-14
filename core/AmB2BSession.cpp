@@ -41,7 +41,7 @@
 AmB2BSession::AmB2BSession(const string& other_local_tag)
   : other_id(other_local_tag),
     sip_relay_only(true),
-    b2b_mode(B2BMode_Transparent),
+    filter_body(false),
     rtp_relay_mode(RTP_Direct),
     rtp_relay_force_symmetric_rtp(false),
     relay_rtp_streams(NULL), relay_rtp_streams_cnt(0),
@@ -72,10 +72,6 @@ AmB2BSession::~AmB2BSession()
 
 void AmB2BSession::set_sip_relay_only(bool r) { 
   sip_relay_only = r; 
-}
-
-AmB2BSession::B2BMode AmB2BSession::getB2BMode() const {
-  return b2b_mode;
 }
 
 void AmB2BSession::clear_other()
@@ -254,7 +250,7 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
   auto_ptr<AmSdp> req_sdp;
 
   // filter relayed INVITE/UPDATE body
-  if (fwd && b2b_mode != B2BMode_Transparent &&
+  if (fwd && filter_body &&
       (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
        req.method == SIP_METH_ACK)) {
     if (req.cseq == est_invite_cseq && req.method == SIP_METH_INVITE)
@@ -463,7 +459,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
     AmSdp filter_sdp;
 
     // filter relayed INVITE/UPDATE body
-    if (b2b_mode != B2BMode_Transparent &&
+    if (filter_body &&
 	(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) {
       filterBody(n_reply.content_type, n_reply.body, filter_sdp, a_leg);
     }
@@ -1104,7 +1100,7 @@ void AmB2BCallerSession::connectCallee(const string& remote_party,
 
   B2BConnectEvent* ev = new B2BConnectEvent(remote_party,remote_uri);
 
-  if (b2b_mode == B2BMode_SDPFilter) {
+  if (filter_body) {
     AmSdp filter_sdp;
     filterBody(invite_req.content_type, invite_req.body, filter_sdp, true);
   }
@@ -1194,7 +1190,7 @@ AmB2BCalleeSession::AmB2BCalleeSession(const AmB2BCallerSession* caller)
   : AmB2BSession(caller->getLocalTag())
 {
   a_leg = false;
-  b2b_mode = caller->getB2BMode();
+  filter_body = caller->shouldFilterBody();
   rtp_relay_mode = caller->getRtpRelayMode();
   rtp_relay_force_symmetric_rtp = caller->getRtpRelayForceSymmetricRtp();
 }

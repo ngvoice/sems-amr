@@ -115,10 +115,6 @@ struct B2BConnectEvent: public B2BEvent
 class AmB2BSession: public AmSession
 {
  public:
-  enum B2BMode {
-    B2BMode_Transparent,  // relay message bodies
-    B2BMode_SDPFilter     // reconstruct SDP
-  };
 
   enum RTPRelayMode {
     /* audio will go directly between caller and callee
@@ -145,7 +141,7 @@ class AmB2BSession: public AmSession
    */
   bool sip_relay_only;
 
-  B2BMode b2b_mode;
+  bool filter_body;
   bool a_leg;
 
   /** 
@@ -272,7 +268,7 @@ class AmB2BSession: public AmSession
 
  public:
   void set_sip_relay_only(bool r);
-  B2BMode getB2BMode() const;
+  bool shouldFilterBody() const { return filter_body; }
 
   /** set RTP relay mode enabled for initial INVITE */
   void enableRtpRelay(const AmSipRequest& initial_invite_req);

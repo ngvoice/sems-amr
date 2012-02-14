@@ -725,7 +725,7 @@ void SBCDialog::onInvite(const AmSipRequest& req)
   if ((call_profile.sdpfilter_enabled) || 
       (call_profile.sdpalinesfilter_enabled) || 
       call_profile.payload_order.size()) {
-    b2b_mode = B2BMode_SDPFilter;
+    filter_body = true;
   }
 
   if (call_profile.sst_enabled_value) {
@@ -1440,7 +1440,7 @@ SBCCalleeSession::SBCCalleeSession(const AmB2BCallerSession* caller,
   if ((call_profile.sdpfilter_enabled) || 
       (call_profile.sdpalinesfilter_enabled) || 
       call_profile.payload_order.size()) {
-    b2b_mode = B2BMode_SDPFilter;
+    filter_body = true;
   }
 
   if (!call_profile.contact.empty()) {
