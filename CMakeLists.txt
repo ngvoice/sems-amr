@@ -146,14 +146,6 @@ ELSE(SEMS_USE_IPV6)
 	MESSAGE(STATUS "Enable IPv6 support: NO (default)")
 ENDIF(SEMS_USE_IPV6)
 
-# Let's try to find GSM library and header files
-FIND_PACKAGE(Gsm)
-IF(GSM_FOUND)
-	MESSAGE(STATUS "Using gsm: YES")
-ELSE(GSM_FOUND)
-	MESSAGE(STATUS "Using gsm: NO")
-ENDIF(GSM_FOUND)
-
 # Let's try to find SPEEX library and header files
 FIND_PACKAGE(Speex)
 IF(SPEEX_FOUND)

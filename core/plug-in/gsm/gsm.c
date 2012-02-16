@@ -27,7 +27,10 @@
 
 #include "amci.h"
 #include "codecs.h"
-#include "gsm-1.0-pl10/inc/gsm.h"
+#include <stdint.h>
+#include <spandsp/telephony.h>
+#include <spandsp/bit_operations.h>
+#include <spandsp/gsm0610.h>
 #include "../../log.h"
 
 #include <stdlib.h>
@@ -76,10 +79,10 @@ static int pcm16_2_gsm(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 		       unsigned int channels, unsigned int rate, long h_codec )
 {
   int i;
-  gsm* h_arr;
+  gsm0610_state_t** h_arr;
   div_t blocks;
 
-  h_arr = (gsm*)h_codec;
+  h_arr = (gsm0610_state_t**)h_codec;
   blocks = div(size,320);
 
   if(blocks.rem){
@@ -88,7 +91,7 @@ static int pcm16_2_gsm(unsigned char* out_buf, unsigned char* in_buf, unsigned i
   }
 
   for (i=0;i<blocks.quot;i++)
-    gsm_encode(h_arr[0],(gsm_signal*)(in_buf + i*320),out_buf + i*33);
+    gsm0610_encode(h_arr[0], out_buf + i*33, (const int16_t*)(in_buf + i*320), 160);
 
   return blocks.quot * 33;
 }
@@ -97,11 +100,11 @@ static int gsm_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 		       unsigned int channels, unsigned int rate, long h_codec )
 {
   int i;
-  gsm* h_arr;
+  gsm0610_state_t** h_arr;
   div_t blocks;
   unsigned int out_size;
 
-  h_arr = (gsm*)h_codec;
+  h_arr = (gsm0610_state_t**)h_codec;
   blocks = div(size,33);
 
   if(blocks.rem){
@@ -120,7 +123,7 @@ static int gsm_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
   }
 
   for (i=0;i<blocks.quot;i++) 
-    gsm_decode(h_arr[1],in_buf + i*33,(gsm_signal*)(out_buf + i*320));
+    gsm0610_decode(h_arr[1], (out_buf + i*320), in_buf + i*33, 33);
 
   return out_size;
 }
@@ -128,16 +131,16 @@ static int gsm_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
 static long gsm_create_if(const char* format_parameters, amci_codec_fmt_info_t* format_description)
 { 
-  gsm* h_codec=0;
+  gsm0610_state_t** h_codec=0;
     
-  h_codec = malloc(sizeof(gsm)*2);
+  h_codec = malloc(sizeof(gsm0610_state_t*)*2);
   if(!h_codec){
     ERROR("gsm.c: could not create handle array\n");
     return 0;
   }
 
-  h_codec[0] = gsm_create();
-  h_codec[1] = gsm_create();
+  h_codec[0] = gsm0610_init(NULL, GSM0610_PACKING_VOIP);
+  h_codec[1] = gsm0610_init(NULL, GSM0610_PACKING_VOIP);
 
   format_description[0].id = AMCI_FMT_FRAME_LENGTH ;
   format_description[0].value = 20;
@@ -153,10 +156,10 @@ static long gsm_create_if(const char* format_parameters, amci_codec_fmt_info_t* 
 
 static void gsm_destroy_if(long h_codec)
 {
-  gsm* h_arr = (gsm*)h_codec;
+  gsm0610_state_t** h_arr = (gsm0610_state_t**)h_codec;
 
-  gsm_destroy(h_arr[0]);
-  gsm_destroy(h_arr[1]);
+  gsm0610_free(h_arr[0]);
+  gsm0610_free(h_arr[1]);
 
   free(h_arr);
 }

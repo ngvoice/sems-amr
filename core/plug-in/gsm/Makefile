@@ -2,18 +2,14 @@ COREPATH =../..
 
 plug_in_name = gsm
 
-module_ldflags = 
-module_cflags  = -I gsm-1.0-pl10/inc -DHAS_STDLIB_H
+SPANDSP_INC=
+#/usr/include/
+SPANDSP_LIB = -lspandsp
 
-module_extra_objs = gsm-1.0-pl10/lib/libgsm.a
+module_ldflags = $(SPANDSP_LIB)
+module_cflags  = -ansi # -DNOFPU
 
-extra_clean = clean_gsmlib
+ifdef NOFPU
+	module_cflags += -DNOFPU
+endif
 
-include ../Makefile.audio_module
-
-gsm-1.0-pl10/lib/libgsm.a::
-	cd gsm-1.0-pl10; $(MAKE) ./lib/libgsm.a
-
-.PHONY: clean_gsmlib
-clean_gsmlib:
-	cd gsm-1.0-pl10; $(MAKE) clean
