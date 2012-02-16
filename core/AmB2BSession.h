@@ -269,10 +269,9 @@ class AmB2BSession: public AmSession
  public:
   void set_sip_relay_only(bool r);
 
-  /** set RTP relay mode enabled for initial INVITE */
-  void enableRtpRelay(const AmSipRequest& initial_invite_req);
-  /** set RTP relay mode enabled */
-  void enableRtpRelay();
+  /** set RTP relay mode (possibly initiaze by given INVITE) */
+  void setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initial_invite_req = NULL);
+
   /** link RTP streams of other_session to our streams */
   void setupRelayStreams(AmB2BSession* from_session);
   RTPRelayMode getRtpRelayMode() const { return rtp_relay_mode; }
@@ -340,7 +339,7 @@ class AmB2BCallerSession: public AmB2BSession
   // @see AmB2BSession
   void terminateLeg();
   void terminateOtherLeg();
-  void onB2BEvent(B2BEvent* ev);
+  virtual void onB2BEvent(B2BEvent* ev);
 
   AmSipRequest* getInviteReq() { return &invite_req; }
 
@@ -361,7 +360,7 @@ class AmB2BCalleeSession: public AmB2BSession
 
   virtual ~AmB2BCalleeSession();
 
-  void onB2BEvent(B2BEvent* ev);
+  virtual void onB2BEvent(B2BEvent* ev);
 };
 
 #endif

@@ -71,6 +71,10 @@ AmB2BSession::~AmB2BSession()
 
 void AmB2BSession::set_sip_relay_only(bool r) { 
   sip_relay_only = r; 
+
+  // disable offer/answer if we just relay requests (exception is RTP_Process
+  // mode which uses offer/answer to create/handle SDPs correctly)
+  dlg.setOAEnabled((!sip_relay_only) || (rtp_relay_mode == RTP_Process));
 }
 
 void AmB2BSession::clear_other()
@@ -451,6 +455,8 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
     AmSdp filter_sdp;
 
     // filter relayed INVITE/UPDATE body
+    // FIXME: shouldn't be this filtering AFTER updateRelayStreams if we are
+    // handling SDP answer?
     filterBody(n_reply, filter_sdp);
     
     if (rtp_relay_mode == RTP_Relay &&
@@ -793,21 +799,22 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
   return 0;
 }
 
-void AmB2BSession::enableRtpRelay(const AmSipRequest& initial_invite_req) {
+void AmB2BSession::setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initial_invite_req)
+{
   DBG("enabled RTP relay mode for B2B call '%s'\n",
       getLocalTag().c_str());
-  rtp_relay_mode = RTP_Relay;
 
-  // save AmSdp object of initial INVITE body
-  invite_sdp.reset(new AmSdp());
-  updateRelayStreams(initial_invite_req.content_type, initial_invite_req.body,
-		     *invite_sdp.get());
-}
+  rtp_relay_mode = mode;
+  if ((mode == RTP_Relay) && initial_invite_req) {
+    // save AmSdp object of initial INVITE body
+    invite_sdp.reset(new AmSdp());
+    updateRelayStreams(initial_invite_req->content_type, initial_invite_req->body,
+                       *invite_sdp.get());
+  }
 
-void AmB2BSession::enableRtpRelay() {
-  DBG("enabled RTP relay mode for B2B call '%s'\n",
-      getLocalTag().c_str());
-  rtp_relay_mode = RTP_Relay;
+  // allow offer/answer for RTP_Process mode or if sip_relay_only is not set
+  if (mode == RTP_Process) dlg.setOAEnabled(true);
+  else dlg.setOAEnabled(!sip_relay_only);
 }
 
 void AmB2BSession::setupRelayStreams(AmB2BSession* other_session) {
@@ -1135,7 +1142,7 @@ void AmB2BCallerSession::initializeRTPRelay(AmB2BCalleeSession* callee_session) 
   if (!callee_session || (rtp_relay_mode != RTP_Relay))
     return;
 
-  callee_session->enableRtpRelay();
+  callee_session->setRtpRelayMode(rtp_relay_mode); // FIXME: right place here?
   callee_session->setupRelayStreams(this);
   setupRelayStreams(callee_session);
 
@@ -1200,16 +1207,21 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
       }
     }
 
-    // FIXME: vku - here is the right place for updating outgoing INVITE with
-    // transcoder codecs; we can't avoid empty body because at least transcoder
-    // codecs should be used
-    // another possibility would be to leave the INVITE body empty and handle
-    // just the reply if it matches something, but we need not to have other
-    // party codecs that time so we can really offer just those transcoder ones
+    int res;
 
-    if (dlg.sendRequest(SIP_METH_INVITE,
+    if (rtp_relay_mode == RTP_Process) {
+      static const string content_type(SIP_APPLICATION_SDP);
+      static const string empty;
+      res = dlg.sendRequest(SIP_METH_INVITE,
+			content_type, empty,
+			co_ev->hdrs, SIP_FLAGS_VERBATIM);
+    }
+    else {
+      res = dlg.sendRequest(SIP_METH_INVITE,
 			co_ev->content_type, *body,
-			co_ev->hdrs, SIP_FLAGS_VERBATIM) < 0) {
+			co_ev->hdrs, SIP_FLAGS_VERBATIM);
+    }
+    if (res < 0) {
 
       DBG("sending INVITE failed, relaying back 400 Bad Request\n");
       AmSipReply n_reply;

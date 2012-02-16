@@ -60,7 +60,32 @@ RegexMapper SBCFactory::regex_mappings;
 EXPORT_MODULE_FACTORY(SBCFactory);
 DEFINE_MODULE_INSTANCE(SBCFactory, MOD_NAME);
 
+#define TRACE ERROR // vku: for testing only
+
 // helper functions
+
+// do the filtering, returns true if SDP was changed
+static bool doFiltering(AmSdp &sdp, SBCCallProfile call_profile)
+{
+  bool changed = false;
+
+  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
+    // normalize SDP
+    normalizeSDP(sdp, call_profile.anonymize_sdp);
+    // filter SDP
+    if (isActiveFilter(call_profile.sdpfilter)) {
+      filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
+    }
+    call_profile.orderSDP(sdp);
+  }
+  if (call_profile.sdpalinesfilter_enabled &&
+      isActiveFilter(call_profile.sdpalinesfilter)) {
+    // filter SDP "a=lines"
+    filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
+  }
+
+  return changed;
+}
 
 static int filterBody(string& content_type, string& body, AmSdp& sdp, SBCCallProfile call_profile) 
 {
@@ -74,27 +99,7 @@ static int filterBody(string& content_type, string& body, AmSdp& sdp, SBCCallPro
     return res;
   }
 
-  // do the real filtering:
-
-  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
-    // normalize SDP
-    normalizeSDP(sdp, call_profile.anonymize_sdp);
-    // filter SDP
-    if (isActiveFilter(call_profile.sdpfilter)) {
-      filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
-    }
-    call_profile.orderSDP(sdp);
-    appendTranscoderCodecs(sdp, call_profile.transcoder_audio_codecs);
-  }
-  if (call_profile.sdpalinesfilter_enabled &&
-      isActiveFilter(call_profile.sdpalinesfilter)) {
-    // filter SDP "a=lines"
-    filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
-  }
-
-  // filtering done
-
-  sdp.print(body);
+  if (doFiltering(sdp, call_profile)) sdp.print(body);
   return 0;
 }
 
@@ -118,6 +123,19 @@ static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile call_profil
     filterBody(reply.content_type, reply.body, sdp, call_profile);
   }
 }
+
+static bool containsPayload(const std::vector<SdpPayload>& payloads, const SdpPayload &payload)
+{
+  for (vector<SdpPayload>::const_iterator p = payloads.begin(); p != payloads.end(); ++p) {
+    if (p->encoding_name != payload.encoding_name) continue;
+    if (p->clock_rate != payload.clock_rate) continue;
+    if ((p->encoding_param >= 0) && (payload.encoding_param >= 0) && 
+        (p->encoding_param != payload.encoding_param)) continue;
+    return true;
+  }
+  return false;
+}
+  
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -772,8 +790,13 @@ void SBCDialog::onInvite(const AmSipRequest& req)
     setRtpRelayTransparentSeqno(call_profile.rtprelay_transparent_seqno);
     setRtpRelayTransparentSSRC(call_profile.rtprelay_transparent_ssrc);
 
-    enableRtpRelay(req);
+    setRtpRelayMode(RTP_Relay, &req);
   }
+
+  // FIXME: RTP_Process covers somehow RTP_Relay (should not be tried both at
+  // the same time?)
+  if (call_profile.transcoder_audio_codecs.size()) 
+    setRtpRelayMode(RTP_Process, &req);
 
   m_state = BB_Dialing;
 
@@ -799,8 +822,6 @@ void SBCDialog::onInvite(const AmSipRequest& req)
 
   if (call_profile.outbound_interface_value >= 0)
     outbound_interface = call_profile.outbound_interface_value;
-
-  dlg.setOAEnabled(false);
 
 #undef REPLACE_VALS
 
@@ -939,6 +960,7 @@ void SBCDialog::filterBody(AmSipReply &reply, AmSdp &sdp)
 
 
 void SBCDialog::onSipRequest(const AmSipRequest& req) {
+  TRACE("SBCDialog::onSipRequest\n");
   // AmB2BSession does not call AmSession::onSipRequest for 
   // forwarded requests - so lets call event handlers here
   // todo: this is a hack, replace this by calling proper session 
@@ -1426,8 +1448,6 @@ void SBCDialog::createCalleeSession()
   if(outbound_interface >= 0)
     callee_dlg.outbound_interface = outbound_interface;
 
-  callee_dlg.setOAEnabled(false);
-
   if(rtprelay_interface >= 0)
     callee_session->setRtpRelayInterface(rtprelay_interface);
 
@@ -1604,9 +1624,156 @@ void SBCCalleeSession::filterBody(AmSipRequest &req, AmSdp &sdp)
   ::filterBody(req, sdp, call_profile);
 }
 
+static bool isThere(int num, const vector<int> &vals)
+{
+  for (vector<int>::const_iterator i = vals.begin(); i != vals.end(); ++i)
+    if (*i == num) return true;
+  return false;
+}
+
 void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
 {
-  ::filterBody(reply, sdp, call_profile);
+  if (reply.body.empty()) return;
+  if (reply.content_type != SIP_APPLICATION_SDP) return;
+  if (!(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) return;
+
+  int res = sdp.parse(reply.body.c_str());
+  if (0 != res) {
+    DBG("SDP parsing failed!\n");
+    return;
+  }
+
+  TRACE("filtering body of callee's reply\n");
+
+  bool changed = doFiltering(sdp, call_profile); // do the call profile based filtering
+
+  if (added_payloads.size() > 0) {
+    TRACE("filter out marked transcoder codecs\n");
+    // filter out added transcoder codecs (added into outgoing offer derrived
+    // from incoming offer in A leg)
+    for (vector<SdpMedia>::iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) {
+      if (m->type != MT_AUDIO) continue;
+
+      unsigned i = 0;
+      while (i < m->payloads.size()) {
+        TRACE("trying %d\n", m->payloads[i].payload_type);
+        if (isThere(m->payloads[i].payload_type, added_payloads)) {
+          TRACE("throwing out %d\n", m->payloads[i].payload_type);
+          m->payloads.erase(m->payloads.begin() + i);
+          changed = true;
+        }
+        else i++;
+      }
+    }
+  }
+
+  // FIXME: if there was no SDP offer in initial INVITE relayed from A leg, just
+  // use received body as offer in A leg (i.e. do not filter out any codecs)?
+
+  // generate output
+  if (changed) sdp.print(reply.body);
+}
+
+bool SBCCalleeSession::getSdpOffer(AmSdp& offer) 
+{
+  // experimental:
+  TRACE("CALLEE: getSdpOffer called\n");
+
+  if (call_profile.transcoder_audio_codecs.size() < 1) {
+    ERROR("BUG: getSdpOffer() shouldn't be called\n");
+    return false;
+  }
+
+  if (initial_sdp.get()) {
+    // we should have initial body ready here
+    // if not, something is strange, let AmB2BCalleeSession do fallback
+    offer = *initial_sdp.get();
+    return true;
+  }
+  else return AmB2BCalleeSession::getSdpOffer(offer);
+}
+  
+bool SBCCalleeSession::getSdpAnswer(const AmSdp& offer, AmSdp& answer)
+{
+  TRACE("CALLEE: getSdpAnswer called\n");
+  return AmB2BSession::getSdpAnswer(offer, answer);
+}
+
+int SBCCalleeSession::onSdpCompleted(const AmSdp& offer, const AmSdp& answer)
+{
+  TRACE("CALLEE: onSdpCompleted called\n");
+  return AmB2BSession::onSdpCompleted(offer, answer);
+}
+
+void SBCCalleeSession::appendTranscoderCodecs(AmSdp &sdp)
+{
+  // append codecs for transcoding, remember the added ones to be able to filter
+  // them out from relayed reply!
+
+  // important: normalized SDP should get here
+
+  vector<SdpPayload>::const_iterator p;
+  for (vector<SdpMedia>::iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) {
+
+    // handle audio transcoder codecs
+    if (m->type == MT_AUDIO) {
+
+      // find first unused dynamic payload number
+      int id = 96;
+      for (p = m->payloads.begin(); p != m->payloads.end(); ++p) {
+        if (p->payload_type >= id) id = p->payload_type + 1;
+      }
+
+      for (p = call_profile.transcoder_audio_codecs.begin(); 
+           p != call_profile.transcoder_audio_codecs.end(); ++p) {
+        // add all payloads which are not already there
+        if (!containsPayload(m->payloads, *p)) {
+          m->payloads.push_back(*p);
+          if (p->payload_type < 0) m->payloads.back().payload_type = id++;
+
+          // remeber added payload ID: 
+          added_payloads.push_back(m->payloads.back().payload_type);
+
+          TRACE("added codec %s/%d with id %d\n", 
+              p->encoding_name.c_str(), p->clock_rate, m->payloads.back().payload_type);
+        }
+      }
+      if (id > 128) ERROR("assigned too high payload type number (%d), see RFC 3551\n", id);
+    }
+  }
+}
+
+void SBCCalleeSession::onB2BEvent(B2BEvent* ev)
+{
+  // we need to prepare initial body based on the body of initial INVITE in
+  // A leg if transcoder is active
+  if ((ev->event_id == B2BConnectLeg) && (!call_profile.transcoder_audio_codecs.empty())) {
+
+    B2BConnectEvent* co_ev = dynamic_cast<B2BConnectEvent*>(ev);
+    if (co_ev && co_ev->relayed_invite) {
+      if ((co_ev->content_type == SIP_APPLICATION_SDP) && (!co_ev->body.empty())) {
+        // the body is already normalized, filtered and codecs are ordered
+        initial_sdp.reset(new AmSdp());
+        if (initial_sdp->parse(co_ev->body.c_str())) {
+          DBG("initial SDP parsing failed!\n");
+        }
+        appendTranscoderCodecs(*initial_sdp);
+      }
+      else {
+        // TODO: the body was empty or unsupported type, we need to create a new
+        // one just with transcoder codecs
+
+        // TODO: in this case we must NOT filter out the codecs from reply which
+        // will be relayed back to A leg ... simply just the transcoder codecs
+        // will be offered in 200/INVITE in A leg (note: need to transcode
+        // those not chosen by caller in its answer later on but for now we
+        // should mark all of them as codecs for transcoding)
+      }
+    }
+
+  }
+
+  AmB2BCalleeSession::onB2BEvent(ev);
 }
 
 void assertEndCRLF(string& s) {
