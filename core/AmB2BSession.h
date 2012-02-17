@@ -262,7 +262,9 @@ class AmB2BSession: public AmSession
   /** update remote connection in relay_streams */
   void updateRelayStreams(const string& content_type, const string& body,
 			  AmSdp& parser_sdp);
+
   /** replace connection with our address */
+  bool replaceConnectionAddress(AmSdp &parser_sdp);
   bool replaceConnectionAddress(const string& content_type, const string& body,
 				string& r_body);
 

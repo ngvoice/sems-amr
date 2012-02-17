@@ -1643,7 +1643,7 @@ void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
     return;
   }
 
-  TRACE("filtering body of callee's reply\n");
+  DBG("filtering body of callee's reply\n");
 
   bool changed = doFiltering(sdp, call_profile); // do the call profile based filtering
 
@@ -1656,9 +1656,7 @@ void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
 
       unsigned i = 0;
       while (i < m->payloads.size()) {
-        TRACE("trying %d\n", m->payloads[i].payload_type);
         if (isThere(m->payloads[i].payload_type, added_payloads)) {
-          TRACE("throwing out %d\n", m->payloads[i].payload_type);
           m->payloads.erase(m->payloads.begin() + i);
           changed = true;
         }
@@ -1757,6 +1755,7 @@ void SBCCalleeSession::onB2BEvent(B2BEvent* ev)
         if (initial_sdp->parse(co_ev->body.c_str())) {
           DBG("initial SDP parsing failed!\n");
         }
+        replaceConnectionAddress(*initial_sdp); // needed to offer our IP/ports
         appendTranscoderCodecs(*initial_sdp);
       }
       else {

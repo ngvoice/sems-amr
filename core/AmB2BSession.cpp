@@ -34,6 +34,10 @@
 
 #include <assert.h>
 
+// helpers
+static const string sdp_content_type(SIP_APPLICATION_SDP);
+static const string empty;
+
 //
 // AmB2BSession methods
 //
@@ -260,7 +264,7 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
     filterBody(r_ev->req, *req_sdp.get());
   }
 
-  if (rtp_relay_mode == RTP_Relay &&
+  if (rtp_relay_mode != RTP_Direct &&
       (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
        req.method == SIP_METH_ACK || req.method == SIP_METH_ACK)
       // don't update for initial INVITE again
@@ -359,18 +363,7 @@ void AmB2BSession::updateRelayStreams(const string& content_type, const string& 
   }
 }
 
-bool AmB2BSession::replaceConnectionAddress(const string& content_type,
-					    const string& body, string& r_body) {
-
-  if (body.empty() || (content_type != SIP_APPLICATION_SDP))
-    return false;
-
-  AmSdp parser_sdp;
-  if (parser_sdp.parse(body.c_str())) {
-    DBG("SDP parsing failed!\n");
-    return false;
-  }
-
+bool AmB2BSession::replaceConnectionAddress(AmSdp &parser_sdp) {
   string relay_address;
   if (rtp_interface >= 0 && (unsigned)rtp_interface < AmConfig::Ifs.size()) {
     relay_address = AmConfig::Ifs[rtp_interface].PublicIP.empty() ?
@@ -414,11 +407,28 @@ bool AmB2BSession::replaceConnectionAddress(const string& content_type,
     media_index++;
   }
 
-  // regenerate SDP
-  parser_sdp.print(r_body);
-
   DBG("replaced connection address in SDP with %s:%s.\n",
       relay_address.c_str(), replaced_ports.c_str());
+
+  return true;
+}
+
+bool AmB2BSession::replaceConnectionAddress(const string& content_type,
+					    const string& body, string& r_body) {
+
+  if (body.empty() || (content_type != SIP_APPLICATION_SDP))
+    return false;
+
+  AmSdp parser_sdp;
+  if (parser_sdp.parse(body.c_str())) {
+    DBG("SDP parsing failed!\n");
+    return false;
+  }
+
+  replaceConnectionAddress(parser_sdp);
+
+  // regenerate SDP
+  parser_sdp.print(r_body);
 
   return true;
 }
@@ -459,7 +469,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
     // handling SDP answer?
     filterBody(n_reply, filter_sdp);
     
-    if (rtp_relay_mode == RTP_Relay &&
+    if (rtp_relay_mode != RTP_Direct &&
 	(reply.code >= 180  && reply.code < 300) &&
 	(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE ||
 	 reply.cseq_method == SIP_METH_ACK || reply.cseq_method == SIP_METH_ACK)) {
@@ -643,7 +653,7 @@ int AmB2BSession::sendEstablishedReInvite() {
   try {
     const string* body = &established_body;
     string r_body;
-    if (rtp_relay_mode == RTP_Relay &&
+    if (rtp_relay_mode != RTP_Direct &&
 	replaceConnectionAddress(established_content_type, *body, r_body)) {
       body = &r_body;
     }
@@ -703,17 +713,24 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
       }
     }
 
-    const string* body = &req.body;
-    string r_body;
-    if (rtp_relay_mode == RTP_Relay &&
-	(req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
-	 req.method == SIP_METH_ACK || req.method == SIP_METH_PRACK)) {
-      if (replaceConnectionAddress(req.content_type, *body, r_body)) {
-	body = &r_body;
-      }
+    int err;
+    if (rtp_relay_mode == RTP_Process) {
+      // generate own SDP if req.content_type is SDP (FIXME: only for offer?)
+      err = dlg.sendRequest(req.method, req.content_type, empty, *hdrs, SIP_FLAGS_VERBATIM);
     }
+    else {
+      const string* body = &req.body;
+      string r_body;
+      if (rtp_relay_mode == RTP_Relay &&
+          (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
+           req.method == SIP_METH_ACK || req.method == SIP_METH_PRACK)) {
+        if (replaceConnectionAddress(req.content_type, *body, r_body)) {
+          body = &r_body;
+        }
+      }
 
-    int err = dlg.sendRequest(req.method, req.content_type, *body, *hdrs, SIP_FLAGS_VERBATIM);
+      err = dlg.sendRequest(req.method, req.content_type, *body, *hdrs, SIP_FLAGS_VERBATIM);
+    }
     if(err < 0){
       ERROR("dlg.sendRequest() failed\n");
       return err;
@@ -772,18 +789,30 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
   }
 
   const string* body = &reply.body;
-  string r_body;
-  if (rtp_relay_mode == RTP_Relay &&
-      (orig.method == SIP_METH_INVITE || orig.method == SIP_METH_UPDATE ||
-       orig.method == SIP_METH_ACK || orig.method == SIP_METH_PRACK)) {
-    if (replaceConnectionAddress(reply.content_type, *body, r_body)) {
-      body = &r_body;
+  int err;
+  
+  if (rtp_relay_mode == RTP_Process) {
+    // generate SDP only if the relayed reply contained SDP (leave the other
+    // conditions on AmOfferAnswer)
+    err = dlg.reply(orig,reply.code,reply.reason,
+                      body->empty() ? empty : reply.content_type,
+		      empty, *hdrs, SIP_FLAGS_VERBATIM);
+  } 
+  else {
+    string r_body;
+    if (rtp_relay_mode == RTP_Relay &&
+        (orig.method == SIP_METH_INVITE || orig.method == SIP_METH_UPDATE ||
+         orig.method == SIP_METH_ACK || orig.method == SIP_METH_PRACK)) {
+      if (replaceConnectionAddress(reply.content_type, *body, r_body)) {
+        body = &r_body;
+      }
     }
-  }
 
-  int err = dlg.reply(orig,reply.code,reply.reason,
+    err = dlg.reply(orig,reply.code,reply.reason,
 		      reply.content_type,
 		      *body, *hdrs, SIP_FLAGS_VERBATIM);
+  }
+
   if(err < 0){
     ERROR("dlg.reply() failed\n");
     return err;
@@ -805,7 +834,7 @@ void AmB2BSession::setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initia
       getLocalTag().c_str());
 
   rtp_relay_mode = mode;
-  if ((mode == RTP_Relay) && initial_invite_req) {
+  if ((mode != RTP_Direct) && initial_invite_req) {
     // save AmSdp object of initial INVITE body
     invite_sdp.reset(new AmSdp());
     updateRelayStreams(initial_invite_req->content_type, initial_invite_req->body,
@@ -818,7 +847,7 @@ void AmB2BSession::setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initia
 }
 
 void AmB2BSession::setupRelayStreams(AmB2BSession* other_session) {
-  if (rtp_relay_mode != RTP_Relay)
+  if (rtp_relay_mode == RTP_Direct)
     return;
 
   if (NULL == other_session) {
@@ -864,7 +893,7 @@ void AmB2BSession::setRtpRelayTransparentSSRC(bool transparent) {
 }
 
 void AmB2BSession::clearRtpReceiverRelay() {
-  if (rtp_relay_mode == RTP_Relay) {
+  if (rtp_relay_mode != RTP_Direct) {
     for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
       // clear the other call's RTP relay streams from RTP receiver
       if (other_stream_fds[i]) {
@@ -1139,10 +1168,10 @@ AmB2BCalleeSession* AmB2BCallerSession::newCalleeSession()
 }
 
 void AmB2BCallerSession::initializeRTPRelay(AmB2BCalleeSession* callee_session) {
-  if (!callee_session || (rtp_relay_mode != RTP_Relay))
+  if (!callee_session || (rtp_relay_mode == RTP_Direct))
     return;
 
-  callee_session->setRtpRelayMode(rtp_relay_mode); // FIXME: right place here?
+  callee_session->setRtpRelayMode(rtp_relay_mode);
   callee_session->setupRelayStreams(this);
   setupRelayStreams(callee_session);
 
@@ -1210,10 +1239,8 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
     int res;
 
     if (rtp_relay_mode == RTP_Process) {
-      static const string content_type(SIP_APPLICATION_SDP);
-      static const string empty;
       res = dlg.sendRequest(SIP_METH_INVITE,
-			content_type, empty,
+			sdp_content_type, empty, 
 			co_ev->hdrs, SIP_FLAGS_VERBATIM);
     }
     else {
