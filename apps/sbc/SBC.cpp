@@ -70,18 +70,18 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile call_profile)
   bool changed = false;
 
   if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
-    // normalize SDP
     normalizeSDP(sdp, call_profile.anonymize_sdp);
-    // filter SDP
     if (isActiveFilter(call_profile.sdpfilter)) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
     call_profile.orderSDP(sdp);
+    changed = true;
   }
   if (call_profile.sdpalinesfilter_enabled &&
       isActiveFilter(call_profile.sdpalinesfilter)) {
     // filter SDP "a=lines"
     filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
+    changed = true;
   }
 
   return changed;
