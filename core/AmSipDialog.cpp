@@ -689,20 +689,18 @@ string AmSipDialog::getRoute()
 int AmSipDialog::reply(const AmSipRequest& req,
 		       unsigned int  code,
 		       const string& reason,
-		       const string& content_type,
-		       const string& body,
+		       const AmMimeBody* body,
 		       const string& hdrs,
 		       int flags)
 {
   return reply(AmSipTransaction(req.method,req.cseq,req.tt),
-	       code,reason,content_type,body,hdrs,flags);
+	       code,reason,body,hdrs,flags);
 }
 
 int AmSipDialog::reply(const AmSipTransaction& t,
 		       unsigned int  code,
 		       const string& reason,
-		       const string& content_type,
-		       const string& body,
+		       const AmMimeBody* body,
 		       const string& hdrs,
 		       int flags)
 {
@@ -727,8 +725,9 @@ int AmSipDialog::reply(const AmSipTransaction& t,
   reply.hdrs = m_hdrs;
   reply.cseq = t.cseq;
   reply.cseq_method = t.method;
-  reply.content_type = content_type;
-  reply.body = body;
+
+  if(body != NULL)
+    reply.body = *body;
 
   if (!flags&SIP_FLAGS_VERBATIM) {
     // add Signature
@@ -754,7 +753,6 @@ int AmSipDialog::reply(const AmSipTransaction& t,
   }
 
   int ret = SipCtrlInterface::send(reply);
-
   if(ret){
     ERROR("Could not send reply: code=%i; reason='%s'; method=%s; call-id=%s; cseq=%i\n",
 	  reply.code,reply.reason.c_str(),reply.cseq_method.c_str(),
@@ -825,7 +823,7 @@ int AmSipDialog::bye(const string& hdrs, int flags)
 
       if (status != Disconnecting) {
 	status = Disconnected;
-	return sendRequest("BYE", "", "", hdrs, flags);
+	return sendRequest("BYE", NULL, hdrs, flags);
       } else {
 	return 0;
       }
@@ -864,12 +862,11 @@ int AmSipDialog::bye(const string& hdrs, int flags)
 }
 
 int AmSipDialog::reinvite(const string& hdrs,  
-			  const string& content_type,
-			  const string& body,
+			  const AmMimeBody* body,
 			  int flags)
 {
   if(status == Connected) {
-    return sendRequest("INVITE", content_type, body, hdrs, flags);
+    return sendRequest("INVITE", body, hdrs, flags);
   }
   else {
     DBG("reinvite(): we are not connected "
@@ -880,11 +877,10 @@ int AmSipDialog::reinvite(const string& hdrs,
 }
 
 int AmSipDialog::invite(const string& hdrs,  
-			const string& content_type,
-			const string& body)
+			const AmMimeBody* body)
 {
   if(status == Disconnected) {
-    int res = sendRequest("INVITE", content_type, body, hdrs);
+    int res = sendRequest("INVITE", body, hdrs);
     DBG("TODO: is status already 'trying'? status=%s\n",getStatusStr());
     //status = Trying;
     return res;
@@ -897,8 +893,7 @@ int AmSipDialog::invite(const string& hdrs,
   return -1;
 }
 
-int AmSipDialog::update(const string &cont_type, 
-                        const string &body, 
+int AmSipDialog::update(const AmMimeBody* body, 
                         const string &hdrs)
 {
   switch(status){
@@ -907,7 +902,7 @@ int AmSipDialog::update(const string &cont_type,
   case Trying:
   case Proceeding:
   case Early:
-    return sendRequest(SIP_METH_UPDATE, cont_type, body, hdrs);
+    return sendRequest(SIP_METH_UPDATE, body, hdrs);
 
   default:
   case Cancelling:
@@ -927,7 +922,7 @@ int AmSipDialog::refer(const string& refer_to,
     string hdrs = SIP_HDR_COLSP(SIP_HDR_REFER_TO) + refer_to + CRLF;
     if (expires>=0) 
       hdrs+= SIP_HDR_COLSP(SIP_HDR_EXPIRES) + int2str(expires) + CRLF;
-    return sendRequest("REFER", "", "", hdrs);
+    return sendRequest("REFER", NULL, hdrs);
   }
   else {
     DBG("refer(): we are not Connected."
@@ -958,7 +953,7 @@ int AmSipDialog::transfer(const string& target)
       hdrs = PARAM_HDR ": " "Transfer-RR=\"" + route + "\""+CRLF;
     }
 				
-    int ret = tmp_d.sendRequest("REFER","","",hdrs);
+    int ret = tmp_d.sendRequest("REFER",NULL,hdrs);
     if(!ret){
       uac_trans.insert(tmp_d.uac_trans.begin(),
 		       tmp_d.uac_trans.end());
@@ -975,8 +970,7 @@ int AmSipDialog::transfer(const string& target)
 }
 
 int AmSipDialog::prack(const AmSipReply &reply1xx,
-                       const string &cont_type, 
-                       const string &body, 
+                       const AmMimeBody* body, 
                        const string &hdrs)
 {
   switch(status) {
@@ -999,7 +993,7 @@ int AmSipDialog::prack(const AmSipReply &reply1xx,
           int2str(reply1xx.rseq) + " " + 
           int2str(reply1xx.cseq) + " " + 
           reply1xx.cseq_method + CRLF;
-  return sendRequest(SIP_METH_PRACK, cont_type, body, h);
+  return sendRequest(SIP_METH_PRACK, body, h);
 }
 
 int AmSipDialog::cancel()
@@ -1029,12 +1023,11 @@ int AmSipDialog::cancel()
 }
 
 int AmSipDialog::sendRequest(const string& method, 
-			     const string& content_type,
-			     const string& body,
+			     const AmMimeBody* body,
 			     const string& hdrs,
 			     int flags)
 {
-  int ret = sendRequest(method,content_type,body,hdrs,flags,cseq);
+  int ret = sendRequest(method,body,hdrs,flags,cseq);
   if (ret < 0)
     return ret;
 
@@ -1046,8 +1039,7 @@ int AmSipDialog::sendRequest(const string& method,
 
 
 int AmSipDialog::sendRequest(const string& method, 
-			     const string& content_type,
-			     const string& body,
+			     const AmMimeBody* body,
 			     const string& hdrs,
 			     int flags,
 			     unsigned int req_cseq)
@@ -1085,9 +1077,10 @@ int AmSipDialog::sendRequest(const string& method,
 
   req.route = getRoute();
 
-  req.content_type = content_type;
-  req.body = body;
-  DBG("req.body = '%s'\n", req.body.c_str());
+  if(body != NULL) {
+    req.body = *body;
+    //DBG("req.body = '%s'\n", req.body.c_str());
+  }
 
   if (offeranswer_enabled && oa.onRequestOut(req))
     return -1;
@@ -1097,10 +1090,11 @@ int AmSipDialog::sendRequest(const string& method,
     hdl->onSendRequest(req,flags);
 
   onTxRequest(req);
-  if(SipCtrlInterface::send(req, next_hop_ip, next_hop_port,outbound_interface)) {
+  int res = SipCtrlInterface::send(req, next_hop_ip, next_hop_port,outbound_interface);
+  if(res) {
     ERROR("Could not send request: method=%s; call-id=%s; cseq=%i\n",
 	  req.method.c_str(),req.callid.c_str(),req.cseq);
-    return -1;
+    return res;
   }
  
   if(method != SIP_METH_ACK) {
@@ -1126,8 +1120,7 @@ int AmSipDialog::drop()
 }
 
 int AmSipDialog::send_200_ack(unsigned int inv_cseq,
-			      const string& content_type,
-			      const string& body,
+			      const AmMimeBody* body,
 			      const string& hdrs,
 			      int flags)
 {
@@ -1170,8 +1163,8 @@ int AmSipDialog::send_200_ack(unsigned int inv_cseq,
 
   req.route = getRoute();
 
-  req.content_type = content_type;
-  req.body = body;
+  if(body != NULL)
+    req.body = *body;
 
   if (offeranswer_enabled && oa.onRequestOut(req))
     return -1;
@@ -1180,8 +1173,9 @@ int AmSipDialog::send_200_ack(unsigned int inv_cseq,
     hdl->onSendRequest(req,flags);
 
   //onTxRequest(req); // not needed right now in the ACK case
-  if (SipCtrlInterface::send(req, next_hop_ip, next_hop_port, outbound_interface))
-    return -1;
+  int res = SipCtrlInterface::send(req, next_hop_ip, next_hop_port, outbound_interface);
+  if (res)
+    return res;
 
   uac_trans.erase(inv_cseq);
   if (offeranswer_enabled) {

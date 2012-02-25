@@ -89,8 +89,7 @@ struct B2BConnectEvent: public B2BEvent
   string remote_party;
   string remote_uri;
 
-  string content_type;
-  string body;
+  AmMimeBody body;
   string hdrs;
   
   bool relayed_invite;
@@ -157,16 +156,14 @@ class AmB2BSession: public AmSession
   unsigned int est_invite_other_cseq;
   auto_ptr<AmSdp> invite_sdp;
 
-  /** content-type of established session */
-  string established_content_type;
   /** body of established session */
-  string established_body;
+  AmMimeBody established_body;
   /** hash of body (from o-line) */
   uint32_t body_hash;
   /** save current session description (SDP) */
-  virtual void saveSessionDescription(const string& content_type, const string& body);
-  /** @return whether session has changed */
-  virtual bool updateSessionDescription(const string& content_type, const string& body);
+  virtual void saveSessionDescription(const AmMimeBody& body);
+  /** @return whether session description (SDP) has changed */
+  virtual bool updateSessionDescription(const AmMimeBody& body);
 
   /** reset relation with other leg */
   virtual void clear_other();
@@ -260,13 +257,13 @@ class AmB2BSession: public AmSession
   /** clear our and the other side's RTP streams from RTPReceiver */
   void clearRtpReceiverRelay();
   /** update remote connection in relay_streams */
-  void updateRelayStreams(const string& content_type, const string& body,
+  void updateRelayStreams(const AmMimeBody& body,
 			  AmSdp& parser_sdp);
 
   /** replace connection with our address */
   bool replaceConnectionAddress(AmSdp &parser_sdp);
-  bool replaceConnectionAddress(const string& content_type, const string& body,
-				string& r_body);
+  bool replaceConnectionAddress(const AmMimeBody& body, 
+				AmMimeBody& r_body);
 
  public:
   void set_sip_relay_only(bool r);

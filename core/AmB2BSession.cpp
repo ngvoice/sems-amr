@@ -39,6 +39,38 @@ static const string sdp_content_type(SIP_APPLICATION_SDP);
 static const string empty;
 
 //
+// helper functions
+//
+
+/** count active and inactive media streams in given SDP */
+static void countStreams(const AmSdp &sdp, int &active, int &inactive)
+{
+  active = 0;
+  inactive = 0;
+  for (vector<SdpMedia>::const_iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) {
+    if (m->port == 0) inactive++;
+    else active++;
+  }
+}
+
+static void errCode2RelayedReply(AmSipReply &reply, int err_code, unsigned default_code = 500)
+{
+  // FIXME: use cleaner method to propagate error codes/reasons, 
+  // do it everywhere in the code
+  if ((err_code < -399) && (err_code > -700)) {
+    reply.code = -err_code;
+  }
+  else reply.code = default_code;
+
+  // TODO: optimize with a table
+  switch (reply.code) {
+    case 400: reply.reason = "Bad Request"; break;
+    case 478: reply.reason = "Unresolvable destination"; break;
+    default: reply.reason = SIP_REPLY_SERVER_INTERNAL_ERROR;
+  }
+}
+
+//
 // AmB2BSession methods
 //
 
@@ -131,11 +163,11 @@ void AmB2BSession::onB2BEvent(B2BEvent* ev)
 	  return;
 	}
 
-	if(relaySip(req_ev->req) < 0) {
+        int res = relaySip(req_ev->req);
+	if(res < 0) {
 	  // reply relayed request internally
 	  AmSipReply n_reply;
-	  n_reply.code = 500;
-	  n_reply.reason = SIP_REPLY_SERVER_INTERNAL_ERROR;
+          errCode2RelayedReply(n_reply, res, 500);
 	  n_reply.cseq = req_ev->req.cseq;
 	  n_reply.from_tag = dlg.local_tag;
 	  relayEvent(new B2BSipReplyEvent(n_reply, true, req_ev->req.method));
@@ -158,7 +190,8 @@ void AmB2BSession::onB2BEvent(B2BEvent* ev)
 
       DBG("B2BSipReply: %i %s (fwd=%s)\n",reply_ev->reply.code,
 	  reply_ev->reply.reason.c_str(),reply_ev->forward?"true":"false");
-      DBG("B2BSipReply: content-type = %s\n",reply_ev->reply.content_type.c_str());
+      DBG("B2BSipReply: content-type = %s\n",
+	  reply_ev->reply.body.getCTStr().c_str());
 
       if(reply_ev->forward){
 
@@ -207,8 +240,7 @@ void AmB2BSession::onB2BEvent(B2BEvent* ev)
 	    (!reply_ev->reply.body.empty()) &&
 	    (reply_ev->reply.cseq_method == SIP_METH_INVITE ||
 	     reply_ev->reply.cseq_method == SIP_METH_UPDATE)) {
-	  if (updateSessionDescription(reply_ev->reply.content_type,
-				       reply_ev->reply.body)) {
+	  if (updateSessionDescription(reply_ev->reply.body)) {
 	    if (reply_ev->reply.cseq != est_invite_cseq) {
 	      if (dlg.getUACInvTransPending()) {
 		DBG("changed session, but UAC INVITE trans pending\n");
@@ -261,7 +293,29 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
     if (NULL == req_sdp.get())
       req_sdp.reset(new AmSdp());
     // filter relayed INVITE/UPDATE body
+    DBG("filtering body for request '%s' (c/t '%s')\n",
+	req.method.c_str(), req.body.getCTStr().c_str());
+    // todo: handle filtering errors
     filterBody(r_ev->req, *req_sdp.get());
+
+    int active, inactive;
+    countStreams(*req_sdp, active, inactive);
+    if ((inactive > 0) && (active == 0)) {
+      // no active streams remaining => reply 488 (FIXME: does it matter if we
+      // filtered them out or they were already inactive?)
+
+      DBG("all streams are marked as inactive\n");
+      dlg.reply(req, 488, SIP_REPLY_NOT_ACCEPTABLE_HERE);
+
+      // cleanup
+      delete r_ev;
+      if(req.method != SIP_METH_ACK) {
+        std::map<int,AmSipRequest>::iterator r = recvd_req.find(req.cseq);
+        if (r != recvd_req.end()) recvd_req.erase(r);
+      }
+
+      return;
+    }
   }
 
   if (rtp_relay_mode != RTP_Direct &&
@@ -278,7 +332,7 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
 	req_sdp.reset(new AmSdp());
     }
 
-    updateRelayStreams(r_ev->req.content_type, r_ev->req.body, *req_sdp.get());
+    updateRelayStreams(r_ev->req.body, *req_sdp.get());
   }
 
   relayEvent(r_ev);
@@ -287,14 +341,16 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
 /** update RTP relay streams with address/port from SDP body 
     create rtp_relay_streams if not existing
 */
-void AmB2BSession::updateRelayStreams(const string& content_type, const string& body,
-				      AmSdp& parser_sdp) {
-  if (body.empty() || (content_type != SIP_APPLICATION_SDP))
+void AmB2BSession::updateRelayStreams(const AmMimeBody& body,
+				      AmSdp& parser_sdp) 
+{
+  const AmMimeBody* sdp_body = body.hasContentType(SIP_APPLICATION_SDP);
+  if (!sdp_body)
     return;
 
   if (parser_sdp.media.empty()) {
     // SDP has not yet been parsed
-    if (parser_sdp.parse(body.c_str())) {
+    if (parser_sdp.parse((const char*)sdp_body->getPayload())) {
       DBG("SDP parsing failed!\n");
       return;
     }
@@ -413,14 +469,15 @@ bool AmB2BSession::replaceConnectionAddress(AmSdp &parser_sdp) {
   return true;
 }
 
-bool AmB2BSession::replaceConnectionAddress(const string& content_type,
-					    const string& body, string& r_body) {
-
-  if (body.empty() || (content_type != SIP_APPLICATION_SDP))
+bool AmB2BSession::replaceConnectionAddress(const AmMimeBody& body, 
+					    AmMimeBody& r_body) {
+  if(!body.isContentType(SIP_APPLICATION_SDP)) {
+    DBG("body is not an SDP\n");
     return false;
+  }
 
   AmSdp parser_sdp;
-  if (parser_sdp.parse(body.c_str())) {
+  if (parser_sdp.parse((const char*)body.getPayload())) {
     DBG("SDP parsing failed!\n");
     return false;
   }
@@ -428,7 +485,11 @@ bool AmB2BSession::replaceConnectionAddress(const string& content_type,
   replaceConnectionAddress(parser_sdp);
 
   // regenerate SDP
-  parser_sdp.print(r_body);
+  string n_body;
+  parser_sdp.print(n_body);
+  r_body.parse(body.getCTStr(),
+	       (const unsigned char*)n_body.c_str(),
+	       n_body.length());
 
   return true;
 }
@@ -454,7 +515,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
 
   DBG("onSipReply: %s -> %i %s (fwd=%s), c-t=%s\n",
       reply.cseq_method.c_str(), reply.code,reply.reason.c_str(),
-      fwd?"true":"false",reply.content_type.c_str());
+      fwd?"true":"false",reply.body.getCTStr().c_str());
 
   if(fwd) {
     updateRefreshMethod(reply.hdrs);
@@ -473,7 +534,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
 	(reply.code >= 180  && reply.code < 300) &&
 	(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE ||
 	 reply.cseq_method == SIP_METH_ACK || reply.cseq_method == SIP_METH_ACK)) {
-      updateRelayStreams(n_reply.content_type, n_reply.body, filter_sdp);
+      updateRelayStreams(n_reply.body, filter_sdp);
     }
 
     relayEvent(new B2BSipReplyEvent(n_reply, true, t->second.method));
@@ -585,15 +646,19 @@ void AmB2BSession::onNoAck(unsigned int cseq)
   AmSession::onNoAck(cseq);
 }
 
-void AmB2BSession::saveSessionDescription(const string& content_type,
-					  const string& body) {
-  DBG("saving session description (%s, %.*s...)\n",
-      content_type.c_str(), 50, body.c_str());
-  established_content_type = content_type;
-  established_body = body;
+void AmB2BSession::saveSessionDescription(const AmMimeBody& body) {
 
-  const char* cmp_body_begin = body.c_str();
-  size_t cmp_body_length = body.length();
+  const AmMimeBody* sdp_body = body.hasContentType(SIP_APPLICATION_SDP);
+  if(!sdp_body)
+    return;
+
+  DBG("saving session description (%s, %.*s...)\n",
+      sdp_body->getCTStr().c_str(), 50, sdp_body->getPayload());
+
+  established_body = *sdp_body;
+
+  const char* cmp_body_begin = (const char*)sdp_body->getPayload();
+  size_t cmp_body_length = sdp_body->getLen();
 
 #define skip_line						\
     while (cmp_body_length && *cmp_body_begin != '\n') {	\
@@ -605,21 +670,25 @@ void AmB2BSession::saveSessionDescription(const string& content_type,
       cmp_body_length--;					\
     }
 
-  if (body.length() && content_type == SIP_APPLICATION_SDP) {
-    // for SDP, skip v and o line
-    // (o might change even if SDP unchanged)
-    skip_line;
-    skip_line;
+  if (cmp_body_length) {
+  // for SDP, skip v and o line
+  // (o might change even if SDP unchanged)
+  skip_line;
+  skip_line;
   }
 
   body_hash = hashlittle(cmp_body_begin, cmp_body_length, 0);
 }
 
-bool AmB2BSession::updateSessionDescription(const string& content_type,
-					    const string& body) {
-  const char* cmp_body_begin = body.c_str();
-  size_t cmp_body_length = body.length();
-  if (body.length() && content_type == SIP_APPLICATION_SDP) {
+bool AmB2BSession::updateSessionDescription(const AmMimeBody& body) {
+
+  const AmMimeBody* sdp_body = body.hasContentType(SIP_APPLICATION_SDP);
+  if(!sdp_body)
+    return false;
+
+  const char* cmp_body_begin = (const char*)sdp_body->getPayload();
+  size_t cmp_body_length = sdp_body->getLen();
+  if (cmp_body_length) {
     // for SDP, skip v and o line
     // (o might change even if SDP unchanged)
     skip_line;
@@ -632,9 +701,8 @@ bool AmB2BSession::updateSessionDescription(const string& content_type,
 
   if (body_hash != new_body_hash) {
     DBG("session description changed - saving (%s, %.*s...)\n",
-	content_type.c_str(), 50, body.c_str());
+	sdp_body->getCTStr().c_str(), 50, sdp_body->getPayload());
     body_hash = new_body_hash;
-    established_content_type = content_type;
     established_body = body;
     return true;
   }
@@ -643,7 +711,7 @@ bool AmB2BSession::updateSessionDescription(const string& content_type,
 }
 
 int AmB2BSession::sendEstablishedReInvite() {  
-  if (established_content_type.empty() || established_body.empty()) {
+  if (established_body.empty()) {
     ERROR("trying to re-INVITE with saved description, but none saved\n");
     return -1;
   }
@@ -651,14 +719,14 @@ int AmB2BSession::sendEstablishedReInvite() {
   DBG("sending re-INVITE with saved session description\n");
 
   try {
-    const string* body = &established_body;
-    string r_body;
+    AmMimeBody* body = &established_body; // contains only SDP
+    AmMimeBody r_body;
     if (rtp_relay_mode != RTP_Direct &&
-	replaceConnectionAddress(established_content_type, *body, r_body)) {
-      body = &r_body;
+	replaceConnectionAddress(established_body, r_body)) {
+      body = &r_body; // should we keep the old one intact???
     }
 
-    return dlg.reinvite("", established_content_type, *body,
+    return dlg.reinvite("", body,
 			SIP_FLAGS_VERBATIM);
   } catch (const string& s) {
     ERROR("sending established SDP reinvite: %s\n", s.c_str());
@@ -716,20 +784,26 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
     int err;
     if (rtp_relay_mode == RTP_Process) {
       // generate own SDP if req.content_type is SDP (FIXME: only for offer?)
-      err = dlg.sendRequest(req.method, req.content_type, empty, *hdrs, SIP_FLAGS_VERBATIM);
+      AmMimeBody body;
+      body.addPart(SIP_APPLICATION_SDP);
+      err = dlg.sendRequest(req.method, &body, *hdrs, SIP_FLAGS_VERBATIM);
     }
     else {
-      const string* body = &req.body;
-      string r_body;
+      AmMimeBody r_body(req.body);
+      const AmMimeBody* body = &r_body;
       if (rtp_relay_mode == RTP_Relay &&
           (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
            req.method == SIP_METH_ACK || req.method == SIP_METH_PRACK)) {
-        if (replaceConnectionAddress(req.content_type, *body, r_body)) {
+        body = req.body.hasContentType(SIP_APPLICATION_SDP);
+        if (replaceConnectionAddress(*body, *r_body.hasContentType(SIP_APPLICATION_SDP))) {
           body = &r_body;
+        }
+        else {
+          body = &req.body;
         }
       }
 
-      err = dlg.sendRequest(req.method, req.content_type, *body, *hdrs, SIP_FLAGS_VERBATIM);
+      err = dlg.sendRequest(req.method, body, *hdrs, SIP_FLAGS_VERBATIM);
     }
     if(err < 0){
       ERROR("dlg.sendRequest() failed\n");
@@ -740,7 +814,7 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
 	(req.method == SIP_METH_INVITE ||
 	 req.method == SIP_METH_UPDATE) &&
 	!req.body.empty()) {
-      saveSessionDescription(req.content_type, req.body);
+      saveSessionDescription(req.body);
     }
 
   } else {
@@ -758,7 +832,8 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
     }
 
     DBG("sending relayed ACK\n");
-    int err = dlg.send_200_ack(t->first, req.content_type, req.body, req.hdrs, SIP_FLAGS_VERBATIM);
+    int err = dlg.send_200_ack(t->first, &req.body, 
+			       req.hdrs, SIP_FLAGS_VERBATIM);
     if(err < 0) {
       ERROR("dlg.send_200_ack() failed\n");
       return err;
@@ -768,7 +843,7 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
 	!req.body.empty() &&
 	(t->second.method == SIP_METH_INVITE)) {
     // delayed SDP negotiation - save SDP
-      saveSessionDescription(req.content_type, req.body);
+      saveSessionDescription(req.body);
     }
 
     relayed_req.erase(t);
@@ -788,29 +863,33 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
     hdrs = &m_hdrs;
   }
 
-  const string* body = &reply.body;
   int err;
   
   if (rtp_relay_mode == RTP_Process) {
     // generate SDP only if the relayed reply contained SDP (leave the other
     // conditions on AmOfferAnswer)
+    AmMimeBody body;
+    if (reply.body.hasContentType(SIP_APPLICATION_SDP)) body.addPart(SIP_APPLICATION_SDP);
     err = dlg.reply(orig,reply.code,reply.reason,
-                      body->empty() ? empty : reply.content_type,
-		      empty, *hdrs, SIP_FLAGS_VERBATIM);
+                      &body, *hdrs, SIP_FLAGS_VERBATIM);
   } 
   else {
-    string r_body;
+    AmMimeBody r_body(reply.body);
+    const AmMimeBody* body = &r_body;
     if (rtp_relay_mode == RTP_Relay &&
         (orig.method == SIP_METH_INVITE || orig.method == SIP_METH_UPDATE ||
          orig.method == SIP_METH_ACK || orig.method == SIP_METH_PRACK)) {
-      if (replaceConnectionAddress(reply.content_type, *body, r_body)) {
+      body = reply.body.hasContentType(SIP_APPLICATION_SDP);
+      if (body && replaceConnectionAddress(*body, *r_body.hasContentType(SIP_APPLICATION_SDP))) {
         body = &r_body;
+      }
+      else {
+        body = &reply.body;
       }
     }
 
     err = dlg.reply(orig,reply.code,reply.reason,
-		      reply.content_type,
-		      *body, *hdrs, SIP_FLAGS_VERBATIM);
+		      body, *hdrs, SIP_FLAGS_VERBATIM);
   }
 
   if(err < 0){
@@ -822,7 +901,7 @@ int AmB2BSession::relaySip(const AmSipRequest& orig, const AmSipReply& reply)
       (orig.method == SIP_METH_INVITE ||
        orig.method == SIP_METH_UPDATE) &&
       !reply.body.empty()) {
-    saveSessionDescription(reply.content_type, reply.body);
+    saveSessionDescription(reply.body);
   }
 
   return 0;
@@ -837,7 +916,7 @@ void AmB2BSession::setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initia
   if ((mode != RTP_Direct) && initial_invite_req) {
     // save AmSdp object of initial INVITE body
     invite_sdp.reset(new AmSdp());
-    updateRelayStreams(initial_invite_req->content_type, initial_invite_req->body,
+    updateRelayStreams(initial_invite_req->body,
                        *invite_sdp.get());
   }
 
@@ -1091,6 +1170,18 @@ void AmB2BCallerSession::connectCallee(const string& remote_party,
   if(callee_status != None)
     terminateOtherLeg();
 
+  AmSdp filter_sdp;
+  filterBody(invite_req, filter_sdp); // FIXME: a_leg == true here, right?
+  
+  int active, inactive;
+  countStreams(filter_sdp, active, inactive);
+  if ((inactive > 0) && (active == 0)) {
+    // no active streams remaining => reply 488 (FIXME: does it matter if we
+    // filtered them out or they were already inactive?)
+    DBG("all streams are marked as inactive\n");
+    throw AmSession::Exception(488, SIP_REPLY_NOT_ACCEPTABLE_HERE);
+  }
+
   if (relayed_invite) {
     // relayed INVITE - we need to add the original INVITE to
     // list of received (relayed) requests
@@ -1102,10 +1193,6 @@ void AmB2BCallerSession::connectCallee(const string& remote_party,
 
   B2BConnectEvent* ev = new B2BConnectEvent(remote_party,remote_uri);
 
-  AmSdp filter_sdp;
-  filterBody(invite_req, filter_sdp); // FIXME: a_leg == true here, right?
-
-  ev->content_type = invite_req.content_type;
   ev->body         = invite_req.body;
   ev->hdrs         = invite_req.hdrs;
   ev->relayed_invite = relayed_invite;
@@ -1118,7 +1205,7 @@ void AmB2BCallerSession::connectCallee(const string& remote_party,
 int AmB2BCallerSession::reinviteCaller(const AmSipReply& callee_reply)
 {
   return dlg.sendRequest(SIP_METH_INVITE,
-			 callee_reply.content_type, callee_reply.body,
+			 &callee_reply.body,
 			 "" /* hdrs */, SIP_FLAGS_VERBATIM);
 }
 
@@ -1218,13 +1305,17 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
 	AmSipTransaction(SIP_METH_INVITE, co_ev->r_cseq, trans_ticket());
     }
 
-    const string* body = &co_ev->body;
-    string r_body;
+    AmMimeBody r_body(co_ev->body);
+    const AmMimeBody* body = &co_ev->body;
     if (rtp_relay_mode == RTP_Relay) {
       try {
-	if (replaceConnectionAddress(co_ev->content_type, *body, r_body)) {
+	body = co_ev->body.hasContentType(SIP_APPLICATION_SDP);
+	if (replaceConnectionAddress(*body, *r_body.hasContentType(SIP_APPLICATION_SDP))) {
 	  body = &r_body;
-	} 
+	}
+	else {
+	  body = &co_ev->body;
+	}
       } catch (const string& s) {
 	AmSipReply n_reply;
 	n_reply.code = 500;
@@ -1239,21 +1330,19 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
     int res;
 
     if (rtp_relay_mode == RTP_Process) {
-      res = dlg.sendRequest(SIP_METH_INVITE,
-			sdp_content_type, empty, 
+      AmMimeBody body;
+      body.addPart(SIP_APPLICATION_SDP);
+      res = dlg.sendRequest(SIP_METH_INVITE, &body,
 			co_ev->hdrs, SIP_FLAGS_VERBATIM);
     }
     else {
-      res = dlg.sendRequest(SIP_METH_INVITE,
-			co_ev->content_type, *body,
+      res = dlg.sendRequest(SIP_METH_INVITE, body,
 			co_ev->hdrs, SIP_FLAGS_VERBATIM);
     }
     if (res < 0) {
-
-      DBG("sending INVITE failed, relaying back 400 Bad Request\n");
+      DBG("sending INVITE failed, relaying back error reply\n");
       AmSipReply n_reply;
-      n_reply.code = 400;
-      n_reply.reason = "Bad Request";
+      errCode2RelayedReply(n_reply, res, 400);
       n_reply.cseq = co_ev->r_cseq;
       n_reply.from_tag = dlg.local_tag;
       relayEvent(new B2BSipReplyEvent(n_reply, co_ev->relayed_invite, SIP_METH_INVITE));
@@ -1266,7 +1355,7 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
     }
 
     if (refresh_method != REFRESH_UPDATE)
-      saveSessionDescription(co_ev->content_type, co_ev->body);
+      saveSessionDescription(co_ev->body);
 
     // save CSeq of establising INVITE
     est_invite_cseq = dlg.cseq - 1;

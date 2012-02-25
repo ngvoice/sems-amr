@@ -87,40 +87,47 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile call_profile)
   return changed;
 }
 
-static int filterBody(string& content_type, string& body, AmSdp& sdp, SBCCallProfile call_profile) 
+static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile call_profile) 
 {
-  // filter only SDP & non-empty body
-  if (body.empty()) return 0;
-  if (content_type != SIP_APPLICATION_SDP) return 0;
-
-  int res = sdp.parse(body.c_str());
+  int res = sdp.parse((const char *)body->getPayload());
   if (0 != res) {
     DBG("SDP parsing failed!\n");
     return res;
   }
 
-  if (doFiltering(sdp, call_profile)) sdp.print(body);
+  if (doFiltering(sdp, call_profile)) {
+    string n_body;
+    sdp.print(n_body);
+    body->setPayload((const unsigned char*)n_body.c_str(),
+			 n_body.length());
+  }
   return 0;
 }
 
 static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile call_profile)
 {
-  DBG("filtering body for request '%s' (c/t '%s')\n",
-      req.method.c_str(), req.content_type.c_str());
-  if (req.method == SIP_METH_INVITE || 
-      req.method == SIP_METH_UPDATE ||
-      req.method == SIP_METH_ACK) {
+  AmMimeBody* body = req.body.hasContentType(SIP_APPLICATION_SDP);
+
+  DBG("filtering SDP for request '%s'\n",
+      req.method.c_str());
+  if (body && 
+      (req.method == SIP_METH_INVITE || 
+       req.method == SIP_METH_UPDATE ||
+       req.method == SIP_METH_ACK)) {
 
     // todo: handle filtering errors
-    filterBody(req.content_type, req.body, sdp, call_profile);
+    filterBody(body, sdp, call_profile);
   }
 }
 
 static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile call_profile)
 {
+  AmMimeBody* body = reply.body.hasContentType(SIP_APPLICATION_SDP);
+
   DBG("filtering body of relayed reply %d\n", reply.code);
-  if (reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE) {
-    filterBody(reply.content_type, reply.body, sdp, call_profile);
+  if (body &&
+      (reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) {
+    filterBody(body, sdp, call_profile);
   }
 }
 
@@ -978,7 +985,7 @@ void SBCDialog::onSipRequest(const AmSipRequest& req) {
        call_profile.messagefilter_list.end());
     if (is_filtered) {
       DBG("replying 405 to filtered message '%s'\n", req.method.c_str());
-      dlg.reply(req, 405, "Method Not Allowed", "", "", "", SIP_FLAGS_VERBATIM);
+      dlg.reply(req, 405, "Method Not Allowed", NULL, "", SIP_FLAGS_VERBATIM);
       return;
     }
   }
@@ -992,7 +999,7 @@ void SBCDialog::onSipReply(const AmSipReply& reply, AmSipDialog::Status old_dlg_
   bool fwd = t != relayed_req.end();
 
   DBG("onSipReply: %i %s (fwd=%i)\n",reply.code,reply.reason.c_str(),fwd);
-  DBG("onSipReply: content-type = %s\n",reply.content_type.c_str());
+  DBG("onSipReply: content-type = %s\n",reply.body.getCTStr().c_str());
   if (fwd) {
       CALL_EVENT_H(onSipReply,reply, old_dlg_status);
   }
@@ -1259,7 +1266,7 @@ bool SBCDialog::CCStart(const AmSipRequest& req) {
 
 	  dlg.reply(req,
 		    ret[i][SBC_CC_REFUSE_CODE].asInt(), ret[i][SBC_CC_REFUSE_REASON].asCStr(),
-		    "", "", headers);
+		    NULL, headers);
 
 	  // call 'end' of call control modules up to here
 	  call_end_ts.tv_sec = call_start_ts.tv_sec;
@@ -1572,7 +1579,7 @@ void SBCCalleeSession::onSipRequest(const AmSipRequest& req) {
        call_profile.messagefilter_list.end());
     if (is_filtered) {
       DBG("replying 405 to filtered message '%s'\n", req.method.c_str());
-      dlg.reply(req, 405, "Method Not Allowed", "", "", "", SIP_FLAGS_VERBATIM);
+      dlg.reply(req, 405, "Method Not Allowed", NULL, "", SIP_FLAGS_VERBATIM);
       return;
     }
   }
@@ -1586,7 +1593,7 @@ void SBCCalleeSession::onSipReply(const AmSipReply& reply, AmSipDialog::Status o
   TransMap::iterator t = relayed_req.find(reply.cseq);
   bool fwd = t != relayed_req.end();
   DBG("onSipReply: %i %s (fwd=%i)\n",reply.code,reply.reason.c_str(),fwd);
-  DBG("onSipReply: content-type = %s\n",reply.content_type.c_str());
+  DBG("onSipReply: content-type = %s\n",reply.body.getCTStr().c_str());
   if(fwd) {
     CALL_EVENT_H(onSipReply,reply, old_dlg_status);
   }
@@ -1633,11 +1640,12 @@ static bool isThere(int num, const vector<int> &vals)
 
 void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
 {
-  if (reply.body.empty()) return;
-  if (reply.content_type != SIP_APPLICATION_SDP) return;
+  AmMimeBody* body = reply.body.hasContentType(SIP_APPLICATION_SDP);
+
+  if (!body) return;
   if (!(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) return;
 
-  int res = sdp.parse(reply.body.c_str());
+  int res = sdp.parse((const char *)body->getPayload());
   if (0 != res) {
     DBG("SDP parsing failed!\n");
     return;
@@ -1669,7 +1677,12 @@ void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
   // use received body as offer in A leg (i.e. do not filter out any codecs)?
 
   // generate output
-  if (changed) sdp.print(reply.body);
+  if (changed) {
+    string n_body;
+    sdp.print(n_body);
+    body->setPayload((const unsigned char*)n_body.c_str(),
+			 n_body.length());
+  }
 }
 
 bool SBCCalleeSession::getSdpOffer(AmSdp& offer) 
@@ -1749,10 +1762,11 @@ void SBCCalleeSession::onB2BEvent(B2BEvent* ev)
 
     B2BConnectEvent* co_ev = dynamic_cast<B2BConnectEvent*>(ev);
     if (co_ev && co_ev->relayed_invite) {
-      if ((co_ev->content_type == SIP_APPLICATION_SDP) && (!co_ev->body.empty())) {
+      const AmMimeBody* body = co_ev->body.hasContentType(SIP_APPLICATION_SDP);
+      if (body) {
         // the body is already normalized, filtered and codecs are ordered
         initial_sdp.reset(new AmSdp());
-        if (initial_sdp->parse(co_ev->body.c_str())) {
+        if (initial_sdp->parse((const char*)body->getPayload())) {
           DBG("initial SDP parsing failed!\n");
         }
         replaceConnectionAddress(*initial_sdp); // needed to offer our IP/ports
