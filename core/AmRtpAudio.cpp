@@ -116,6 +116,40 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
 
 int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int nb_samples)
 {
+  if (!(receiving || getPassiveMode())) return 0; // like nothing received
+    
+  // complete frame time reached? 
+  if (!checkInterval(ref_ts, nb_samples)) return 0; // like nothing received
+
+  int ret = receive(ref_ts);
+  if(ret < 0){
+    switch(ret){
+
+      case RTP_DTMF:
+      case RTP_UNKNOWN_PL:
+      case RTP_PARSE_ERROR:
+        return 0; // like nothing received
+        break;
+
+      case RTP_TIMEOUT:
+        //FIXME: postRequest(new SchedRequest(AmMediaProcessor::RemoveSession,s));
+        // post to the session (FIXME: is session always set? seems to be...)
+        session->postEvent(new AmRtpTimeoutEvent());
+        return -1;
+        break;
+
+      case RTP_BUFFER_SIZE:
+      default:
+        ERROR("AmRtpAudio::receive() returned %i\n",ret);
+        //FIXME: postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
+        //       or AmMediaProcessor::instance()->clearSession(session);
+        return -1;
+        break;
+    }
+
+    return 0; // like nothing received?
+  }
+
   int size = read(ref_ts,PCM16_S2B(nb_samples));
   memcpy(buffer,(unsigned char*)samples,size);
   return size;

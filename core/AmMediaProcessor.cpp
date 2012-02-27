@@ -281,68 +281,29 @@ void AmMediaProcessorThread::processAudio(unsigned int ts)
       it != sessions.end(); it++){
 
     AmSession* s = (*it);
-    // todo: get frame size/checkInterval from local audio if local in+out (?)
     unsigned int f_size = s->RTPStream()->getFrameSize(); 
+    s->lockAudio();
 
-    // complete frame time reached? 
-    if (s->RTPStream()->checkInterval(ts, f_size)) {
-      s->lockAudio();
-
-      int got_audio = -1;
-
-      // get/receive audio
-      if (!s->getAudioLocal(AM_AUDIO_IN)) {
-	// input is not local - receive from rtp stream
-	if (s->RTPStream()->receiving || s->RTPStream()->getPassiveMode()) {
-	  int ret = s->RTPStream()->receive(ts);
-	  if(ret < 0){
-	    switch(ret){
-	      
-	    case RTP_DTMF:
-	    case RTP_UNKNOWN_PL:
-	    case RTP_PARSE_ERROR:
-	      break;
-	      
-	    case RTP_TIMEOUT:
-	      postRequest(new SchedRequest(AmMediaProcessor::RemoveSession,s));
-	      s->postEvent(new AmRtpTimeoutEvent());
-	      break;
-	      
-	    case RTP_BUFFER_SIZE:
-	    default:
-	      ERROR("AmRtpAudio::receive() returned %i\n",ret);
-	      postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
-	      break;
-	    }
-	  } else {
-	    got_audio = s->RTPStream()->get(ts,buffer,f_size);
-	    
-	    if (s->isDtmfDetectionEnabled() && got_audio > 0)
-	      s->putDtmfAudio(buffer, got_audio, ts);
-	  }
-	}
-      } else {
-	// input is local - get audio from local_in
-	AmAudio* local_input = s->getLocalInput(); 
-	if (local_input) {
-	  got_audio = local_input->get(ts,buffer,f_size);
-	}
-      }
-
-      // process received audio
-      if (got_audio >= 0) {
-	AmAudio* input = s->getInput();
-	if (input) {
-	  int ret = input->put(ts,buffer,got_audio);
-	  if(ret < 0){
-	    DBG("input->put() returned: %i\n",ret);
-	    postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
-	  }
-	}
-      }
-
-      s->unlockAudio();
+    int got_audio = s->RTPStream()->get(ts,buffer,f_size);
+    if (got_audio < 0) {
+      postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
     }
+    else if (got_audio > 0) { // FIXME: what about got_audio == 0 ?
+      if (s->isDtmfDetectionEnabled())
+        s->putDtmfAudio(buffer, got_audio, ts);
+
+    // process received audio
+      AmAudio* input = s->getInput();
+      if (input) {
+        int ret = input->put(ts,buffer,got_audio);
+        if(ret < 0){
+          DBG("input->put() returned: %i\n",ret);
+          postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
+        }
+      }
+    }
+
+    s->unlockAudio();
   }
 
   // sending
@@ -352,30 +313,19 @@ void AmMediaProcessorThread::processAudio(unsigned int ts)
     AmSession* s = (*it);
     s->lockAudio();
     AmAudio* output = s->getOutput();
-	    
+
     if(output && s->RTPStream()->sendIntReached()){
-		
+
       int size = output->get(ts,buffer,s->RTPStream()->getFrameSize());
       if(size <= 0){
-	DBG("output->get() returned: %i\n",size);
-	postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s)); 
-      }
-      else {
-	if (!s->getAudioLocal(AM_AUDIO_OUT)) {
-	  // audio should go to RTP
-	  if(!s->RTPStream()->mute){	     
-	    if(s->RTPStream()->put(ts,buffer,size)<0)
-	      postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
-	  }
-	} else {
-	  // output is local - audio should go in local_out
-	  AmAudio* local_output = s->getLocalOutput(); 
-	  if (local_output) {
-	    if (local_output->put(ts,buffer,size) < 0) {
-	      postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
-	    }
-	  }
-	}
+        DBG("output->get() returned: %i\n",size);
+        postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s)); 
+      } else {
+        // audio should go to RTP
+        if(!s->RTPStream()->mute){	     
+          if(s->RTPStream()->put(ts,buffer,size)<0)
+            postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
+        }
       }
     }
     s->unlockAudio();
