@@ -39,6 +39,7 @@
 #include "AmSipEvent.h"
 #include "AmApi.h"
 #include "AmSessionEventHandler.h"
+#include "AmMediaProcessor.h"
 
 #ifdef WITH_ZRTP
 #include "zrtp/zrtp.h"
@@ -53,6 +54,48 @@ using std::vector;
 
 class AmSessionFactory;
 class AmDtmfEvent;
+
+class AmAudioPair
+{
+  protected:
+    AmAudio *src, *sink; /* source and destination for audio */
+
+    /* RTP stream used for operation control on the pair - says when to get and
+     * put data */
+    AmRtpAudio *ctrl;
+
+    /* FIXME: just temporarily for distinguishing which AmRtpAudio function to
+     * call in checkInterval, make checkInterval and sendIntReached in
+     * AmRtpAudio independent */
+    bool is_out;
+
+    bool handle_dtmf;
+
+  public:
+    AmAudioPair(AmAudio *_src, AmAudio *_sink, AmRtpAudio *_ctrl, bool _handle_dtmf, bool _is_out);
+    int process(unsigned int ts, unsigned char *buffer, AmSession *dtmf_handler);
+
+    /* FIXME: returns frame size. Is it really fixed value if there can be more
+     * codecs used at once within one RTP stream? */
+    unsigned int getFrameSize() { return ctrl->getFrameSize(); }
+
+    bool checkInterval(unsigned int ts); 
+
+};
+
+class AmSession;
+
+/** class for processing all media streams within one session */
+class AmAudioSession: public AmMediaSession
+{
+  protected:
+    std::vector<AmAudioPair> streams;
+    AmSession *session;
+
+  public: 
+    AmAudioSession(AmSession *_session): session(_session) { }
+    virtual int process(unsigned int ts, unsigned char *buffer);
+};
 
 /** @file AmSession.h */
 

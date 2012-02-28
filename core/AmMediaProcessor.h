@@ -38,6 +38,13 @@ using std::set;
 
 struct SchedRequest;
 
+class AmMediaSession
+{
+  public:
+    virtual int process(unsigned int ts, unsigned char *buffer) = 0;
+    virtual ~AmMediaSession() { }
+};
+
 /**
  * \brief Media processing thread
  * 
