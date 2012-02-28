@@ -322,10 +322,8 @@ void AmMediaProcessorThread::processAudio(unsigned int ts)
         postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s)); 
       } else {
         // audio should go to RTP
-        if(!s->RTPStream()->mute){	     
-          if(s->RTPStream()->put(ts,buffer,size)<0)
-            postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
-        }
+        if(s->RTPStream()->put(ts,buffer,size)<0)
+          postRequest(new SchedRequest(AmMediaProcessor::ClearSession,s));
       }
     }
     s->unlockAudio();

@@ -108,6 +108,8 @@ public:
 
   int get(unsigned int user_ts, unsigned char* buffer, 
 	  unsigned int nb_samples);
+  
+  virtual int put(unsigned int user_ts, unsigned char* buffer, unsigned int size);
 
   // AmRtpStream interface
   void getSdpOffer(unsigned int index, SdpMedia& offer);

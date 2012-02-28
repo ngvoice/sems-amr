@@ -155,6 +155,12 @@ int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int nb_
   return size;
 }
 
+int AmRtpAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
+{
+  if(!mute) return AmAudio::put(user_ts, buffer, size);
+  else return 0;
+}
+
 int AmRtpAudio::read(unsigned int ref_ts, unsigned int size)
 {
   u_int32_t rlen = 
