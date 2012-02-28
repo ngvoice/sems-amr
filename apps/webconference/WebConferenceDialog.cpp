@@ -165,8 +165,7 @@ void WebConferenceDialog::onSessionStart() {
       setMute(false);
       DBG("########## dialout: connect to conference '%s' #########\n", dlg.user.c_str()); 
       state = InConference;
-      setAudioLocal(AM_AUDIO_IN, false);
-      setAudioLocal(AM_AUDIO_OUT, false);
+      setLocalInput(NULL);
       time(&connect_ts);
       connectConference(dlg.user);
     }
@@ -184,8 +183,6 @@ void WebConferenceDialog::onRinging(const AmSipReply& rep) {
       RingTone.reset(new AmRingTone(0,2000,4000,440,480)); // US
 
     setLocalInput(RingTone.get());
-    setAudioLocal(AM_AUDIO_IN, true);
-    setAudioLocal(AM_AUDIO_OUT, true);
 
     if (None == state) {
       connectConference(dlg.user);
@@ -200,8 +197,7 @@ void WebConferenceDialog::onEarlySessionStart() {
 
     DBG("########## dialout: connect early session to conference '%s'  #########\n", 
 	dlg.user.c_str());
-    setAudioLocal(AM_AUDIO_IN, false);
-    setAudioLocal(AM_AUDIO_OUT, false);
+    setLocalInput(NULL);
     if (None == state) {
       connectConference(dlg.user);
     }
@@ -422,12 +418,12 @@ void WebConferenceDialog::onMuted(bool mute) {
       
     case InConferenceRinging: {
       if (muted) {
-	setLocalInOut(NULL, NULL);
+	setLocalInput(NULL);
       } else {
 	if(!RingTone.get())
 	  RingTone.reset(new AmRingTone(0,2000,4000,440,480)); // US
     
-	setLocalInOut(RingTone.get(), NULL);
+	setLocalInput(RingTone.get());
 	if (getDetached())
 	  AmMediaProcessor::instance()->addSession(this, callgroup); 
       }

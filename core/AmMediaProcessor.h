@@ -30,7 +30,6 @@
 
 #include "AmEventQueue.h"
 #include "amci/amci.h" // AUDIO_BUFFER_SIZE
-class AmSession;
 
 #include <set>
 using std::set;
@@ -40,14 +39,32 @@ struct SchedRequest;
 
 class AmMediaSession
 {
+  private:
+    AmCondition<bool> processing_media;
+
   public:
+    AmMediaSession(): processing_media(false) { }
+
     /* first read from all RTP streams */
-    virtual int readStreams(bool output, unsigned int ts, unsigned char *buffer) = 0;
+    virtual int readStreams(unsigned int ts, unsigned char *buffer) = 0;
     
     /* after read write to all RTP streams */
-    virtual int writeStreams(bool output, unsigned int ts, unsigned char *buffer) = 0;
+    virtual int writeStreams(unsigned int ts, unsigned char *buffer) = 0;
+
+    virtual void processDtmfEvents() = 0;
+    virtual void clearAudio() = 0;
+    virtual void clearRTPTimeout() = 0;
 
     virtual ~AmMediaSession() { }
+
+    void onMediaProcessingStarted() { processing_media.set(true); }
+    void onMediaProcessingTerminated() { processing_media.set(false); }
+  
+    /** Is the session being processed in  media processor? */
+    bool getProcessingMedia() { return processing_media.get(); }
+  
+    /** Is the session detached from media processor? */
+    bool getDetached() { return !processing_media.get(); }
 };
 
 /**
@@ -63,7 +80,7 @@ class AmMediaProcessorThread :
 {
   AmEventQueue    events;
   unsigned char   buffer[AUDIO_BUFFER_SIZE];
-  set<AmSession*> sessions;
+  set<AmMediaSession*> sessions;
   
   void processAudio(unsigned int ts);
   /**
@@ -103,14 +120,14 @@ class AmMediaProcessor
   AmMediaProcessorThread**  threads;
   
   std::map<string, unsigned int> callgroup2thread;
-  std::multimap<string, AmSession*> callgroupmembers;
-  std::map<AmSession*, string> session2callgroup;
+  std::multimap<string, AmMediaSession*> callgroupmembers;
+  std::map<AmMediaSession*, string> session2callgroup;
   AmMutex group_mut;
 
   AmMediaProcessor();
   ~AmMediaProcessor();
 	
-  void removeFromProcessor(AmSession* s, unsigned int r_type);
+  void removeFromProcessor(AmMediaSession* s, unsigned int r_type);
 public:
   /** 
    * InsertSession     : inserts the session to the processor
@@ -124,13 +141,13 @@ public:
 
   void init();
   /** Add session s to processor */
-  void addSession(AmSession* s, const string& callgroup);
+  void addSession(AmMediaSession* s, const string& callgroup);
   /** Remove session s from processor */
-  void removeSession(AmSession* s);
+  void removeSession(AmMediaSession* s);
   /** Remove session s from processor and clear its audio */
-  void clearSession(AmSession* s);
+  void clearSession(AmMediaSession* s);
   /** Change the callgroup of a session (use with caution) */
-  void changeCallgroup(AmSession* s, 
+  void changeCallgroup(AmMediaSession* s, 
 		       const string& new_callgroup);
 
   void stop();

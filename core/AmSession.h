@@ -85,32 +85,20 @@ class AmAudioPair
 
     bool checkInterval(unsigned int ts); 
     bool isOutput() { return is_out; }
-};
 
-class AmSession;
+    /* set/get methods for manipulating internals */
 
-/** class for processing all media streams within one session */
-class AmAudioSession: public AmMediaSession
-{
-  protected:
-    std::vector<AmAudioPair> streams;
-    AmSession *session;
+    AmAudio *getSource() { return src; }
+    AmAudio *getSink() { return sink; }
 
-    int processMedia(bool write_streams, unsigned int ts, unsigned char *buffer);
-
-  public: 
-    AmAudioSession(AmSession *_session): session(_session) { }
-    virtual int readStreams(unsigned int ts, unsigned char *buffer) { return processMedia(false, ts, buffer); }
-    virtual int writeStreams(unsigned int ts, unsigned char *buffer) { return processMedia(true, ts, buffer); }
+    void setSource(AmAudio *_src) { src = _src; }
+    void setSink(AmAudio *_sink) { sink = _sink; }
 };
 
 /** @file AmSession.h */
 
 /* definition imported from Ser parser/msg_parser.h */
 #define FL_FORCE_ACTIVE 2
-
-#define AM_AUDIO_IN  0
-#define AM_AUDIO_OUT 1
 
 
 /**
@@ -125,18 +113,11 @@ class AmSession :
 #endif
   public AmEventQueue, 
   public AmEventHandler,
-  public AmSipDialogEventHandler
+  public AmSipDialogEventHandler,
+  public AmMediaSession
 {
   AmMutex      audio_mut;
-  // remote (to/from RTP) audio inout
-  AmAudio*     input;
-  AmAudio*     output;
 
-  // local (to/from audio dev) audio inout
-  AmAudio*     local_input;
-  AmAudio*     local_output;
-
-  bool use_local_audio[2];
 protected:
   vector<SdpPayload *>  m_payloads;
   //bool         negotiate_onreply;
@@ -229,6 +210,9 @@ protected:
   /** Session event handlers (ex: session timer, UAC auth, etc...) */
   vector<AmSessionEventHandler*> ev_handlers;
 
+  /** media streams to be processed */
+  std::vector<AmAudioPair> streams;
+
 public:
 
   enum SessionRefreshMethod {
@@ -294,12 +278,6 @@ public:
   /** stop processing media - remove from media processor */
   void stopMediaProcessing();
 
-  /** Is the session being processed in  media processor? */
-  bool getProcessingMedia() { return processing_media.get(); }
-
-  /** Is the session detached from media processor? */
-  bool getDetached() { return !processing_media.get(); }
-
   /**
    * Set the call group for this call; calls in the same
    * group are processed by the same media processor thread.
@@ -338,12 +316,12 @@ public:
    * Audio input getter .
    * Note: audio must be locked!
    */
-  AmAudio* getInput() { return input; }
+  AmAudio* getInput() { if (streams.size() > 0) return streams[0].getSink(); else return NULL; }
   /**
    * Audio output getter.
    * Note: audio must be locked!
    */
-  AmAudio* getOutput(){ return output;}
+  AmAudio* getOutput() { if (streams.size() > 1) return streams[1].getSource(); else return NULL; }
 
   /**
    * Audio input & output set methods.
@@ -353,31 +331,11 @@ public:
   void setOutput(AmAudio* out);
   void setInOut(AmAudio* in, AmAudio* out);
 
-
-  /**
-   * Local audio input getter .
-   * Note: audio must be locked!
-   */
-  AmAudio* getLocalInput() { return local_input; }
-  /**
-   * Local audio output getter.
-   * Note: audio must be locked!
-   */
-  AmAudio* getLocalOutput() { return local_output;}
-
   /**
    * Local audio input & output set methods.
    * Note: audio will be locked by the methods.
    */
   void setLocalInput(AmAudio* in);
-  void setLocalOutput(AmAudio* out);
-  void setLocalInOut(AmAudio* in, AmAudio* out);
-
-  /** this switches between local and remote 
-   * audio inout 
-   */
-  void setAudioLocal(unsigned int dir, bool local);
-  bool getAudioLocal(unsigned int dir);
 
   /**
    * Clears input & ouput (no need to lock)
@@ -500,8 +458,6 @@ public:
    * Entry point for DTMF events
    */
   void postDtmfEvent(AmDtmfEvent *);
-
-  void processDtmfEvents();
 
   void setInbandDetector(Dtmf::InbandDetectorType t);
   bool isDtmfDetectionEnabled() { return m_dtmfDetectionEnabled; }
@@ -679,6 +635,17 @@ public:
    * Creates a new Id which can be used within sessions.
    */
   static string getNewId();
+
+  /* ----------------- media processing interface ------------------- */
+
+  protected:
+    int processMedia(bool write_streams, unsigned int ts, unsigned char *buffer);
+
+  public: 
+    virtual int readStreams(unsigned int ts, unsigned char *buffer) { return processMedia(false, ts, buffer); }
+    virtual int writeStreams(unsigned int ts, unsigned char *buffer) { return processMedia(true, ts, buffer); }
+    virtual void clearRTPTimeout() { RTPStream()->clearRTPTimeout(); }
+    virtual void processDtmfEvents();
 
 };
 

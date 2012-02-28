@@ -63,7 +63,7 @@ int AmAudioPair::process(unsigned int ts, unsigned char *buffer, AmSession *dtmf
   if (checkInterval(ts)) {
     unsigned int f_size = getFrameSize();
     int got = 0;
-    if (src) src->get(ts, buffer, f_size);
+    if (src) got = src->get(ts, buffer, f_size);
     if (got < 0) return -1;
     if (got > 0) {
       if (handle_dtmf && dtmf_handler)
@@ -82,30 +82,6 @@ bool AmAudioPair::checkInterval(unsigned int ts)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
-    
-int AmAudioSession::processMedia(bool write_streams, unsigned int ts, unsigned char *buffer)
-{
-  int res = 0;
-  AmSession *dtmf_handler = 0;
-
-  session->lockAudio();
-
-  if (session->isDtmfDetectionEnabled()) dtmf_handler = session;
-  for (vector<AmAudioPair>::iterator i = streams.begin(); i != streams.end(); ++i) {
-    if (write_streams != i->isOutput()) continue;
-    if (i->process(ts, buffer, dtmf_handler) < 0) {
-      res = -1;
-      break;
-    }
-  }
-
-  session->unlockAudio();
-
-  return res;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
 
 volatile unsigned int AmSession::session_num = 0;
 AmMutex AmSession::session_num_mut;
@@ -132,7 +108,6 @@ AmSession::AmSession()
     dlg(this),
     processing_media(false),
     sess_stopped(false),
-    input(0), output(0), local_input(0), local_output(0),
     m_dtmfDetector(this), m_dtmfEventQueue(&m_dtmfDetector),
     m_dtmfDetectionEnabled(true),
     accept_early_session(false),
@@ -147,8 +122,6 @@ AmSession::AmSession()
   , _pid(this)
 #endif
 {
-  use_local_audio[AM_AUDIO_IN] = false;
-  use_local_audio[AM_AUDIO_OUT] = false;
 }
 
 AmSession::~AmSession()
@@ -185,9 +158,9 @@ void AmSession::startMediaProcessing()
   if(getStopped() || processing_media.get())
     return;
 
-  bool in_out_set = false;
+  bool in_out_set;
   lockAudio();
-  in_out_set = input || output || local_input || local_output;
+  in_out_set = streams.size() > 0;
   unlockAudio();
   if(in_out_set) {
     AmMediaProcessor::instance()->addSession(this, callgroup);
@@ -215,56 +188,75 @@ void AmSession::addHandler(AmSessionEventHandler* sess_evh)
 void AmSession::setInput(AmAudio* in)
 {
   lockAudio();
-  input = in;
+  if (streams.size() > 0) streams[0].setSink(in);
+  else {
+    AmRtpAudio *stream = RTPStream();
+    AmAudioPair pair(stream, in, stream, true, false);
+    streams.push_back(pair);
+  }
   unlockAudio();
 }
 
 void AmSession::setOutput(AmAudio* out)
 {
   lockAudio();
-  output = out;
+  if (streams.size() > 1) streams[1].setSource(out);
+  else {
+    AmRtpAudio *stream = RTPStream();
+    if (streams.size() < 1) {
+      // append pair for input from RTP stream
+      AmAudioPair in(stream, NULL, stream, true, false);
+      streams.push_back(in);
+    }
+    // append pair for output to RTP stream
+    AmAudioPair pair(out, stream, stream, false, true);
+    streams.push_back(pair);
+  }
   unlockAudio();
 }
 
 void AmSession::setInOut(AmAudio* in,AmAudio* out)
 {
   lockAudio();
-  input = in;
-  output = out;
+  AmRtpAudio *stream = RTPStream();
+  unsigned cnt = streams.size();
+    
+  if (cnt < 2) {
+    if (cnt < 1) {
+      AmAudioPair ins(stream, in, stream, true, false);
+      streams.push_back(ins);
+    } 
+    else streams[0].setSink(in);
+
+    AmAudioPair outs(out, stream, stream, false, true);
+    streams.push_back(outs);
+  } else {
+    // both streams already exist
+    streams[0].setSink(in);
+    streams[1].setSource(out);
+  }
   unlockAudio();
 }
 
 void AmSession::setLocalInput(AmAudio* in)
 {
+  // replace RTPStream() in input in first member
   lockAudio();
-  local_input = in;
+
+  bool dtmf = false; // do not handle dtmf on local input
+  AmRtpAudio *stream = RTPStream();
+  if (!in) {
+    // unset local input means return back to RTP?
+    in = stream;
+    dtmf = true;
+  }
+
+  if (streams.size() > 0) streams[0].setSource(in);
+  else {
+    AmAudioPair pair(in, NULL, stream, dtmf, false);
+    streams.push_back(pair);
+  }
   unlockAudio();
-}
-
-void AmSession::setLocalOutput(AmAudio* out)
-{
-  lockAudio();
-  local_output = out;
-  unlockAudio();
-}
-
-void AmSession::setLocalInOut(AmAudio* in,AmAudio* out)
-{
-  lockAudio();
-  local_input = in;
-  local_output = out;
-  unlockAudio();
-}
-
-void AmSession::setAudioLocal(unsigned int dir, 
-			      bool local) {
-  assert(dir<2);
-  use_local_audio[dir] = local;
-}
-
-bool AmSession::getAudioLocal(unsigned int dir) { 
-  assert(dir<2); 
-  return use_local_audio[dir]; 
 }
 
 void AmSession::lockAudio()
@@ -780,22 +772,25 @@ void AmSession::onDtmf(int event, int duration_msec)
 void AmSession::clearAudio()
 {
   lockAudio();
-  if(input){
-    input->close();
-    input = 0;
+  AmAudio *in = NULL;
+  AmAudio *out = NULL;
+
+  if (streams.size() > 1) {
+    in = streams[0].getSink();
+    out = streams[1].getSource();
   }
-  if(output){
-    output->close();
-    output = 0;
+  else if (streams.size() > 0) in = streams[0].getSink();
+
+  if (in) {
+    in->close();
+    streams[0].setSink(NULL);
   }
-  if(local_input){
-    local_input->close();
-    local_input = 0;
+  if (out) {
+    out->close();
+    streams[1].setSource(NULL);
   }
-  if(local_output){
-    local_output->close();
-    local_output = 0;
-  }
+  // FIXME: override in WebConferenceDialog and close local_input there ?
+
   unlockAudio();
   DBG("Audio cleared !!!\n");
   postEvent(new AmAudioEvent(AmAudioEvent::cleared));
@@ -1423,6 +1418,28 @@ void AmSession::onZRTPEvent(zrtp_event_t event, zrtp_stream_ctx_t *stream_ctx) {
 }
  
 #endif
+
+int AmSession::processMedia(bool write_streams, unsigned int ts, unsigned char *buffer)
+{
+  int res = 0;
+  AmSession *dtmf_handler = 0;
+
+  lockAudio();
+
+  if (isDtmfDetectionEnabled()) dtmf_handler = this;
+  for (vector<AmAudioPair>::iterator i = streams.begin(); i != streams.end(); ++i) {
+    if (write_streams != i->isOutput()) continue;
+    if (i->process(ts, buffer, dtmf_handler) < 0) {
+      res = -1;
+      break;
+    }
+  }
+
+  unlockAudio();
+
+  return res;
+}
+
 
 /** EMACS **
  * Local variables:

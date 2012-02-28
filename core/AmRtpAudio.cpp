@@ -118,9 +118,6 @@ int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int nb_
 {
   if (!(receiving || getPassiveMode())) return 0; // like nothing received
     
-  // complete frame time reached? 
-  if (!checkInterval(ref_ts, nb_samples)) return 0; // like nothing received
-
   int ret = receive(ref_ts);
   if(ret < 0){
     switch(ret){
