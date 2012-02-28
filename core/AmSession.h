@@ -66,7 +66,11 @@ class AmAudioPair
 
     /* FIXME: just temporarily for distinguishing which AmRtpAudio function to
      * call in checkInterval, make checkInterval and sendIntReached in
-     * AmRtpAudio independent */
+     * AmRtpAudio independent 
+     *
+     * On other hand it is used to allow first reading all inputs and then write
+     * all outputs.
+     */
     bool is_out;
 
     bool handle_dtmf;
@@ -80,7 +84,7 @@ class AmAudioPair
     unsigned int getFrameSize() { return ctrl->getFrameSize(); }
 
     bool checkInterval(unsigned int ts); 
-
+    bool isOutput() { return is_out; }
 };
 
 class AmSession;
@@ -92,9 +96,12 @@ class AmAudioSession: public AmMediaSession
     std::vector<AmAudioPair> streams;
     AmSession *session;
 
+    int processMedia(bool write_streams, unsigned int ts, unsigned char *buffer);
+
   public: 
     AmAudioSession(AmSession *_session): session(_session) { }
-    virtual int process(unsigned int ts, unsigned char *buffer);
+    virtual int readStreams(unsigned int ts, unsigned char *buffer) { return processMedia(false, ts, buffer); }
+    virtual int writeStreams(unsigned int ts, unsigned char *buffer) { return processMedia(true, ts, buffer); }
 };
 
 /** @file AmSession.h */

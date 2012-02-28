@@ -41,7 +41,12 @@ struct SchedRequest;
 class AmMediaSession
 {
   public:
-    virtual int process(unsigned int ts, unsigned char *buffer) = 0;
+    /* first read from all RTP streams */
+    virtual int readStreams(bool output, unsigned int ts, unsigned char *buffer) = 0;
+    
+    /* after read write to all RTP streams */
+    virtual int writeStreams(bool output, unsigned int ts, unsigned char *buffer) = 0;
+
     virtual ~AmMediaSession() { }
 };
 

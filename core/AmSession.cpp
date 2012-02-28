@@ -83,7 +83,7 @@ bool AmAudioPair::checkInterval(unsigned int ts)
 
 /////////////////////////////////////////////////////////////////////////////////////
     
-int AmAudioSession::process(unsigned int ts, unsigned char *buffer)
+int AmAudioSession::processMedia(bool write_streams, unsigned int ts, unsigned char *buffer)
 {
   int res = 0;
   AmSession *dtmf_handler = 0;
@@ -92,6 +92,7 @@ int AmAudioSession::process(unsigned int ts, unsigned char *buffer)
 
   if (session->isDtmfDetectionEnabled()) dtmf_handler = session;
   for (vector<AmAudioPair>::iterator i = streams.begin(); i != streams.end(); ++i) {
+    if (write_streams != i->isOutput()) continue;
     if (i->process(ts, buffer, dtmf_handler) < 0) {
       res = -1;
       break;
