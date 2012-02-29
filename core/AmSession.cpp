@@ -158,11 +158,7 @@ void AmSession::startMediaProcessing()
   if(getStopped() || processing_media.get())
     return;
 
-  bool in_out_set;
-  lockAudio();
-  in_out_set = streams.size() > 0;
-  unlockAudio();
-  if(in_out_set) {
+  if(isAudioSet()) {
     AmMediaProcessor::instance()->addSession(this, callgroup);
   }
   else {
@@ -188,75 +184,31 @@ void AmSession::addHandler(AmSessionEventHandler* sess_evh)
 void AmSession::setInput(AmAudio* in)
 {
   lockAudio();
-  if (streams.size() > 0) streams[0].setSink(in);
-  else {
-    AmRtpAudio *stream = RTPStream();
-    AmAudioPair pair(stream, in, stream, true, false);
-    streams.push_back(pair);
-  }
+  input = in;
   unlockAudio();
 }
 
 void AmSession::setOutput(AmAudio* out)
 {
   lockAudio();
-  if (streams.size() > 1) streams[1].setSource(out);
-  else {
-    AmRtpAudio *stream = RTPStream();
-    if (streams.size() < 1) {
-      // append pair for input from RTP stream
-      AmAudioPair in(stream, NULL, stream, true, false);
-      streams.push_back(in);
-    }
-    // append pair for output to RTP stream
-    AmAudioPair pair(out, stream, stream, false, true);
-    streams.push_back(pair);
-  }
+  output = out;
   unlockAudio();
 }
 
 void AmSession::setInOut(AmAudio* in,AmAudio* out)
 {
   lockAudio();
-  AmRtpAudio *stream = RTPStream();
-  unsigned cnt = streams.size();
-    
-  if (cnt < 2) {
-    if (cnt < 1) {
-      AmAudioPair ins(stream, in, stream, true, false);
-      streams.push_back(ins);
-    } 
-    else streams[0].setSink(in);
-
-    AmAudioPair outs(out, stream, stream, false, true);
-    streams.push_back(outs);
-  } else {
-    // both streams already exist
-    streams[0].setSink(in);
-    streams[1].setSource(out);
-  }
+  input = in;
+  output = out;
   unlockAudio();
 }
-
-void AmSession::setLocalInput(AmAudio* in)
+  
+bool AmSession::isAudioSet()
 {
-  // replace RTPStream() in input in first member
   lockAudio();
-
-  bool dtmf = false; // do not handle dtmf on local input
-  AmRtpAudio *stream = RTPStream();
-  if (!in) {
-    // unset local input means return back to RTP?
-    in = stream;
-    dtmf = true;
-  }
-
-  if (streams.size() > 0) streams[0].setSource(in);
-  else {
-    AmAudioPair pair(in, NULL, stream, dtmf, false);
-    streams.push_back(pair);
-  }
+  bool set = input || output;
   unlockAudio();
+  return set;
 }
 
 void AmSession::lockAudio()
@@ -772,24 +724,15 @@ void AmSession::onDtmf(int event, int duration_msec)
 void AmSession::clearAudio()
 {
   lockAudio();
-  AmAudio *in = NULL;
-  AmAudio *out = NULL;
 
-  if (streams.size() > 1) {
-    in = streams[0].getSink();
-    out = streams[1].getSource();
+  if (input) {
+    input->close();
+    input = NULL;
   }
-  else if (streams.size() > 0) in = streams[0].getSink();
-
-  if (in) {
-    in->close();
-    streams[0].setSink(NULL);
+  if (output) {
+    output->close();
+    output = NULL;
   }
-  if (out) {
-    out->close();
-    streams[1].setSource(NULL);
-  }
-  // FIXME: override in WebConferenceDialog and close local_input there ?
 
   unlockAudio();
   DBG("Audio cleared !!!\n");
@@ -1419,27 +1362,46 @@ void AmSession::onZRTPEvent(zrtp_event_t event, zrtp_stream_ctx_t *stream_ctx) {
  
 #endif
 
-int AmSession::processMedia(bool write_streams, unsigned int ts, unsigned char *buffer)
-{
+int AmSession::readStreams(unsigned int ts, unsigned char *buffer) 
+{ 
   int res = 0;
-  AmSession *dtmf_handler = 0;
-
   lockAudio();
 
-  if (isDtmfDetectionEnabled()) dtmf_handler = this;
-  for (vector<AmAudioPair>::iterator i = streams.begin(); i != streams.end(); ++i) {
-    if (write_streams != i->isOutput()) continue;
-    if (i->process(ts, buffer, dtmf_handler) < 0) {
-      res = -1;
-      break;
+  AmRtpAudio *stream = RTPStream();
+  unsigned int f_size = stream->getFrameSize();
+  if (stream->checkInterval(ts, f_size)) {
+    int got = stream->get(ts, buffer, f_size);
+    if (got < 0) res = -1;
+    if (got > 0) {
+      if (isDtmfDetectionEnabled())
+        putDtmfAudio(buffer, got, ts);
+
+      if (input) res = input->put(ts, buffer, got);
     }
   }
-
+  
   unlockAudio();
-
   return res;
 }
 
+int AmSession::writeStreams(unsigned int ts, unsigned char *buffer) 
+{ 
+  int res = 0;
+  lockAudio();
+
+  AmRtpAudio *stream = RTPStream();
+  if (stream->sendIntReached()) { // FIXME: shouldn't depend on checkInterval call before!
+    unsigned int f_size = stream->getFrameSize();
+    int got = 0;
+    if (output) got = output->get(ts, buffer, f_size);
+    if (got < 0) res = -1;
+    if (got > 0) res = stream->put(ts, buffer, got);
+  }
+  
+  unlockAudio();
+  return res;
+
+}
 
 /** EMACS **
  * Local variables:

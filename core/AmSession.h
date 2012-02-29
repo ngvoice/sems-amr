@@ -210,8 +210,7 @@ protected:
   /** Session event handlers (ex: session timer, UAC auth, etc...) */
   vector<AmSessionEventHandler*> ev_handlers;
 
-  /** media streams to be processed */
-  std::vector<AmAudioPair> streams;
+  AmAudio *input, *output;
 
 public:
 
@@ -316,12 +315,12 @@ public:
    * Audio input getter .
    * Note: audio must be locked!
    */
-  AmAudio* getInput() { if (streams.size() > 0) return streams[0].getSink(); else return NULL; }
+  AmAudio* getInput() { return input; }
   /**
    * Audio output getter.
    * Note: audio must be locked!
    */
-  AmAudio* getOutput() { if (streams.size() > 1) return streams[1].getSource(); else return NULL; }
+  AmAudio* getOutput() { return output; }
 
   /**
    * Audio input & output set methods.
@@ -331,16 +330,13 @@ public:
   void setOutput(AmAudio* out);
   void setInOut(AmAudio* in, AmAudio* out);
 
-  /**
-   * Local audio input & output set methods.
-   * Note: audio will be locked by the methods.
-   */
-  void setLocalInput(AmAudio* in);
+  /** checks if input/output is set, might be overidden! */
+  virtual bool isAudioSet();
 
   /**
    * Clears input & ouput (no need to lock)
    */
-  void clearAudio();
+  virtual void clearAudio();
 
   /** setter for rtp_str->mute */
   void setMute(bool mute) { RTPStream()->mute = mute; }
@@ -638,12 +634,9 @@ public:
 
   /* ----------------- media processing interface ------------------- */
 
-  protected:
-    int processMedia(bool write_streams, unsigned int ts, unsigned char *buffer);
-
   public: 
-    virtual int readStreams(unsigned int ts, unsigned char *buffer) { return processMedia(false, ts, buffer); }
-    virtual int writeStreams(unsigned int ts, unsigned char *buffer) { return processMedia(true, ts, buffer); }
+    virtual int readStreams(unsigned int ts, unsigned char *buffer);
+    virtual int writeStreams(unsigned int ts, unsigned char *buffer);
     virtual void clearRTPTimeout() { RTPStream()->clearRTPTimeout(); }
     virtual void processDtmfEvents();
 

@@ -86,6 +86,9 @@ private:
   // ID from X-ParticipantID header
   string participant_id;
 
+  AmAudio *local_input;
+  void setLocalInput(AmAudio* in);
+
 public:
   WebConferenceDialog(AmPromptCollection& prompts,
 		      WebConferenceFactory* my_f, 
@@ -109,6 +112,10 @@ public:
 
   UACAuthCred* getCredentials() { return cred; }
 
+  // overriden media processing (local_input)
+  virtual int readStreams(unsigned int ts, unsigned char *buffer);
+  virtual bool isAudioSet();
+  virtual void clearAudio();
 };
 
 #endif

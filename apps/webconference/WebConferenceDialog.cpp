@@ -434,3 +434,53 @@ void WebConferenceDialog::onMuted(bool mute) {
   }
 }
 
+void WebConferenceDialog::setLocalInput(AmAudio* in)
+{
+  lockAudio();
+  local_input = in;
+  unlockAudio();
+}
+
+int WebConferenceDialog::readStreams(unsigned int ts, unsigned char *buffer) 
+{ 
+  int res = 0;
+  lockAudio();
+
+  AmRtpAudio *stream = RTPStream();
+  unsigned int f_size = stream->getFrameSize();
+  if (stream->checkInterval(ts, f_size)) {
+    int got = 0;
+    if (local_input) got = local_input->get(ts, buffer, f_size);
+    else got = stream->get(ts, buffer, f_size);
+    if (got < 0) res = -1;
+    if (got > 0) {
+      if (isDtmfDetectionEnabled())
+        putDtmfAudio(buffer, got, ts);
+
+      if (input) res = input->put(ts, buffer, got);
+    }
+  }
+  
+  unlockAudio();
+  return res;
+}
+
+bool WebConferenceDialog::isAudioSet()
+{
+  lockAudio();
+  bool set = input || output || local_input;
+  unlockAudio();
+  return set;
+}
+
+void WebConferenceDialog::clearAudio()
+{
+  lockAudio();
+  if (local_input) {
+    local_input->close();
+    local_input = NULL;
+  }
+  unlockAudio();
+  AmSession::clearAudio(); // locking second time but called not so often?
+}
+
