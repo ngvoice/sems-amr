@@ -107,6 +107,7 @@ AmSession::AmSession()
   : AmEventQueue(this),
     dlg(this),
     processing_media(false),
+    input(NULL), output(NULL),
     sess_stopped(false),
     m_dtmfDetector(this), m_dtmfEventQueue(&m_dtmfDetector),
     m_dtmfDetectionEnabled(true),

@@ -34,7 +34,8 @@ WebConferenceDialog::WebConferenceDialog(AmPromptCollection& prompts,
 					 UACAuthCred* cred)
   : play_list(this), separator(this, 0), prompts(prompts), state(None),
     factory(my_f), cred(cred), muted(false), 
-    connect_ts(-1), disconnect_ts(-1) 
+    connect_ts(-1), disconnect_ts(-1),
+    local_input(NULL)
 {
   // with SIP credentials -> outgoing ('dialout') call
   is_dialout = (cred != NULL);
