@@ -168,7 +168,6 @@ private:
 
 
   AmCondition<bool> sess_stopped;
-  AmCondition<bool> processing_media;
 
   static void session_started();
   static void session_stopped();

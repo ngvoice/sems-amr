@@ -106,7 +106,6 @@ struct timeval cps_max_timestamp = avg_last_timestamp;
 AmSession::AmSession()
   : AmEventQueue(this),
     dlg(this),
-    processing_media(false),
     input(NULL), output(NULL),
     sess_stopped(false),
     m_dtmfDetector(this), m_dtmfEventQueue(&m_dtmfDetector),
@@ -156,7 +155,7 @@ void AmSession::changeCallgroup(const string& cg) {
 
 void AmSession::startMediaProcessing() 
 {
-  if(getStopped() || processing_media.get())
+  if(getStopped() || getProcessingMedia())
     return;
 
   if(isAudioSet()) {
@@ -170,7 +169,7 @@ void AmSession::startMediaProcessing()
 
 void AmSession::stopMediaProcessing() 
 {
-  if(!processing_media.get())
+  if(!getProcessingMedia())
     return;
 
   AmMediaProcessor::instance()->removeSession(this);
