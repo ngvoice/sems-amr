@@ -784,9 +784,8 @@ int AmB2BSession::relaySip(const AmSipRequest& req)
 
     int err;
     if (rtp_relay_mode == RTP_Process) {
-      // generate own SDP if req.content_type is SDP (FIXME: only for offer?)
       AmMimeBody body;
-      body.addPart(SIP_APPLICATION_SDP);
+      if (req.body.hasContentType(SIP_APPLICATION_SDP)) body.addPart(SIP_APPLICATION_SDP);
       err = dlg.sendRequest(req.method, &body, *hdrs, SIP_FLAGS_VERBATIM);
     }
     else {
@@ -1373,9 +1372,9 @@ void AmB2BCalleeSession::onB2BEvent(B2BEvent* ev)
     int res;
 
     if (rtp_relay_mode == RTP_Process) {
-      AmMimeBody body;
-      body.addPart(SIP_APPLICATION_SDP);
-      res = dlg.sendRequest(SIP_METH_INVITE, &body,
+      AmMimeBody fbody;
+      if (body->hasContentType(SIP_APPLICATION_SDP)) fbody.addPart(SIP_APPLICATION_SDP);
+      res = dlg.sendRequest(SIP_METH_INVITE, &fbody,
 			co_ev->hdrs, SIP_FLAGS_VERBATIM);
     }
     else {
