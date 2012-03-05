@@ -64,13 +64,67 @@ DEFINE_MODULE_INSTANCE(SBCFactory, MOD_NAME);
 
 // helper functions
 
+static bool containsPayload(const std::vector<SdpPayload>& payloads, const SdpPayload &payload)
+{
+  for (vector<SdpPayload>::const_iterator p = payloads.begin(); p != payloads.end(); ++p) {
+    if (p->encoding_name != payload.encoding_name) continue;
+    if (p->clock_rate != payload.clock_rate) continue;
+    if ((p->encoding_param >= 0) && (payload.encoding_param >= 0) && 
+        (p->encoding_param != payload.encoding_param)) continue;
+    return true;
+  }
+  return false;
+}
+
+static void appendTranscoderCodecs(AmSdp &sdp, MediaType mtype, std::vector<SdpPayload> &transcoder_codecs)
+{
+  // append codecs for transcoding, remember the added ones to be able to filter
+  // them out from relayed reply!
+
+  // important: normalized SDP should get here
+
+  // FIXME: only first matching media stream?
+
+  vector<SdpPayload>::const_iterator p;
+  for (vector<SdpMedia>::iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) {
+
+    // handle audio transcoder codecs
+    if (m->type == mtype) {
+
+      // find first unused dynamic payload number
+      int id = 96;
+      for (p = m->payloads.begin(); p != m->payloads.end(); ++p) {
+        if (p->payload_type >= id) id = p->payload_type + 1;
+      }
+
+      for (p = transcoder_codecs.begin(); 
+           p != transcoder_codecs.end(); ++p) {
+        // add all payloads which are not already there
+        if (!containsPayload(m->payloads, *p)) {
+          m->payloads.push_back(*p);
+          if (p->payload_type < 0) m->payloads.back().payload_type = id++;
+
+          // remeber added payload ID: 
+//TODO:          added_payloads.push_back(m->payloads.back().payload_type);
+
+          TRACE("added codec %s/%d with id %d\n", 
+              p->encoding_name.c_str(), p->clock_rate, m->payloads.back().payload_type);
+        }
+      }
+      if (id > 128) ERROR("assigned too high payload type number (%d), see RFC 3551\n", id);
+    }
+  }
+}
+
 // do the filtering, returns true if SDP was changed
-static bool doFiltering(AmSdp &sdp, SBCCallProfile call_profile)
+static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile)
 {
   bool changed = false;
+  bool normalized = false;
 
   if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
     normalizeSDP(sdp, call_profile.anonymize_sdp);
+    normalized = true;
     if (isActiveFilter(call_profile.sdpfilter)) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
@@ -83,11 +137,17 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile call_profile)
     filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
     changed = true;
   }
+  if (call_profile.transcoder_audio_codecs.size() < 1) {
+    if (!normalized) normalizeSDP(sdp, call_profile.anonymize_sdp);
+    appendTranscoderCodecs(sdp, MT_AUDIO, call_profile.transcoder_audio_codecs);
+    // FIXME: propagate added transcoder payloads
+    changed = true;
+  }
 
   return changed;
 }
 
-static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile call_profile) 
+static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile &call_profile) 
 {
   int res = sdp.parse((const char *)body->getPayload());
   if (0 != res) {
@@ -104,7 +164,7 @@ static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile call_profile)
   return 0;
 }
 
-static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile call_profile)
+static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile &call_profile)
 {
   AmMimeBody* body = req.body.hasContentType(SIP_APPLICATION_SDP);
 
@@ -120,7 +180,7 @@ static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile call_profil
   }
 }
 
-static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile call_profile)
+static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile &call_profile)
 {
   AmMimeBody* body = reply.body.hasContentType(SIP_APPLICATION_SDP);
 
@@ -131,18 +191,6 @@ static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile call_profil
   }
 }
 
-static bool containsPayload(const std::vector<SdpPayload>& payloads, const SdpPayload &payload)
-{
-  for (vector<SdpPayload>::const_iterator p = payloads.begin(); p != payloads.end(); ++p) {
-    if (p->encoding_name != payload.encoding_name) continue;
-    if (p->clock_rate != payload.clock_rate) continue;
-    if ((p->encoding_param >= 0) && (payload.encoding_param >= 0) && 
-        (p->encoding_param != payload.encoding_param)) continue;
-    return true;
-  }
-  return false;
-}
-  
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1716,63 +1764,20 @@ int SBCCalleeSession::onSdpCompleted(const AmSdp& offer, const AmSdp& answer)
   return AmB2BSession::onSdpCompleted(offer, answer);
 }
 
-void SBCCalleeSession::appendTranscoderCodecs(AmSdp &sdp)
+#if 0
+void SBCCalleeSession::storeRelayedSdp(const AmMimeBody* body)
 {
-  // append codecs for transcoding, remember the added ones to be able to filter
-  // them out from relayed reply!
-
-  // important: normalized SDP should get here
-
-  vector<SdpPayload>::const_iterator p;
-  for (vector<SdpMedia>::iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) {
-
-    // handle audio transcoder codecs
-    if (m->type == MT_AUDIO) {
-
-      // find first unused dynamic payload number
-      int id = 96;
-      for (p = m->payloads.begin(); p != m->payloads.end(); ++p) {
-        if (p->payload_type >= id) id = p->payload_type + 1;
-      }
-
-      for (p = call_profile.transcoder_audio_codecs.begin(); 
-           p != call_profile.transcoder_audio_codecs.end(); ++p) {
-        // add all payloads which are not already there
-        if (!containsPayload(m->payloads, *p)) {
-          m->payloads.push_back(*p);
-          if (p->payload_type < 0) m->payloads.back().payload_type = id++;
-
-          // remeber added payload ID: 
-          added_payloads.push_back(m->payloads.back().payload_type);
-
-          TRACE("added codec %s/%d with id %d\n", 
-              p->encoding_name.c_str(), p->clock_rate, m->payloads.back().payload_type);
-        }
-      }
-      if (id > 128) ERROR("assigned too high payload type number (%d), see RFC 3551\n", id);
+  const AmMimeBody* body = co_ev->body.hasContentType(SIP_APPLICATION_SDP);
+  if (body) {
+    // the body is already normalized, filtered and codecs are ordered
+    relayed_sdp.reset(new AmSdp());
+    if (initial_sdp->parse((const char*)body->getPayload())) {
+      DBG("initial SDP parsing failed!\n");
     }
+    replaceConnectionAddress(*initial_sdp); // needed to offer our IP/ports
+    appendTranscoderCodecs(*initial_sdp);
   }
-}
-
-void SBCCalleeSession::onB2BEvent(B2BEvent* ev)
-{
-  // we need to prepare initial body based on the body of initial INVITE in
-  // A leg if transcoder is active
-  if ((ev->event_id == B2BConnectLeg) && (!call_profile.transcoder_audio_codecs.empty())) {
-
-    B2BConnectEvent* co_ev = dynamic_cast<B2BConnectEvent*>(ev);
-    if (co_ev && co_ev->relayed_invite) {
-      const AmMimeBody* body = co_ev->body.hasContentType(SIP_APPLICATION_SDP);
-      if (body) {
-        // the body is already normalized, filtered and codecs are ordered
-        initial_sdp.reset(new AmSdp());
-        if (initial_sdp->parse((const char*)body->getPayload())) {
-          DBG("initial SDP parsing failed!\n");
-        }
-        replaceConnectionAddress(*initial_sdp); // needed to offer our IP/ports
-        appendTranscoderCodecs(*initial_sdp);
-      }
-      else {
+/*      else {
         // TODO: the body was empty or unsupported type, we need to create a new
         // one just with transcoder codecs
 
@@ -1783,11 +1788,9 @@ void SBCCalleeSession::onB2BEvent(B2BEvent* ev)
         // should mark all of them as codecs for transcoding)
       }
     }
-
-  }
-
-  AmB2BCalleeSession::onB2BEvent(ev);
+*/
 }
+#endif
 
 void assertEndCRLF(string& s) {
   if (s[s.size()-2] != '\r' ||
