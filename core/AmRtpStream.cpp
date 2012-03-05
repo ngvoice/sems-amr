@@ -652,6 +652,12 @@ bool AmRtpStream::getOnHold() {
   return hold;
 }
 
+bool AmRtpStream::isPacketToRelay(AmRtpPacket* p)
+{
+  // TODO: check payload type in packet
+  return false;
+}
+
 void AmRtpStream::bufferPacket(AmRtpPacket* p)
 {
   memcpy(&last_recv_time, &p->recv_time, sizeof(struct timeval));
@@ -661,7 +667,7 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
     return;
   }
 
-  if (relay_enabled) {
+  if (relay_enabled && isPacketToRelay(p)) {
     handleSymmetricRtp(p);
 
     if (NULL != relay_stream) {

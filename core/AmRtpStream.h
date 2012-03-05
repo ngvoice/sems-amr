@@ -242,6 +242,9 @@ protected:
   /** Clear RTP timeout at time recv_time */
   void clearRTPTimeout(struct timeval* recv_time);
 
+  /** checks if this packet is to be relayed or not */
+  bool isPacketToRelay(AmRtpPacket *p);
+
 public:
 
   /** Mute */

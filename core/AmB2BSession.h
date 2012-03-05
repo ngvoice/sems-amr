@@ -40,8 +40,27 @@ class B2BMedia
     int ref_cnt;
     AmAudioBridge a_leg_sink, b_leg_sink;
 
+    struct PayloadPair {
+      int a_leg_payload;
+      int b_leg_payload;
+
+      PayloadPair(int a, int b): a_leg_payload(a), b_leg_payload(b) { }
+    };
+
+    std::vector<PayloadPair> relay_payloads;
+    AmSdp a_leg_sdp, b_leg_sdp;
+  
+    /* generate pair of payloads which are known to both remote parties, 
+     * note that payload IDs in each leg may differ for the same payload */
+    void computeRelayPayloads(const SdpMedia &a, const SdpMedia &b);
+    void normalize(AmSdp &sdp);
+
+    // needed for updating relayed payloads
+    AmRtpStream *a_leg_stream, *b_leg_stream;
+
   public:
-    B2BMedia(): ref_cnt(1) { }
+    B2BMedia(AmRtpStream *a_stream, AmRtpStream *b_stream): 
+      ref_cnt(1), a_leg_stream(a_stream), b_leg_stream(b_stream) { }
 
     void getAAudio(AmAudio *&sink, AmAudio *&source) { sink = &a_leg_sink; source = &b_leg_sink; }
     void getBAudio(AmAudio *&sink, AmAudio *&source) { sink = &b_leg_sink; source = &a_leg_sink; }
@@ -53,6 +72,12 @@ class B2BMedia
     void lock() { mutex.lock(); }
     void unlock() { mutex.unlock(); }
     
+    /** returns payload ID in the other leg if given payload is to be relayed
+     * returns negative number if the payload can not to be relayed */
+    int relayedPayloadID(bool a_leg, int payload_id);
+
+    void updatePayloads(bool a_leg, const AmSdp &remote_sdp);
+
     void addReference() { lock(); ref_cnt++; unlock(); }
 
     /* Releases reference.

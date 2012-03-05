@@ -71,6 +71,92 @@ static void errCode2RelayedReply(AmSipReply &reply, int err_code, unsigned defau
 }
 
 //
+// helper classes
+//
+
+int B2BMedia::relayedPayloadID(bool a_leg, int payload_id)
+{
+  int res = -1; // payload not for relay
+
+  lock();
+
+  std::vector<PayloadPair>::iterator i = relay_payloads.begin();
+  if (a_leg) {
+    for (; i != relay_payloads.end(); ++i) {
+      if (i->a_leg_payload == payload_id) {
+        res = i->b_leg_payload;
+        break;
+      }
+    }
+  } else { // b_leg
+    for (; i != relay_payloads.end(); ++i) {
+      if (i->b_leg_payload == payload_id) {
+        res = i->a_leg_payload;
+        break;
+      }
+    }
+  }
+
+  unlock();
+
+  return res;
+}
+
+static std::vector<SdpPayload>::const_iterator findPayload(const SdpMedia &m, const SdpPayload *payload)
+{
+  std::vector<SdpPayload>::const_iterator i = m.payloads.begin();
+  for (; i != m.payloads.end(); ++i) {
+    if ((i->encoding_name == payload->encoding_name) && (i->clock_rate == payload->clock_rate)) {
+      // FIXME: test another params?
+      break; // found
+    }
+  }
+  return i;
+}
+
+void B2BMedia::computeRelayPayloads(const SdpMedia &a, const SdpMedia &b)
+{
+  relay_payloads.clear();
+  for (std::vector<SdpPayload>::const_iterator i = a.payloads.begin(); i != a.payloads.end(); ++i) {
+    ERROR("looking for %s in B leg\n", i->encoding_name.c_str());
+    std::vector<SdpPayload>::const_iterator j = findPayload(b, &(*i));
+    if (j != b.payloads.end()) {
+      PayloadPair p(i->payload_type, j->payload_type);
+      relay_payloads.push_back(p);
+      ERROR("payloads to relay %d <-> %d\n", i->payload_type, j->payload_type);
+    }
+  }
+}
+    
+void B2BMedia::normalize(AmSdp &sdp)
+{
+  // TODO: normalize SDP
+  //  - encoding names for static payloads
+  //  - convert encoding names to lowercase
+  //  - add clock rate if not given (?)
+}
+
+void B2BMedia::updatePayloads(bool a_leg, const AmSdp &remote_sdp)
+{
+  lock();
+  if (a_leg) {
+    a_leg_sdp = remote_sdp;
+    normalize(a_leg_sdp);
+  }
+  else {
+    b_leg_sdp = remote_sdp;
+    normalize(b_leg_sdp);
+  }
+  if ((a_leg_sdp.media.size() > 0) && (b_leg_sdp.media.size() > 0)) {
+    // we have both SDPs
+    // update relay_payloads (one stream only for now)
+    computeRelayPayloads(a_leg_sdp.media[0], b_leg_sdp.media[0]);
+    // TODO: set relay payloads in both streams
+  }
+  unlock();
+}
+
+//
 // AmB2BSession methods
 //
 
@@ -575,6 +661,9 @@ void AmB2BSession::onInvite2xx(const AmSipReply& reply)
 int AmB2BSession::onSdpCompleted(const AmSdp& local_sdp, const AmSdp& remote_sdp)
 {
   if((!sip_relay_only) || (rtp_relay_mode == RTP_Process)){
+    if (relayed_media) {
+      relayed_media->updatePayloads(a_leg, remote_sdp);
+    }
     return AmSession::onSdpCompleted(local_sdp,remote_sdp);
   }
   
@@ -965,6 +1054,8 @@ void AmB2BSession::setupRelayStreams(AmB2BSession* other_session, B2BMedia *m) {
     if (relayed_media) {
       if (a_leg) setInOut(relayed_media->getASink(), relayed_media->getASource());
       else setInOut(relayed_media->getBSink(), relayed_media->getBSource());
+      RTPStream()->setRelayStream(other_session->RTPStream());
+      RTPStream()->enableRtpRelay();
     }
   }
 }
@@ -1002,6 +1093,8 @@ void AmB2BSession::clearRtpReceiverRelay() {
 
     case RTP_Process:
       if (relayed_media) { 
+        RTPStream()->setRelayStream(NULL);
+        RTPStream()->disableRtpRelay();
         setInOut(NULL, NULL);
         if (relayed_media->releaseReference()) delete relayed_media;
         relayed_media = NULL;
@@ -1288,7 +1381,7 @@ void AmB2BCallerSession::initializeRTPRelay(AmB2BCalleeSession* callee_session) 
   
   B2BMedia *b2b = NULL;
   if (rtp_relay_mode == RTP_Process) {
-    b2b = new B2BMedia();
+    b2b = new B2BMedia(RTPStream(), callee_session->RTPStream());
     b2b->addReference(); // for callee
   }
 
