@@ -61,10 +61,10 @@ class AmMediaSession
     void onMediaProcessingTerminated() { processing_media.set(false); }
   
     /** Is the session being processed in  media processor? */
-    bool getProcessingMedia() { return processing_media.get(); }
+    virtual bool isProcessingMedia() { return processing_media.get(); }
   
     /** Is the session detached from media processor? */
-    bool getDetached() { return !processing_media.get(); }
+    virtual bool isDetached() { return !isProcessingMedia(); }
 };
 
 /**

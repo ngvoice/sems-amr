@@ -50,39 +50,6 @@
 #include <assert.h>
 #include <sys/time.h>
 
-// helper classes
-
-AmAudioPair::AmAudioPair(AmAudio *_src, AmAudio *_sink, AmRtpAudio *_ctrl, 
-    bool _handle_dtmf, bool _is_out):
-  src(_src), sink(_sink), ctrl(_ctrl), handle_dtmf(_handle_dtmf), is_out(_is_out)
-{
-}
-
-int AmAudioPair::process(unsigned int ts, unsigned char *buffer, AmSession *dtmf_handler)
-{
-  if (checkInterval(ts)) {
-    unsigned int f_size = getFrameSize();
-    int got = 0;
-    if (src) got = src->get(ts, buffer, f_size);
-    if (got < 0) return -1;
-    if (got > 0) {
-      if (handle_dtmf && dtmf_handler)
-        dtmf_handler->putDtmfAudio(buffer, got, ts);
-
-      if (sink) return sink->put(ts, buffer, got);
-    }
-  }
-  return 0;
-}
-
-bool AmAudioPair::checkInterval(unsigned int ts) 
-{ 
-  if (is_out) return ctrl->sendIntReached(); 
-  return ctrl->checkInterval(ts, getFrameSize()); 
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
 volatile unsigned int AmSession::session_num = 0;
 AmMutex AmSession::session_num_mut;
 volatile unsigned int AmSession::max_session_num = 0;
@@ -155,7 +122,7 @@ void AmSession::changeCallgroup(const string& cg) {
 
 void AmSession::startMediaProcessing() 
 {
-  if(getStopped() || getProcessingMedia())
+  if(getStopped() || isProcessingMedia())
     return;
 
   if(isAudioSet()) {
@@ -169,7 +136,7 @@ void AmSession::startMediaProcessing()
 
 void AmSession::stopMediaProcessing() 
 {
-  if(!getProcessingMedia())
+  if(!isProcessingMedia())
     return;
 
   AmMediaProcessor::instance()->removeSession(this);
@@ -493,7 +460,7 @@ void AmSession::finalize() {
 {
   DBG("AmSession::stop()\n");
 
-  if (!getDetached())
+  if (!isDetached())
     AmMediaProcessor::instance()->clearSession(this);
   else
     clearAudio();

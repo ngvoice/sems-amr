@@ -425,7 +425,7 @@ void WebConferenceDialog::onMuted(bool mute) {
 	  RingTone.reset(new AmRingTone(0,2000,4000,440,480)); // US
     
 	setLocalInput(RingTone.get());
-	if (getDetached())
+	if (isDetached())
 	  AmMediaProcessor::instance()->addSession(this, callgroup); 
       }
     } break;

@@ -81,7 +81,8 @@ AmB2BSession::AmB2BSession(const string& other_local_tag)
     rtp_relay_force_symmetric_rtp(false),
     relay_rtp_streams(NULL), relay_rtp_streams_cnt(0),
     rtp_relay_transparent_seqno(true), rtp_relay_transparent_ssrc(true),
-    est_invite_cseq(0),est_invite_other_cseq(0)
+    est_invite_cseq(0),est_invite_other_cseq(0),
+    relayed_media(NULL)
 {
   memset(other_stream_fds,0,sizeof(int)*MAX_RELAY_STREAMS);
 }
@@ -318,7 +319,7 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
     }
   }
 
-  if (rtp_relay_mode != RTP_Direct &&
+  if (rtp_relay_mode == RTP_Relay &&
       (req.method == SIP_METH_INVITE || req.method == SIP_METH_UPDATE ||
        req.method == SIP_METH_ACK || req.method == SIP_METH_ACK)
       // don't update for initial INVITE again
@@ -530,7 +531,7 @@ void AmB2BSession::onSipReply(const AmSipReply& reply,
     // handling SDP answer?
     filterBody(n_reply, filter_sdp);
     
-    if (rtp_relay_mode != RTP_Direct &&
+    if (rtp_relay_mode == RTP_Relay &&
 	(reply.code >= 180  && reply.code < 300) &&
 	(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE ||
 	 reply.cseq_method == SIP_METH_ACK || reply.cseq_method == SIP_METH_ACK)) {
@@ -573,7 +574,7 @@ void AmB2BSession::onInvite2xx(const AmSipReply& reply)
 
 int AmB2BSession::onSdpCompleted(const AmSdp& local_sdp, const AmSdp& remote_sdp)
 {
-  if(!sip_relay_only){
+  if((!sip_relay_only) || (rtp_relay_mode == RTP_Process)){
     return AmSession::onSdpCompleted(local_sdp,remote_sdp);
   }
   
@@ -913,7 +914,7 @@ void AmB2BSession::setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initia
       getLocalTag().c_str());
 
   rtp_relay_mode = mode;
-  if ((mode != RTP_Direct) && initial_invite_req) {
+  if ((mode == RTP_Relay) && initial_invite_req) {
     // save AmSdp object of initial INVITE body
     invite_sdp.reset(new AmSdp());
     updateRelayStreams(initial_invite_req->body,
@@ -925,7 +926,7 @@ void AmB2BSession::setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initia
   else dlg.setOAEnabled(!sip_relay_only);
 }
 
-void AmB2BSession::setupRelayStreams(AmB2BSession* other_session) {
+void AmB2BSession::setupRelayStreams(AmB2BSession* other_session, B2BMedia *m) {
   if (rtp_relay_mode == RTP_Direct)
     return;
 
@@ -934,26 +935,38 @@ void AmB2BSession::setupRelayStreams(AmB2BSession* other_session) {
     return;
   }
 
-  if (NULL == relay_rtp_streams) {
-    relay_rtp_streams_cnt = other_session->relay_rtp_streams_cnt;
-    DBG("creating %u RTP streams from other_session\n",
-	relay_rtp_streams_cnt);
-    relay_rtp_streams = new AmRtpStream*[relay_rtp_streams_cnt];
-    for(unsigned int i=0; i<relay_rtp_streams_cnt; i++){
-      // create relay stream on set interface, else dlg interface
-      relay_rtp_streams[i] = new AmRtpStream(NULL, rtp_interface<0 ?
-					     dlg.getOutboundIf() : rtp_interface);
-      relay_rtp_streams[i]->setRtpRelayTransparentSeqno(rtp_relay_transparent_seqno);
-      relay_rtp_streams[i]->setRtpRelayTransparentSSRC(rtp_relay_transparent_ssrc);
+  if (rtp_relay_mode == RTP_Relay) {
+    if (NULL == relay_rtp_streams) {
+      relay_rtp_streams_cnt = other_session->relay_rtp_streams_cnt;
+      DBG("creating %u RTP streams from other_session\n",
+          relay_rtp_streams_cnt);
+      relay_rtp_streams = new AmRtpStream*[relay_rtp_streams_cnt];
+      for(unsigned int i=0; i<relay_rtp_streams_cnt; i++){
+        // create relay stream on set interface, else dlg interface
+        relay_rtp_streams[i] = new AmRtpStream(NULL, rtp_interface<0 ?
+                                               dlg.getOutboundIf() : rtp_interface);
+        relay_rtp_streams[i]->setRtpRelayTransparentSeqno(rtp_relay_transparent_seqno);
+        relay_rtp_streams[i]->setRtpRelayTransparentSSRC(rtp_relay_transparent_ssrc);
+      }
     }
+
+    // link the other streams as our relay streams
+    for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
+      other_session->relay_rtp_streams[i]->setRelayStream(relay_rtp_streams[i]);
+      other_stream_fds[i] = other_session->relay_rtp_streams[i]->getLocalSocket();
+      relay_rtp_streams[i]->setLocalIP(localRTPIP());
+      relay_rtp_streams[i]->enableRtpRelay();
+    }
+
+    return;
   }
 
-  // link the other streams as our relay streams
-  for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
-    other_session->relay_rtp_streams[i]->setRelayStream(relay_rtp_streams[i]);
-    other_stream_fds[i] = other_session->relay_rtp_streams[i]->getLocalSocket();
-    relay_rtp_streams[i]->setLocalIP(localRTPIP());
-    relay_rtp_streams[i]->enableRtpRelay();
+  if (rtp_relay_mode == RTP_Process) {
+    relayed_media = m;
+    if (relayed_media) {
+      if (a_leg) setInOut(relayed_media->getASink(), relayed_media->getASource());
+      else setInOut(relayed_media->getBSink(), relayed_media->getBSource());
+    }
   }
 }
 
@@ -972,21 +985,37 @@ void AmB2BSession::setRtpRelayTransparentSSRC(bool transparent) {
 }
 
 void AmB2BSession::clearRtpReceiverRelay() {
-  if (rtp_relay_mode != RTP_Direct) {
-    for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
-      // clear the other call's RTP relay streams from RTP receiver
-      if (other_stream_fds[i]) {
-        AmRtpReceiver::instance()->removeStream(other_stream_fds[i]);
-        other_stream_fds[i] = 0;
+  switch (rtp_relay_mode) {
+
+    case RTP_Relay:
+      for (unsigned int i=0; i<relay_rtp_streams_cnt; i++) {
+        // clear the other call's RTP relay streams from RTP receiver
+        if (other_stream_fds[i]) {
+          AmRtpReceiver::instance()->removeStream(other_stream_fds[i]);
+          other_stream_fds[i] = 0;
+        }
+        // clear our relay streams from RTP receiver
+        if (relay_rtp_streams[i]->hasLocalSocket()) {
+          AmRtpReceiver::instance()->removeStream(relay_rtp_streams[i]->getLocalSocket());
+        }
       }
-      // clear our relay streams from RTP receiver
-      if (relay_rtp_streams[i]->hasLocalSocket()) {
-        AmRtpReceiver::instance()->removeStream(relay_rtp_streams[i]->getLocalSocket());
+      break;
+
+    case RTP_Process:
+      if (relayed_media) { 
+        setInOut(NULL, NULL);
+        if (relayed_media->releaseReference()) delete relayed_media;
+        relayed_media = NULL;
+        // FIXME: remove from media processor?
       }
-    }
+      break;
+
+    case RTP_Direct:
+      // nothing to do
+      break;
   }
 }
-
+  
 // 
 // AmB2BCallerSession methods
 //
@@ -1257,14 +1286,28 @@ AmB2BCalleeSession* AmB2BCallerSession::newCalleeSession()
 void AmB2BCallerSession::initializeRTPRelay(AmB2BCalleeSession* callee_session) {
   if (!callee_session || (rtp_relay_mode == RTP_Direct))
     return;
+  
+  B2BMedia *b2b = NULL;
+  if (rtp_relay_mode == RTP_Process) {
+    b2b = new B2BMedia();
+    b2b->addReference(); // for callee
+  }
+
+  // Having A/B leg in different call groups can have negative impact on audio
+  // quality (additional delays). Additionally locking of relayed_media is not
+  // needed for get/put if they are in the same call group (i.e. handled by the
+  // same AmMediaProcessorThread).
+  callee_session->setCallgroup(callgroup);
 
   callee_session->setRtpRelayMode(rtp_relay_mode);
-  callee_session->setupRelayStreams(this);
-  setupRelayStreams(callee_session);
+  callee_session->setupRelayStreams(this, b2b);
+  setupRelayStreams(callee_session, b2b);
 
   // bind caller session's relay_streams to a port
-  for (unsigned int i=0; i<relay_rtp_streams_cnt; i++)
-    relay_rtp_streams[i]->getLocalPort();
+  if (rtp_relay_mode == RTP_Relay) {
+    for (unsigned int i=0; i<relay_rtp_streams_cnt; i++)
+      relay_rtp_streams[i]->getLocalPort();
+  }
 }
 
 AmB2BCalleeSession::AmB2BCalleeSession(const string& other_local_tag)

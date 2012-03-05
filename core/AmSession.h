@@ -55,46 +55,6 @@ using std::vector;
 class AmSessionFactory;
 class AmDtmfEvent;
 
-class AmAudioPair
-{
-  protected:
-    AmAudio *src, *sink; /* source and destination for audio */
-
-    /* RTP stream used for operation control on the pair - says when to get and
-     * put data */
-    AmRtpAudio *ctrl;
-
-    /* FIXME: just temporarily for distinguishing which AmRtpAudio function to
-     * call in checkInterval, make checkInterval and sendIntReached in
-     * AmRtpAudio independent 
-     *
-     * On other hand it is used to allow first reading all inputs and then write
-     * all outputs.
-     */
-    bool is_out;
-
-    bool handle_dtmf;
-
-  public:
-    AmAudioPair(AmAudio *_src, AmAudio *_sink, AmRtpAudio *_ctrl, bool _handle_dtmf, bool _is_out);
-    int process(unsigned int ts, unsigned char *buffer, AmSession *dtmf_handler);
-
-    /* FIXME: returns frame size. Is it really fixed value if there can be more
-     * codecs used at once within one RTP stream? */
-    unsigned int getFrameSize() { return ctrl->getFrameSize(); }
-
-    bool checkInterval(unsigned int ts); 
-    bool isOutput() { return is_out; }
-
-    /* set/get methods for manipulating internals */
-
-    AmAudio *getSource() { return src; }
-    AmAudio *getSink() { return sink; }
-
-    void setSource(AmAudio *_src) { src = _src; }
-    void setSink(AmAudio *_sink) { sink = _sink; }
-};
-
 /** @file AmSession.h */
 
 /* definition imported from Ser parser/msg_parser.h */

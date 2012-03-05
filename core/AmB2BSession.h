@@ -31,6 +31,37 @@
 #include "AmSession.h"
 #include "AmSipDialog.h"
 #include "sip/hash.h"
+#include "AmAdvancedAudio.h"
+
+class B2BMedia
+{
+  private:
+    AmMutex mutex;
+    int ref_cnt;
+    AmAudioBridge a_leg_sink, b_leg_sink;
+
+  public:
+    B2BMedia(): ref_cnt(1) { }
+
+    void getAAudio(AmAudio *&sink, AmAudio *&source) { sink = &a_leg_sink; source = &b_leg_sink; }
+    void getBAudio(AmAudio *&sink, AmAudio *&source) { sink = &b_leg_sink; source = &a_leg_sink; }
+    AmAudio *getASink() { return &a_leg_sink; }
+    AmAudio *getASource() { return &b_leg_sink; }
+    AmAudio *getBSink() { return &b_leg_sink; }
+    AmAudio *getBSource() { return &a_leg_sink; }
+
+    void lock() { mutex.lock(); }
+    void unlock() { mutex.unlock(); }
+    
+    void addReference() { lock(); ref_cnt++; unlock(); }
+
+    /* Releases reference.
+     * Returns true if this was the last reference and the object should be
+     * destroyed (call "delete this" here?) */
+    bool releaseReference() { lock(); int r = --ref_cnt; unlock(); return (r == 0); }
+
+};
+
 
 #define MAX_RELAY_STREAMS 3 // voice, video, rtt
 
@@ -272,12 +303,18 @@ class AmB2BSession: public AmSession
   void setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initial_invite_req = NULL);
 
   /** link RTP streams of other_session to our streams */
-  void setupRelayStreams(AmB2BSession* from_session);
+  void setupRelayStreams(AmB2BSession* from_session, B2BMedia *b2b);
   RTPRelayMode getRtpRelayMode() const { return rtp_relay_mode; }
   bool getRtpRelayForceSymmetricRtp() const { return rtp_relay_force_symmetric_rtp; }
   void setRtpRelayInterface(int relay_interface);
   void setRtpRelayTransparentSeqno(bool transparent);
   void setRtpRelayTransparentSSRC(bool transparent);
+
+  /* -------------- media processing -------------- */
+
+  protected:
+    B2BMedia *relayed_media;
+
 };
 
 class AmB2BCalleeSession;

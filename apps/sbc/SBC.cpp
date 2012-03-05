@@ -804,7 +804,7 @@ void SBCDialog::onInvite(const AmSipRequest& req)
   // the same time?)
   if (call_profile.transcoder_audio_codecs.size()) 
     setRtpRelayMode(RTP_Process, &req);
-
+    
   m_state = BB_Dialing;
 
   invite_req = req;
@@ -1689,7 +1689,7 @@ bool SBCCalleeSession::getSdpOffer(AmSdp& offer)
 {
   // experimental:
   TRACE("CALLEE: getSdpOffer called\n");
-
+/*
   if (call_profile.transcoder_audio_codecs.size() < 1) {
     ERROR("BUG: getSdpOffer() shouldn't be called\n");
     return false;
@@ -1701,7 +1701,7 @@ bool SBCCalleeSession::getSdpOffer(AmSdp& offer)
     offer = *initial_sdp.get();
     return true;
   }
-  else return AmB2BCalleeSession::getSdpOffer(offer);
+  else*/ return AmB2BCalleeSession::getSdpOffer(offer);
 }
   
 bool SBCCalleeSession::getSdpAnswer(const AmSdp& offer, AmSdp& answer)
