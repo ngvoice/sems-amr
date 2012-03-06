@@ -242,8 +242,16 @@ protected:
   /** Clear RTP timeout at time recv_time */
   void clearRTPTimeout(struct timeval* recv_time);
 
-  /** checks if this packet is to be relayed or not */
-  bool isPacketToRelay(AmRtpPacket *p);
+  /** mutex guarding members used for direct RTP relay 
+   * these members need to be used by AmRtpReceiver thread and by signaling
+   * processing thread as well */
+  AmMutex relay_mut;
+
+  std::map<int, int> relay_payload_mapping;
+
+  /** checks if this packet is to be relayed or not and which payload ID should
+   * be used in relay_stream */
+  int relayedPayloadID(AmRtpPacket *p);
 
 public:
 
@@ -391,6 +399,7 @@ public:
 
   /** ensable RTP relaying through relay stream */
   void enableRtpRelay();
+  void enableRtpRelay(const std::map<int, int> &payload_mapping, AmRtpStream *_relay_stream);
 
   /** disable RTP relaying through relay stream */
   void disableRtpRelay();

@@ -73,33 +73,18 @@ static void errCode2RelayedReply(AmSipReply &reply, int err_code, unsigned defau
 //
 // helper classes
 //
-
-int B2BMedia::relayedPayloadID(bool a_leg, int payload_id)
+    
+void B2BMedia::stopRelay()
 {
-  int res = -1; // payload not for relay
-
   lock();
+  // we must avoid relaying data between the streams
+  if (a_leg_stream) a_leg_stream->disableRtpRelay();
+  if (b_leg_stream) b_leg_stream->disableRtpRelay();
 
-  std::vector<PayloadPair>::iterator i = relay_payloads.begin();
-  if (a_leg) {
-    for (; i != relay_payloads.end(); ++i) {
-      if (i->a_leg_payload == payload_id) {
-        res = i->b_leg_payload;
-        break;
-      }
-    }
-  } else { // b_leg
-    for (; i != relay_payloads.end(); ++i) {
-      if (i->b_leg_payload == payload_id) {
-        res = i->a_leg_payload;
-        break;
-      }
-    }
-  }
-
+  // clear stored streams
+  a_leg_stream = NULL;
+  b_leg_stream = NULL;
   unlock();
-
-  return res;
 }
 
 static std::vector<SdpPayload>::const_iterator findPayload(const SdpMedia &m, const SdpPayload *payload)
@@ -114,15 +99,14 @@ static std::vector<SdpPayload>::const_iterator findPayload(const SdpMedia &m, co
   return i;
 }
 
-void B2BMedia::computeRelayPayloads(const SdpMedia &a, const SdpMedia &b)
+void B2BMedia::computeRelayPayloads(const SdpMedia &local, const SdpMedia &remote, std::map<int, int> &dst)
 {
-  relay_payloads.clear();
-  for (std::vector<SdpPayload>::const_iterator i = a.payloads.begin(); i != a.payloads.end(); ++i) {
-    ERROR("looking for %s in B leg\n", i->encoding_name.c_str());
-    std::vector<SdpPayload>::const_iterator j = findPayload(b, &(*i));
-    if (j != b.payloads.end()) {
-      PayloadPair p(i->payload_type, j->payload_type);
-      relay_payloads.push_back(p);
+  dst.clear();
+  for (std::vector<SdpPayload>::const_iterator i = local.payloads.begin(); i != local.payloads.end(); ++i) {
+    //ERROR("looking for %s in B leg\n", i->encoding_name.c_str());
+    std::vector<SdpPayload>::const_iterator j = findPayload(remote, &(*i));
+    if (j != remote.payloads.end()) {
+      dst[i->payload_type] = j->payload_type;
       ERROR("payloads to relay %d <-> %d\n", i->payload_type, j->payload_type);
     }
   }
@@ -136,23 +120,37 @@ void B2BMedia::normalize(AmSdp &sdp)
   //  - add clock rate if not given (?)
 }
 
-void B2BMedia::updatePayloads(bool a_leg, const AmSdp &remote_sdp)
+void B2BMedia::updateRelayPayloads(bool a_leg, const AmSdp &local_sdp, const AmSdp &remote_sdp)
 {
   lock();
+
+  // store SDP for later usage (we need remote SDP of one leg combine together
+  // with local SDP of other leg)
   if (a_leg) {
-    a_leg_sdp = remote_sdp;
-    normalize(a_leg_sdp);
+    a_leg_local_sdp = local_sdp;
+    a_leg_remote_sdp = remote_sdp;
+    normalize(a_leg_local_sdp);
+    normalize(a_leg_remote_sdp);
   }
   else {
-    b_leg_sdp = remote_sdp;
-    normalize(b_leg_sdp);
+    b_leg_local_sdp = local_sdp;
+    b_leg_remote_sdp = remote_sdp;
+    normalize(b_leg_local_sdp);
+    normalize(b_leg_remote_sdp);
   }
-  if ((a_leg_sdp.media.size() > 0) && (b_leg_sdp.media.size() > 0)) {
-    // we have both SDPs
-    // update relay_payloads (one stream only for now)
-    computeRelayPayloads(a_leg_sdp.media[0], b_leg_sdp.media[0]);
-    // TODO: set relay payloads in both streams
+    
+  // if we have both required SDPs we can update relay_payloads (one stream only for now)
+  if ((a_leg_local_sdp.media.size() > 0) && (b_leg_remote_sdp.media.size() > 0)) {
+    ERROR("computing A leg payloads to relay:\n");
+    computeRelayPayloads(a_leg_local_sdp.media[0], b_leg_remote_sdp.media[0], a_leg_relay_payloads);
+    if (a_leg_stream) a_leg_stream->enableRtpRelay(a_leg_relay_payloads, b_leg_stream);
   }
+  if ((b_leg_local_sdp.media.size() > 0) && (a_leg_remote_sdp.media.size() > 0)) {
+    ERROR("computing B leg payloads to relay:\n");
+    computeRelayPayloads(b_leg_local_sdp.media[0], a_leg_remote_sdp.media[0], b_leg_relay_payloads);
+    if (b_leg_stream) b_leg_stream->enableRtpRelay(b_leg_relay_payloads, a_leg_stream);
+  }
+
   unlock();
 }
 
@@ -662,7 +660,7 @@ int AmB2BSession::onSdpCompleted(const AmSdp& local_sdp, const AmSdp& remote_sdp
 {
   if((!sip_relay_only) || (rtp_relay_mode == RTP_Process)){
     if (relayed_media) {
-      relayed_media->updatePayloads(a_leg, remote_sdp);
+      relayed_media->updateRelayPayloads(a_leg, local_sdp, remote_sdp);
     }
     return AmSession::onSdpCompleted(local_sdp,remote_sdp);
   }
@@ -1054,8 +1052,6 @@ void AmB2BSession::setupRelayStreams(AmB2BSession* other_session, B2BMedia *m) {
     if (relayed_media) {
       if (a_leg) setInOut(relayed_media->getASink(), relayed_media->getASource());
       else setInOut(relayed_media->getBSink(), relayed_media->getBSource());
-      RTPStream()->setRelayStream(other_session->RTPStream());
-      RTPStream()->enableRtpRelay();
     }
   }
 }
@@ -1093,8 +1089,7 @@ void AmB2BSession::clearRtpReceiverRelay() {
 
     case RTP_Process:
       if (relayed_media) { 
-        RTPStream()->setRelayStream(NULL);
-        RTPStream()->disableRtpRelay();
+        relayed_media->stopRelay();
         setInOut(NULL, NULL);
         if (relayed_media->releaseReference()) delete relayed_media;
         relayed_media = NULL;

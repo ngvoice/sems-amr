@@ -56,6 +56,8 @@
 #include "zrtp/zrtp.h"
 #endif
 
+#include "rtp/rtp.h"
+
 #include <set>
 using std::set;
 
@@ -652,10 +654,11 @@ bool AmRtpStream::getOnHold() {
   return hold;
 }
 
-bool AmRtpStream::isPacketToRelay(AmRtpPacket* p)
+int AmRtpStream::relayedPayloadID(AmRtpPacket *p)
 {
-  // TODO: check payload type in packet
-  return false;
+  map<int, int>::iterator i = relay_payload_mapping.find(p->payload);
+  if (i != relay_payload_mapping.end()) return i->second;
+  else return -1;
 }
 
 void AmRtpStream::bufferPacket(AmRtpPacket* p)
@@ -667,14 +670,26 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
     return;
   }
 
-  if (relay_enabled && isPacketToRelay(p)) {
-    handleSymmetricRtp(p);
+  if (relay_enabled) {
+    int id;
 
-    if (NULL != relay_stream) {
-      relay_stream->relay(p);
+    if (relay_payload_mapping.empty()) 
+      id = 0; // hack to work without payload IDs set
+    else {
+      // update payload ID to the ID at other side
+      id = relayedPayloadID(p);
+      rtp_hdr_t* hdr = (rtp_hdr_t*)p->getBuffer();
+      hdr->pt = id;
     }
-    mem.freePacket(p);
-    return;
+    if (id >= 0) {
+      handleSymmetricRtp(p);
+
+      if (NULL != relay_stream) {
+        relay_stream->relay(p);
+      }
+      mem.freePacket(p);
+      return;
+    }
   }
 
   receive_mut.lock();
@@ -820,8 +835,6 @@ void AmRtpStream::recvPacket()
   }
 }
 
-#include "rtp/rtp.h"
-
 void AmRtpStream::relay(AmRtpPacket* p) {
   if (!l_port) // not yet initialized
     return;
@@ -868,6 +881,21 @@ void AmRtpStream::enableRtpRelay() {
 void AmRtpStream::disableRtpRelay() {
   DBG("disabled RTP relay for RTP stream instance [%p]\n", this);
   relay_enabled = false;
+}
+  
+void AmRtpStream::enableRtpRelay(const std::map<int, int> &payload_mapping, AmRtpStream *_relay_stream)
+{
+  if (payload_mapping.empty()) {
+    // no payloads can be relayed
+    disableRtpRelay();
+  }
+  else {
+    // some payloads are to be relayed, we need to store payload ID mapping
+    // (might be different in each dir)
+    relay_payload_mapping = payload_mapping;
+    relay_stream = _relay_stream;
+    relay_enabled = true;
+  }
 }
 
 void AmRtpStream::setRtpRelayTransparentSeqno(bool transparent) {
