@@ -73,6 +73,12 @@ bool AmRtpAudio::sendIntReached()
   return send_int;
 }
 
+bool AmRtpAudio::sendIntReached(unsigned int ts, unsigned int frame_size)
+{
+  if (!last_send_ts_i) return true;
+  else return ((ts - last_send_ts) >= frame_size);
+}
+
 unsigned int AmRtpAudio::bytes2samples(unsigned int bytes) const
 {
   return AmAudio::bytes2samples(bytes);
@@ -154,6 +160,9 @@ int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int nb_
 
 int AmRtpAudio::put(unsigned int user_ts, unsigned char* buffer, unsigned int size)
 {
+  last_send_ts_i = true;
+  last_send_ts = user_ts;
+
   if(!mute) return AmAudio::put(user_ts, buffer, size);
   else return 0;
 }
@@ -195,16 +204,28 @@ int AmRtpAudio::init(const AmSdp& local,
   if(AmRtpStream::init(local,remote)){
     return -1;
   }
-
+    
   AmAudioRtpFormat* fmt_p = new AmAudioRtpFormat();
-  fmt_p->channels = 1;
-  fmt_p->rate = payloads[0].clock_rate;
-  //fmt_p->frame_length = ;
-  //fmt_p->frame_size = ;
-  //fmt_p->frame_encoded_size = ;
-  //fmt_p->sdp_format_parameters = ;
-  
-  fmt_p->setCodecId(payloads[0].codec_id);
+
+  vector<Payload>::iterator i = payloads.begin();
+  for (; i != payloads.end(); ++i) {
+    if (i->pt == payload) break;
+  }
+    
+  if (i != payloads.end()) {
+    fmt_p->channels = 1; // FIXME
+    fmt_p->rate = i->clock_rate;
+    fmt_p->setCodecId(i->codec_id);
+  } else {
+    fmt_p->channels = 1;
+    fmt_p->rate = payloads[0].clock_rate;
+    //fmt_p->frame_length = ;
+    //fmt_p->frame_size = ;
+    //fmt_p->frame_encoded_size = ;
+    //fmt_p->sdp_format_parameters = ;
+    
+    fmt_p->setCodecId(payloads[0].codec_id);
+  }
   fmt.reset(fmt_p);
 
   return 0;

@@ -61,6 +61,18 @@
 #include <set>
 using std::set;
 
+void PayloadMask::clear()
+{
+  memset(bits, 0, sizeof(bits));
+}
+
+PayloadMask::PayloadMask(const PayloadMask &src)
+{
+  memcpy(bits, src.bits, sizeof(bits));
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
  * This function must be called before setLocalPort, because
  * setLocalPort will bind the socket and it will be not
@@ -256,7 +268,7 @@ int AmRtpStream::send( unsigned int ts, unsigned char* buffer, unsigned int size
 
   PayloadMappingTable::iterator it = pl_map.find(payload);
   if ((it == pl_map.end()) || (it->second.remote_pt < 0)) {
-    ERROR("sending packet with unsupported remote payload type\n");
+    ERROR("sending packet with unsupported remote payload type %d\n", payload);
     return -1;
   }
   
@@ -344,6 +356,7 @@ AmRtpStream::AmRtpStream(AmSession* _s, int _if)
     r_ssrc_i(false),
     session(_s),
     passive(false),
+    offer_answer_used(true),
     mute(false),
     hold(false),
     receiving(true),
@@ -532,27 +545,76 @@ int AmRtpStream::init(const AmSdp& local,
   vector<Payload>::iterator p_it = payloads.begin();
 
   // first pass on local SDP
-  while(p_it != payloads.end()) {
+  if (offer_answer_used) {
+    while(p_it != payloads.end()) {
 
-    amci_payload_t* a_pl = payload_provider->payload(sdp_it->payload_type);
-    if(a_pl == NULL){
-      ERROR("No internal payload corresponding to type %i\n",
-	    sdp_it->payload_type);
-      return -1;//TODO
-    };
-    
-    p_it->pt         = sdp_it->payload_type;
-    p_it->name       = a_pl->name;
-    p_it->codec_id   = a_pl->codec_id;
-    p_it->clock_rate = a_pl->sample_rate;
+      amci_payload_t* a_pl = payload_provider->payload(sdp_it->payload_type);
+      if(a_pl == NULL){
+        ERROR("No internal payload corresponding to type %i\n",
+             sdp_it->payload_type);
+        return -1;//TODO
+      };
+      
+      p_it->pt         = sdp_it->payload_type;
+      p_it->name       = a_pl->name;
+      p_it->codec_id   = a_pl->codec_id;
+      p_it->clock_rate = a_pl->sample_rate;
 
-    pl_map[sdp_it->payload_type].index     = i;
-    pl_map[sdp_it->payload_type].remote_pt = -1;
-    
-    ++p_it;
-    ++sdp_it;
-    ++i;
+      pl_map[sdp_it->payload_type].index     = i;
+      pl_map[sdp_it->payload_type].remote_pt = -1;
+      
+      ++p_it;
+      ++sdp_it;
+      ++i;
+    }
+  } else {
+    while(sdp_it != local_media.payloads.end()) {
+      // we can not find payload based on payload ID, because we are not using
+      // our offer/answer, we just modified the other party's SDP to get our local
+      // one, i.e. we must use the other party's payload IDs
+      amci_payload_t* a_pl;
+      int a_pl_id = payload_provider->getDynPayload(sdp_it->encoding_name, 
+          sdp_it->clock_rate, sdp_it->encoding_param);
+      if (a_pl_id >= 0) a_pl = payload_provider->payload(a_pl_id);
+      else a_pl = NULL;
+      if(a_pl == NULL){
+        if (relay_payloads.get(sdp_it->payload_type)) {
+          // this payload should be relayed, ignore
+          ++sdp_it;
+          ++i; // really needed?
+          continue;
+        } else {
+          // it is not a payload for relaying
+          ERROR("No internal payload corresponding to type %i\n",
+              sdp_it->payload_type);
+          return -1;//TODO
+        }
+      };
+      
+      p_it->pt         = sdp_it->payload_type;
+      p_it->name       = a_pl->name;
+      p_it->codec_id   = a_pl->codec_id;
+      p_it->clock_rate = a_pl->sample_rate;
+
+      pl_map[sdp_it->payload_type].index     = i;
+      pl_map[sdp_it->payload_type].remote_pt = -1;
+      
+      ++p_it;
+      ++sdp_it;
+      ++i;
+    }
+    // remove payloads which were not initialised (because of unknown payloads
+    // which are to be relayed)
+    if (p_it != payloads.end()) payloads.erase(p_it, payloads.end());
+
+    // FIXME: just for testing
+    ERROR("%lu payloads to be processed", payloads.size());
+    for (p_it = payloads.begin(); p_it != payloads.end(); ++p_it) 
+      ERROR(" ... %d: %s/%d\n", p_it->pt, p_it->name.c_str(), p_it->clock_rate);
+
   }
+
+  payload = -1;
 
   // second pass on remote SDP
   sdp_it = remote_media.payloads.begin();
@@ -576,6 +638,10 @@ int AmRtpStream::init(const AmSdp& local,
 
     if(pmt_it != pl_map.end()){
       pmt_it->second.remote_pt = sdp_it->payload_type;
+
+      // store first supported payload which is not telephone-event
+      if ((payload == -1) && (sdp_it->encoding_name != "telephone-event")) 
+        payload = sdp_it->payload_type;
     }
     ++sdp_it;
   }
@@ -592,7 +658,6 @@ int AmRtpStream::init(const AmSdp& local,
     return -1;
   }
 
-  payload = local_media.payloads[0].payload_type;
   last_payload = payload;
 
   remote_telephone_event_pt.reset(remote.telephoneEventPayload());
@@ -654,13 +719,6 @@ bool AmRtpStream::getOnHold() {
   return hold;
 }
 
-int AmRtpStream::relayedPayloadID(AmRtpPacket *p)
-{
-  map<int, int>::iterator i = relay_payload_mapping.find(p->payload);
-  if (i != relay_payload_mapping.end()) return i->second;
-  else return -1;
-}
-
 void AmRtpStream::bufferPacket(AmRtpPacket* p)
 {
   memcpy(&last_recv_time, &p->recv_time, sizeof(struct timeval));
@@ -671,17 +729,8 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
   }
 
   if (relay_enabled) {
-    int id;
-
-    if (relay_payload_mapping.empty()) 
-      id = 0; // hack to work without payload IDs set
-    else {
-      // update payload ID to the ID at other side
-      id = relayedPayloadID(p);
-      rtp_hdr_t* hdr = (rtp_hdr_t*)p->getBuffer();
-      hdr->pt = id;
-    }
-    if (id >= 0) {
+    if (relay_payloads.get(p->payload)) {
+      //ERROR("going to relay payload %d\n", p->payload); // FIXME: for testign only
       handleSymmetricRtp(p);
 
       if (NULL != relay_stream) {
@@ -691,6 +740,7 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
       return;
     }
   }
+  //ERROR("going to process payload %d\n", p->payload); // FIXME: for testign only
 
   receive_mut.lock();
   // free packet on double packet for TS received
@@ -883,19 +933,11 @@ void AmRtpStream::disableRtpRelay() {
   relay_enabled = false;
 }
   
-void AmRtpStream::enableRtpRelay(const std::map<int, int> &payload_mapping, AmRtpStream *_relay_stream)
+void AmRtpStream::enableRtpRelay(const PayloadMask &_relay_payloads, AmRtpStream *_relay_stream)
 {
-  if (payload_mapping.empty()) {
-    // no payloads can be relayed
-    disableRtpRelay();
-  }
-  else {
-    // some payloads are to be relayed, we need to store payload ID mapping
-    // (might be different in each dir)
-    relay_payload_mapping = payload_mapping;
-    relay_stream = _relay_stream;
-    relay_enabled = true;
-  }
+  relay_payloads = _relay_payloads;
+  relay_stream = _relay_stream;
+  relay_enabled = true;
 }
 
 void AmRtpStream::setRtpRelayTransparentSeqno(bool transparent) {

@@ -90,6 +90,26 @@ public:
   ~AmRtpTimeoutEvent() { }
 };
 
+/** helper class for assigning boolean floag to a payload ID
+ * it is used to check if the payload should be relayed or not */
+class PayloadMask
+{
+  private:
+    unsigned char bits[16];
+
+  public:
+    // clear flag for all payloads
+    void clear();
+
+    // set given flag (TODO: once it shows to be working, change / and % to >> and &)
+    void set(unsigned char payload_id) { if (payload_id < 128) bits[payload_id / 8] |= 1 << (payload_id % 8); }
+
+    // get given flag
+    bool get(unsigned char payload_id) { if (payload_id > 127) return false; return (bits[payload_id / 8] & (1 << (payload_id % 8))); }
+    
+    PayloadMask() { clear(); }
+    PayloadMask(const PayloadMask &src);
+};
 
 /**
  * \brief RTP implementation
@@ -247,11 +267,8 @@ protected:
    * processing thread as well */
   AmMutex relay_mut;
 
-  std::map<int, int> relay_payload_mapping;
-
-  /** checks if this packet is to be relayed or not and which payload ID should
-   * be used in relay_stream */
-  int relayedPayloadID(AmRtpPacket *p);
+  PayloadMask relay_payloads;
+  bool offer_answer_used;
 
 public:
 
@@ -335,6 +352,7 @@ public:
   void setPayloadProvider(AmPayloadProvider* pl_prov);
 
   int getSdpMediaIndex() { return sdp_media_index; }
+  void forceSdpMediaIndex(int idx) { sdp_media_index = idx; offer_answer_used = false; }
   int getPayloadType() { return payload; }
 
   /**
@@ -399,7 +417,7 @@ public:
 
   /** ensable RTP relaying through relay stream */
   void enableRtpRelay();
-  void enableRtpRelay(const std::map<int, int> &payload_mapping, AmRtpStream *_relay_stream);
+  void enableRtpRelay(const PayloadMask &_relay_payloads, AmRtpStream *_relay_stream);
 
   /** disable RTP relaying through relay stream */
   void disableRtpRelay();

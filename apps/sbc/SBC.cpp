@@ -120,27 +120,43 @@ static void appendTranscoderCodecs(AmSdp &sdp, MediaType mtype, std::vector<SdpP
 static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile)
 {
   bool changed = false;
-  bool normalized = false;
 
-  if (call_profile.sdpfilter_enabled || call_profile.payload_order.size()) {
+  // We have to order payloads before adding transcoder codecs to leave
+  // transcoding as the last chance (always prefer relaying to transcoding).
+
+  if (call_profile.payload_order.size()) {
     normalizeSDP(sdp, call_profile.anonymize_sdp);
-    normalized = true;
+    call_profile.orderSDP(sdp);
+  }
+
+  // Add transcoder codecs before filtering because otherwise SDP filter could
+  // inactivate some media lines which shouldn't be inactivated.
+
+  if (call_profile.transcoder_audio_codecs.size() > 0) {
+    if (!changed) // otherwise already normalized
+      normalizeSDP(sdp, call_profile.anonymize_sdp);
+    appendTranscoderCodecs(sdp, MT_AUDIO, call_profile.transcoder_audio_codecs);
+    changed = true;
+  }
+  
+  // It doesn't make sense to filter out codecs allowed for transcoding and thus
+  // if the filter filters them out it can be considered as configuration
+  // problem, right? 
+  // => So we wouldn't try to avoid filtering out transcoder codecs what would
+  // just complicate things.
+
+  if (call_profile.sdpfilter_enabled) {
+    if (!changed) // otherwise already normalized
+      normalizeSDP(sdp, call_profile.anonymize_sdp);
     if (isActiveFilter(call_profile.sdpfilter)) {
       filterSDP(sdp, call_profile.sdpfilter, call_profile.sdpfilter_list);
     }
-    call_profile.orderSDP(sdp);
     changed = true;
   }
   if (call_profile.sdpalinesfilter_enabled &&
       isActiveFilter(call_profile.sdpalinesfilter)) {
     // filter SDP "a=lines"
     filterSDPalines(sdp, call_profile.sdpalinesfilter, call_profile.sdpalinesfilter_list);
-    changed = true;
-  }
-  if (call_profile.transcoder_audio_codecs.size() < 1) {
-    if (!normalized) normalizeSDP(sdp, call_profile.anonymize_sdp);
-    appendTranscoderCodecs(sdp, MT_AUDIO, call_profile.transcoder_audio_codecs);
-    // FIXME: propagate added transcoder payloads
     changed = true;
   }
 
@@ -824,7 +840,7 @@ void SBCDialog::onInvite(const AmSipRequest& req)
   to = call_profile.to.empty() ? req.to : call_profile.to;
   callid = call_profile.callid;
 
-  if (call_profile.rtprelay_enabled) {
+  if (call_profile.rtprelay_enabled || call_profile.transcoder_audio_codecs.size()) {
     DBG("Enabling RTP relay mode for SBC call\n");
 
     if (call_profile.force_symmetric_rtp_value) {
@@ -845,14 +861,9 @@ void SBCDialog::onInvite(const AmSipRequest& req)
     setRtpRelayTransparentSeqno(call_profile.rtprelay_transparent_seqno);
     setRtpRelayTransparentSSRC(call_profile.rtprelay_transparent_ssrc);
 
-    setRtpRelayMode(RTP_Relay, &req);
+    setRtpRelayMode(RTP_Relay);
   }
 
-  // FIXME: RTP_Process covers somehow RTP_Relay (should not be tried both at
-  // the same time?)
-  if (call_profile.transcoder_audio_codecs.size()) 
-    setRtpRelayMode(RTP_Process, &req);
-    
   m_state = BB_Dialing;
 
   invite_req = req;
@@ -877,6 +888,8 @@ void SBCDialog::onInvite(const AmSipRequest& req)
 
   if (call_profile.outbound_interface_value >= 0)
     outbound_interface = call_profile.outbound_interface_value;
+
+  dlg.setOAEnabled(false); // ???
 
 #undef REPLACE_VALS
 
@@ -1503,6 +1516,8 @@ void SBCDialog::createCalleeSession()
   if(outbound_interface >= 0)
     callee_dlg.outbound_interface = outbound_interface;
 
+  callee_dlg.setOAEnabled(false); // ???
+
   if(rtprelay_interface >= 0)
     callee_session->setRtpRelayInterface(rtprelay_interface);
 
@@ -1679,58 +1694,9 @@ void SBCCalleeSession::filterBody(AmSipRequest &req, AmSdp &sdp)
   ::filterBody(req, sdp, call_profile);
 }
 
-static bool isThere(int num, const vector<int> &vals)
-{
-  for (vector<int>::const_iterator i = vals.begin(); i != vals.end(); ++i)
-    if (*i == num) return true;
-  return false;
-}
-
 void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
 {
-  AmMimeBody* body = reply.body.hasContentType(SIP_APPLICATION_SDP);
-
-  if (!body) return;
-  if (!(reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) return;
-
-  int res = sdp.parse((const char *)body->getPayload());
-  if (0 != res) {
-    DBG("SDP parsing failed!\n");
-    return;
-  }
-
-  DBG("filtering body of callee's reply\n");
-
-  bool changed = doFiltering(sdp, call_profile); // do the call profile based filtering
-
-  if (added_payloads.size() > 0) {
-    TRACE("filter out marked transcoder codecs\n");
-    // filter out added transcoder codecs (added into outgoing offer derrived
-    // from incoming offer in A leg)
-    for (vector<SdpMedia>::iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) {
-      if (m->type != MT_AUDIO) continue;
-
-      unsigned i = 0;
-      while (i < m->payloads.size()) {
-        if (isThere(m->payloads[i].payload_type, added_payloads)) {
-          m->payloads.erase(m->payloads.begin() + i);
-          changed = true;
-        }
-        else i++;
-      }
-    }
-  }
-
-  // FIXME: if there was no SDP offer in initial INVITE relayed from A leg, just
-  // use received body as offer in A leg (i.e. do not filter out any codecs)?
-
-  // generate output
-  if (changed) {
-    string n_body;
-    sdp.print(n_body);
-    body->setPayload((const unsigned char*)n_body.c_str(),
-			 n_body.length());
-  }
+  ::filterBody(reply, sdp, call_profile);
 }
 
 bool SBCCalleeSession::getSdpOffer(AmSdp& offer) 

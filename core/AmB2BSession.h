@@ -123,12 +123,10 @@ class AmB2BSession: public AmSession
 
     /* audio will be realyed through us
      * SDP bodies of relayed requests are filtered and connection addresses are
-     * replaced by us */  
-    RTP_Relay,
+     * replaced by us,
+     * additionally transcoding might be used depending on payload IDs */  
+    RTP_Relay
 
-    /* RTP transcoded or relayed depending on payload
-     * SDP offer/answer generated  */
-    RTP_Process
   };
 
  protected:
@@ -155,7 +153,6 @@ class AmB2BSession: public AmSession
   /** CSeq of the INVITE that established this call */
   unsigned int est_invite_cseq;
   unsigned int est_invite_other_cseq;
-  auto_ptr<AmSdp> invite_sdp;
 
   /** body of established session */
   AmMimeBody established_body;
@@ -245,16 +242,6 @@ class AmB2BSession: public AmSession
   /** transparent SSRC for RTP relay */
   bool rtp_relay_transparent_ssrc;
 
-  /** RTP streams which receive from our side and are used
-      for relaying RTP from the other side */
-  AmRtpStream** relay_rtp_streams;
-  /** number of relay RTP streams */
-  unsigned int relay_rtp_streams_cnt;
-
-  /** fd of the other streams' sockets (to remove from
-      RtpReceiver at end of relaying) */
-  int other_stream_fds[MAX_RELAY_STREAMS];
-
   /** clear our and the other side's RTP streams from RTPReceiver */
   void clearRtpReceiverRelay();
   /** update remote connection in relay_streams */
@@ -262,7 +249,6 @@ class AmB2BSession: public AmSession
 			  AmSdp& parser_sdp);
 
   /** replace connection with our address */
-  bool replaceConnectionAddress(AmSdp &parser_sdp);
   bool replaceConnectionAddress(const AmMimeBody& body, 
 				AmMimeBody& r_body);
 
@@ -270,21 +256,26 @@ class AmB2BSession: public AmSession
   void set_sip_relay_only(bool r);
 
   /** set RTP relay mode (possibly initiaze by given INVITE) */
-  void setRtpRelayMode(RTPRelayMode mode, const AmSipRequest* initial_invite_req = NULL);
+  void setRtpRelayMode(RTPRelayMode mode);
 
   /** link RTP streams of other_session to our streams */
-  void setupRelayStreams(AmB2BSession* from_session, B2BMedia *b2b);
   RTPRelayMode getRtpRelayMode() const { return rtp_relay_mode; }
   bool getRtpRelayForceSymmetricRtp() const { return rtp_relay_force_symmetric_rtp; }
   void setRtpRelayInterface(int relay_interface);
   void setRtpRelayTransparentSeqno(bool transparent);
   void setRtpRelayTransparentSSRC(bool transparent);
+  
+  int getRtpRelayInterface() { return rtp_interface<0 ? dlg.getOutboundIf() : rtp_interface; }
+  bool getRtpRelayTransparentSeqno() { return rtp_relay_transparent_seqno; }
+  bool getRtpRelayTransparentSSRC() { return rtp_relay_transparent_ssrc; }
 
   /* -------------- media processing -------------- */
 
   protected:
-    B2BMedia *relayed_media;
+    B2BMedia *media_session;
 
+  public:
+    void setMediaSession(B2BMedia *new_session);
 };
 
 class AmB2BCalleeSession;

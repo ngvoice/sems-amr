@@ -57,8 +57,8 @@ class AmMediaSession
 
     virtual ~AmMediaSession() { }
 
-    void onMediaProcessingStarted() { processing_media.set(true); }
-    void onMediaProcessingTerminated() { processing_media.set(false); }
+    virtual void onMediaProcessingStarted() { processing_media.set(true); }
+    virtual void onMediaProcessingTerminated() { processing_media.set(false); }
   
     /** Is the session being processed in  media processor? */
     virtual bool isProcessingMedia() { return processing_media.get(); }
