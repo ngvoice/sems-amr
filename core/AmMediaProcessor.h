@@ -37,6 +37,20 @@ using std::set;
 
 struct SchedRequest;
 
+/** Interface for basic media session processing.
+ *
+ * Media processor stores set of objects implementing this interface and
+ * periodically triggers media processing on each of them.
+ *
+ * First it calls readStreams() method on all managed media sessions to read
+ * from all streams first and then calls writeStreams() to send data out in all
+ * these sessions.
+ *
+ * Once audio processing of all media sessions is done, media processor walks
+ * through them once more and calls processDtmfEvents() on them to handle DTMF
+ * events detected when reading data from media streams.
+ */
+
 class AmMediaSession
 {
   private:
@@ -44,26 +58,92 @@ class AmMediaSession
 
   public:
     AmMediaSession(): processing_media(false) { }
-
-    /* first read from all RTP streams */
-    virtual int readStreams(unsigned int ts, unsigned char *buffer) = 0;
-    
-    /* after read write to all RTP streams */
-    virtual int writeStreams(unsigned int ts, unsigned char *buffer) = 0;
-
-    virtual void processDtmfEvents() = 0;
-    virtual void clearAudio() = 0;
-    virtual void clearRTPTimeout() = 0;
-
     virtual ~AmMediaSession() { }
 
+    /** Read from all media streams.
+     *
+     * To preserve current media processing scheme it is needed to read from all
+     * streams first and then write to them. This can be important for example
+     * in case of conferences where we need to have media from all streams ready
+     * for mixing them. 
+     *
+     * So the AmMediaProcessorThread first calls readStreams on all sessions and
+     * then writeStreams on all sessions.
+     *
+     * \param ts timestamp for which the processing is currently running
+     *
+     * \param buffer multi-purpose space given from outside (AmMediaProcessorThread) 
+     *
+     * Buffer given as parametr is usable for anything, originally was intended for data
+     * read from one stream before putting to another stream. 
+     *
+     * The reason for having this buffer as parameter is that buffer size for
+     * audio processing is quite large (2K here) and thus allocating it on stack
+     * on some architectures may be problematic. 
+     *
+     * On other hand having the buffer dynamically allocated for each media
+     * session would significantly increase memory consumption per call. 
+     *
+     * So for now it seems to be the simplest way just to give the buffer as
+     * parameter from AmMediaProcessorThread and reuse it in all sessions handled
+     * by this thread (processing is done sequentially one session after another). */
+    virtual int readStreams(unsigned int ts, unsigned char *buffer) = 0;
+    
+    /** Write to all media streams.
+     *
+     * For the meaning of parameters see description of readStreams() method. */
+    virtual int writeStreams(unsigned int ts, unsigned char *buffer) = 0;
+
+    /** Handle events in DTMF event queue.
+     * 
+     * DTMF events should be detected from RTP stream when reading data (see
+     * readStreams()) and put into an event queue for later processing to avoid
+     * blocking of audio processing for too long time. 
+     *
+     * This DTMF event queue should be processed then, within this method, which
+     * is triggered by AmMediaProcessorThread once reading/writing from media
+     * streams is finished. */
+    virtual void processDtmfEvents() = 0;
+
+    /** Reset all media processing elements. 
+     *
+     * Called as part of cleanup when removing session from media processor upon
+     * an processing error (either readStreams() or writeStreams() returning
+     * error). */
+    virtual void clearAudio() = 0;
+
+    /** Reset timeouts of all RTP streams related to this media session.
+     *
+     * Called during initialization when session starts to be processed by media
+     * processor. */
+    virtual void clearRTPTimeout() = 0;
+
+    /** Callback function called when a session is added to media processor.  
+     *
+     * Default implementation sets internal variable usable for detection if the
+     * object is in use by AmMediaProcessorThread. */
     virtual void onMediaProcessingStarted() { processing_media.set(true); }
+    
+    /* Callback function called when a session is removed from media processor.
+     *
+     * Default implementation sets internal variable usable for detection if the
+     * object is in use by AmMediaProcessorThread. */
     virtual void onMediaProcessingTerminated() { processing_media.set(false); }
   
-    /** Is the session being processed in  media processor? */
+    /** Indicates if the object is used by media processor.
+     * 
+     * Returns value of internal variable for distinguishing if the object is
+     * already added into media processor. It should be avoided to insert one
+     * session into media processor multiple times.
+     *
+     * Note that using default implementation of onMediaProcessingStarted and
+     * onMediaProcessingTerminated is required for proper function. */
     virtual bool isProcessingMedia() { return processing_media.get(); }
   
-    /** Is the session detached from media processor? */
+    /** Indicates if the object is used by media processor.
+     * 
+     * Seems to be duplicate to isProcessingMedia(). It was kept to reduce
+     * number of changes in existing code. */
     virtual bool isDetached() { return !isProcessingMedia(); }
 };
 
