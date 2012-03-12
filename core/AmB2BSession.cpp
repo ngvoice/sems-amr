@@ -1113,7 +1113,7 @@ AmB2BCalleeSession* AmB2BCallerSession::newCalleeSession()
   return new AmB2BCalleeSession(this);
 }
     
-void AmB2BSession::setMediaSession(B2BMedia *new_session) 
+void AmB2BSession::setMediaSession(AmB2BMedia *new_session) 
 { 
   // FIXME: ignore old media_session? can it be already set here?
   media_session = new_session; 
@@ -1126,7 +1126,7 @@ void AmB2BCallerSession::initializeRTPRelay(AmB2BCalleeSession* callee_session) 
   callee_session->setRtpRelayMode(rtp_relay_mode);
 
   if (rtp_relay_mode == RTP_Relay) {
-    setMediaSession(new B2BMedia(this, callee_session)); // we need to add our reference
+    setMediaSession(new AmB2BMedia(this, callee_session)); // we need to add our reference
     callee_session->setMediaSession(media_session);
     
     // Misusing invite_req here, but seems to be better than misusing

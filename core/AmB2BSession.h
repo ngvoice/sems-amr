@@ -31,7 +31,7 @@
 #include "AmSession.h"
 #include "AmSipDialog.h"
 #include "sip/hash.h"
-#include "B2BMedia.h"
+#include "AmB2BMedia.h"
 
 #define MAX_RELAY_STREAMS 3 // voice, video, rtt
 
@@ -272,10 +272,10 @@ class AmB2BSession: public AmSession
   /* -------------- media processing -------------- */
 
   protected:
-    B2BMedia *media_session;
+    AmB2BMedia *media_session;
 
   public:
-    void setMediaSession(B2BMedia *new_session);
+    void setMediaSession(AmB2BMedia *new_session);
 };
 
 class AmB2BCalleeSession;

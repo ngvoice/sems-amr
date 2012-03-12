@@ -1,4 +1,4 @@
-#include "B2BMedia.h"
+#include "AmB2BMedia.h"
 #include "AmAudio.h"
 #include "amci/codecs.h"
 #include <string.h>
@@ -67,17 +67,17 @@ int AmAudioBuffer::write(unsigned int user_ts, unsigned int size)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<B2BMedia::AudioStreamPair>::iterator AudioStreamIterator;
+typedef std::vector<AmB2BMedia::AudioStreamPair>::iterator AudioStreamIterator;
 typedef std::vector<SdpMedia>::iterator SdpMediaIterator;
 
-B2BMedia::B2BMedia(AmB2BSession *_a, AmB2BSession *_b): 
+AmB2BMedia::AmB2BMedia(AmB2BSession *_a, AmB2BSession *_b): 
   ref_cnt(0), // everybody who wants to use must add one reference itselves
   a(_a), b(_b),
   callgroup(AmSession::getNewId()) 
 { 
 }
 
-void B2BMedia::normalize(AmSdp &sdp)
+void AmB2BMedia::normalize(AmSdp &sdp)
 {
   // TODO: normalize SDP
   //  - encoding names for static payloads
@@ -85,7 +85,7 @@ void B2BMedia::normalize(AmSdp &sdp)
   //  - add clock rate if not given (?)
 }
 #if 0
-void B2BMedia::updateRelayPayloads(bool a_leg, const AmSdp &local_sdp, const AmSdp &remote_sdp)
+void AmB2BMedia::updateRelayPayloads(bool a_leg, const AmSdp &local_sdp, const AmSdp &remote_sdp)
 {
   mutex.lock();
 
@@ -143,7 +143,7 @@ static int writeStream(unsigned ts, unsigned char *buffer,
   return 0;
 }
 
-int B2BMedia::writeStreams(unsigned int ts, unsigned char *buffer)
+int AmB2BMedia::writeStreams(unsigned int ts, unsigned char *buffer)
 {
   int res = 0;
   mutex.lock();
@@ -157,7 +157,7 @@ int B2BMedia::writeStreams(unsigned int ts, unsigned char *buffer)
   return res;
 }
 
-void B2BMedia::processDtmfEvents()
+void AmB2BMedia::processDtmfEvents()
 {
   // FIXME: really locking here?
   mutex.lock();
@@ -166,7 +166,7 @@ void B2BMedia::processDtmfEvents()
   mutex.unlock();
 }
 
-void B2BMedia::clearAudio()
+void AmB2BMedia::clearAudio()
 {
   mutex.lock();
 
@@ -200,7 +200,7 @@ void B2BMedia::clearAudio()
   mutex.unlock();
 }
 
-void B2BMedia::clearRTPTimeout()
+void AmB2BMedia::clearRTPTimeout()
 {
   mutex.lock();
 
@@ -212,7 +212,7 @@ void B2BMedia::clearRTPTimeout()
   mutex.unlock();
 }
 
-void B2BMedia::replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const string &relay_address) 
+void AmB2BMedia::replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const string &relay_address) 
 {
   mutex.lock();
 
@@ -262,7 +262,7 @@ void B2BMedia::replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const str
   mutex.unlock();
 }
 
-void B2BMedia::initStreamPair(AudioStreamPair &pair)
+void AmB2BMedia::initStreamPair(AudioStreamPair &pair)
 {
   pair.a = new AmRtpAudio(a, a->getRtpRelayInterface());
   pair.a->setRtpRelayTransparentSeqno(a->getRtpRelayTransparentSeqno());
@@ -304,7 +304,7 @@ static void setStreamRelay(AmRtpStream *stream, const SdpMedia &m, AmRtpStream *
   }
 }
 
-void B2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
+void AmB2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
 {
   
   TRACE("updating %s leg remote SDP\n", a_leg ? "A" : "B");
@@ -373,7 +373,7 @@ void B2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
   mutex.unlock();
 }
     
-void B2BMedia::updateLocalSdp(bool a_leg, const AmSdp &local_sdp)
+void AmB2BMedia::updateLocalSdp(bool a_leg, const AmSdp &local_sdp)
 {
   TRACE("updating %s leg local SDP\n", a_leg ? "A" : "B");
 
@@ -435,7 +435,7 @@ void B2BMedia::updateLocalSdp(bool a_leg, const AmSdp &local_sdp)
   mutex.unlock();
 }
 
-void B2BMedia::updateProcessingState()
+void AmB2BMedia::updateProcessingState()
 {
   // once we send local SDP to the other party we have to expect RTP so we
   // should start RTP processing now (though streams in opposite direction need
@@ -454,14 +454,14 @@ void B2BMedia::updateProcessingState()
   }
 }
 
-void B2BMedia::stop()
+void AmB2BMedia::stop()
 {
   clearAudio();
   if (isProcessingMedia()) 
     AmMediaProcessor::instance()->removeSession(this);
 }
 
-void B2BMedia::onMediaProcessingTerminated() 
+void AmB2BMedia::onMediaProcessingTerminated() 
 { 
   AmMediaSession::onMediaProcessingTerminated();
   clearAudio();

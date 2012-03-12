@@ -49,7 +49,7 @@ class AmB2BSession;
  *
  */
 
-class B2BMedia: public AmMediaSession
+class AmB2BMedia: public AmMediaSession
 {
   private:
     /* remembered both legs of the B2B call
@@ -90,7 +90,7 @@ class B2BMedia: public AmMediaSession
     void updateProcessingState();
 
   public:
-    B2BMedia(AmB2BSession *_a, AmB2BSession *_b);
+    AmB2BMedia(AmB2BSession *_a, AmB2BSession *_b);
 
     //void updateRelayPayloads(bool a_leg, const AmSdp &local_sdp, const AmSdp &remote_sdp);
 
