@@ -27,26 +27,42 @@ class AmAudioBuffer: public AmAudio {
 
 class AmB2BSession;
 
-/* class for handling media in a B2B session
+/** \brief Class for control over media relaying and transcoding in a B2B session.
+ *
+ * This class manages RTP streams of both call legs, configures AmRtpStream
+ * relaying functionality and in case media needs to be transcoded its
+ * AmMediaSession interface implementation reads data from RTP streams in one
+ * leg and writes them to appropriate RTP streams of the other leg.
+ *
+ * From the signaling part of the session (AmB2BSession instance for caller and
+ * for callee) it needs to be informed about local and remote SDP in each leg
+ * via updateLocalSdp() and updateRemoteSdp() methods.
+ *
+ * Signaling parts of the session (caller and callee) needs to update outgoing
+ * SDP bodies by local address and ports of RTP streams using
+ * replaceConnectionAddress() method.
+ *
+ * Because generating B2B SDP is no more based on AmSession's offer/answer
+ * mechanism but we relay remote's SDP with just slight changes (some payloads
+ * filtered out, some payloads added before forwarding) we don't need to
+ * remember payload ID mapping any more (local to remote). Payload IDs should be
+ * generated correctly by the remote party and we don't need to change it when
+ * relaying RTP packets.
+ *
+ * For music on hold we need to understand at least one payload to that remote
+ * party. If not, should we generate reINVITE with our own payloads or just not
+ * to allow MOH in this case? (FIXME)
+ *
  * TODO:
- *  - make independent sendIntReached and checkInterval in AmRtpAudio
+ *  - locking in AmRtpAudio (AmRtpStream) when updating relay information (or
+ *    remove from AmRtpReceiver before updating and then return back?)
  *  - non-audio streams - list of AmRtpStream pairs which can be just relayed
- *  - RTCP - another pair of streams (?)
- *  - independent clear of one call leg (to be able to connect one to another
- *    call leg)
+ *  - reference counting using atomic variables instead of locking
+ *  - RTCP
+ *  - independent clear of one call leg (to be able to connect another callleg)
  *  - forward DTMF directly without using AmB2BSession? (but might need
- *    signaling, not only media!)
- *
- * Because generating SDP is no more based on our offer/answer but is based on
- * relayed SDP with just slight changes (some paylaods filtered out, some
- * payloads added before forwarding) we don't need to remember payload ID
- * mapping any more. Payload IDs should be simply generated correctly by the
- * other party. (TODO: test)
- *
- * For music on hold we need to understand at least one format to that
- * destination! (FIXME: if not, generate reINVITE with that or just do not allow
- * MOH?)
- *
+ *    signaling, not only media! FIXME: test, might be it is already working
+ *    this way)
  */
 
 class AmB2BMedia: public AmMediaSession
@@ -58,21 +74,23 @@ class AmB2BMedia: public AmMediaSession
      * rtp_interface) */
     AmB2BSession *a, *b;
 
-    /* Pair of audio streams with the possibility to use given audio as input
+    /** Pair of audio streams with the possibility to use given audio as input
      * instead of the other stream. */
     struct AudioStreamPair {
       AmRtpAudio *a, *b;
 
-      /* non-stream input (required for music on hold) */
+      /* non-stream input (required for music on hold for example) */
       AmAudio *a_in, *b_in;
-
-      PayloadMask a_leg_relay_payloads;
-      PayloadMask b_leg_relay_payloads;
 
       bool a_initialized, b_initialized;
     };
 
-    // reqired by AmMediaProcessor
+    /** Callgroup reqired by AmMediaProcessor to distinguish
+     * AmMediaProcessorThread which should take care about media session.
+     *
+     * It might be handy to use own generated callgroup independent on caller's
+     * and callee's one. (FIXME: not sure if it is worth consumed additional
+     * resources). */
     string callgroup;
       
     // needed for updating relayed payloads
@@ -82,11 +100,13 @@ class AmB2BMedia: public AmMediaSession
     AmMutex mutex;
     int ref_cnt;
 
+    /** SDP normalization is needed to match codecs correctly (TODO) */
     void normalize(AmSdp &sdp);
     void initStreamPair(AudioStreamPair &pair);
 
     std::vector<AudioStreamPair> audio;
 
+    /** Starts media processing if have all required information. */
     void updateProcessingState();
 
   public:
@@ -94,40 +114,71 @@ class AmB2BMedia: public AmMediaSession
 
     //void updateRelayPayloads(bool a_leg, const AmSdp &local_sdp, const AmSdp &remote_sdp);
 
+    /** Adds a reference.
+     *
+     * Instance of this object is created with reference counter set to zero.
+     * Thus if somebody wants to hold a reference it must call addReference()
+     * explicitly after construction! */
     void addReference() { mutex.lock(); ref_cnt++; mutex.unlock(); }
 
-    /* Releases reference.
+    /** Releases reference.
+     *
      * Returns true if this was the last reference and the object should be
      * destroyed (call "delete this" here?) */
     bool releaseReference() { mutex.lock(); int r = --ref_cnt; mutex.unlock(); return (r == 0); }
 
     // ----------------- SDP manipulation & updates -------------------
 
-    /* replace connection address and ports within SDP 
-     * throws an exception (string) in case of error (FIXME?) */
+    /** Replace connection address and ports within SDP.
+     *
+     * Throws an exception (string) in case of error. (FIXME?) */
     void replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const string &relay_address);
 
+    /** Store remote SDP for given leg and update media session appropriately. */
     void updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp);
+    
+    /** Store local SDP for given leg and update media session appropriately. */
     void updateLocalSdp(bool a_leg, const AmSdp &local_sdp);
 
-    /* clear audio and stop processing */
+    /** Clear audio and stop processing. 
+     *
+     * Releases all RTP streams and removes itself from media processor if still
+     * there. */
     void stop();
 
     // ---- AmMediaSession interface for processing audio in a standard way ----
 
-    /* all processing in writeStreams */
+    /** Should read from all streams before writing to the other streams. 
+     * 
+     * Because processing is driven by destination stream (i.e. we don't read
+     * anything unless the destination stream is ready to send something - see
+     * sendIntReached()) all processing is done in writeStreams */
     virtual int readStreams(unsigned int ts, unsigned char *buffer) { return 0; }
     
-    /* handle non-relayed data in audio streams */
+    /** Read and write all RTP streams if data are to be written (see
+     * readStreams()). */
     virtual int writeStreams(unsigned int ts, unsigned char *buffer);
 
+    /** Calls processDtmfEvent on both AmB2BSessions for which this AmB2BMedia
+     * instance manages media. */
     virtual void processDtmfEvents();
 
-    /* clear streams of both legs */
+    /** Release all RTP streams of both legs and both AmB2BSessions as well. 
+     *
+     * Though readStreams(), writeStreams() or processDtmfEvents() can be called
+     * after call to clearAudio, they will do nothing because all relevant
+     * information will be rlready eleased. */
     virtual void clearAudio();
 
+    /** Clear RTP timeout of all streams in both call legs. */
     virtual void clearRTPTimeout();
     
+    /** Callback function called once media processor releases this instance
+     * from processing loop.
+     * 
+     * Deletes itself if there are no other references! FIXME: might be
+     * returning something like "release me" and calling delete from media
+     * processor would be better? */
     virtual void onMediaProcessingTerminated();
 
 };

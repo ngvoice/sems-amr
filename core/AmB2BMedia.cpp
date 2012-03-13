@@ -161,8 +161,8 @@ void AmB2BMedia::processDtmfEvents()
 {
   // FIXME: really locking here?
   mutex.lock();
-  a->processDtmfEvents();
-  b->processDtmfEvents();
+  if (a) a->processDtmfEvents();
+  if (b) b->processDtmfEvents();
   mutex.unlock();
 }
 
@@ -196,6 +196,10 @@ void AmB2BMedia::clearAudio()
     delete i->b;
   }
   audio.clear();
+
+  // forget sessions to avoid using them once clearAudio is called
+  a = NULL;
+  b = NULL;
 
   mutex.unlock();
 }
