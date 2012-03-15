@@ -123,6 +123,7 @@ int AmRtpAudio::receive(unsigned int wallclock_ts)
 int AmRtpAudio::get(unsigned int ref_ts, unsigned char* buffer, unsigned int nb_samples)
 {
   if (!(receiving || getPassiveMode())) return 0; // like nothing received
+  if (!active) return 0;
     
   int ret = receive(ref_ts);
   if(ret < 0){

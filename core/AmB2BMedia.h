@@ -49,20 +49,36 @@ class AmB2BSession;
  * generated correctly by the remote party and we don't need to change it when
  * relaying RTP packets.
  *
- * For music on hold we need to understand at least one payload to that remote
- * party. If not, should we generate reINVITE with our own payloads or just not
- * to allow MOH in this case? (FIXME)
- *
  * TODO:
- *  - locking in AmRtpAudio (AmRtpStream) when updating relay information (or
- *    remove from AmRtpReceiver before updating and then return back?)
  *  - non-audio streams - list of AmRtpStream pairs which can be just relayed
+ *
  *  - reference counting using atomic variables instead of locking
+ *
  *  - RTCP
+ *
  *  - independent clear of one call leg (to be able to connect another callleg)
- *  - forward DTMF directly without using AmB2BSession? (but might need
- *    signaling, not only media! FIXME: test, might be it is already working
- *    this way)
+ *
+ *  - correct sampling periods when relaying/transcoding according to values
+ *    advertised in local SDP (i.e. the relayed one)
+ *
+ *  - Is non-transparent SSRC & seq. no needed if some payloads can be transcoded and
+ *    some relayed? Couldn't be confusing to have transparent ones for relayed but our
+ *    own SSRC & seq. no for transcoded payloads? [wireshark seems to be
+ *    confused] => disable transparent SSRC/seq.no if there are payloads for transcoding?
+ *
+ *    Note that forcing our own SSRC can break things if the incomming RTP stream
+ *    comes from a source mixing audio from different sources - in that case we should
+ *    prefer to propagate SSRC (i.e. use transparent SSRC)!
+ *
+ *  - we should use our seq. numbers if transcoding is possible but propagate
+ *    lost packets (i.e. remember the difference between received seq. numbers and
+ *    sent ones and for the transcoding purpose use seq. number = max. already
+ *    used number + 1)
+ *
+ *  - configurable playout buffer type (from a test with transcoding PCMA -> PCMU
+ *    between SPA 942 and 941 it seems that at simulated 20% packet loss is the
+ *    audio quality better with ADAPTIVE_PLAYOUT in comparison with SIMPLE_PLAYOUT
+ *    but can't say it is really big differece)
  */
 
 class AmB2BMedia: public AmMediaSession
@@ -99,6 +115,15 @@ class AmB2BMedia: public AmMediaSession
 
     AmMutex mutex;
     int ref_cnt;
+
+    /** Playout type describes what kind of buffering will be used for audio
+     * streams. Please note that ADAPTIVE_PLAYOUT requires some kind of
+     * detection if there is really data to read from the buffer because the get
+     * function always return something regardless if something was written into
+     * or not. (TODO: update AmRtpAudio to cope with that according Stefan's
+     * wish)
+     */
+    PlayoutType playout_type;
 
     /** SDP normalization is needed to match codecs correctly (TODO) */
     void normalize(AmSdp &sdp);

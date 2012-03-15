@@ -262,13 +262,9 @@ protected:
   /** Clear RTP timeout at time recv_time */
   void clearRTPTimeout(struct timeval* recv_time);
 
-  /** mutex guarding members used for direct RTP relay 
-   * these members need to be used by AmRtpReceiver thread and by signaling
-   * processing thread as well */
-  AmMutex relay_mut;
-
   PayloadMask relay_payloads;
   bool offer_answer_used;
+  bool active;
 
 public:
 

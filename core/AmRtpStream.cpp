@@ -357,6 +357,7 @@ AmRtpStream::AmRtpStream(AmSession* _s, int _if)
     session(_s),
     passive(false),
     offer_answer_used(true),
+    active(false), // do not return any data unless something really received
     mute(false),
     hold(false),
     receiving(true),
@@ -730,6 +731,7 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
 
   if (relay_enabled) {
     if (relay_payloads.get(p->payload)) {
+      active = false;
       //ERROR("going to relay payload %d\n", p->payload); // FIXME: for testign only
       handleSymmetricRtp(p);
 
@@ -740,6 +742,7 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
       return;
     }
   }
+  active = true;
   //ERROR("going to process payload %d\n", p->payload); // FIXME: for testign only
 
   receive_mut.lock();
