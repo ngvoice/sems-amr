@@ -50,6 +50,15 @@ class AmB2BSession;
  * relaying RTP packets.
  *
  * TODO:
+ *  - handle "on hold" streams - probably should be controlled by signaling
+ *    (AmB2BSession) - either we should not send audio or we should send hold
+ *    music
+ *
+ *    Currently problematic, setting AmRtpStream::active to false in
+ *    AmRtpStream::init doesn't help always - if some RTP packets arrive later
+ *    than media session is updated the stream remains 'active' (verified with
+ *    SPA 942 and twinkle)
+ *
  *  - non-audio streams - list of AmRtpStream pairs which can be just relayed
  *
  *  - reference counting using atomic variables instead of locking
@@ -97,7 +106,9 @@ class AmB2BMedia: public AmMediaSession
 
       /* non-stream input (required for music on hold for example) */
       AmAudio *a_in, *b_in;
-
+    
+      /* Flag set when streams in A/B leg are correctly initialized (for
+       * transcoding purposes). */
       bool a_initialized, b_initialized;
     };
 
@@ -133,6 +144,25 @@ class AmB2BMedia: public AmMediaSession
 
     /** Starts media processing if have all required information. */
     void updateProcessingState();
+
+    /** Clears a_initialized/b_initialized flag if already initialized. Returns
+     * true if something was really cleared. */
+    bool resetInitializedStreams(bool a_leg);
+
+    /** Mark streams in given leg as uninitialized (needed for in-dialog media
+     * updates) */
+    void clearStreamInitialization(bool a_leg);
+
+    /** Updates streams in given leg. 
+     *
+     * Creates them if they don't exist and initializes if they need to be
+     * initialized. 
+     *
+     * Method initializes relay & transcoding settings if told to do so. */
+    void updateStreams(bool a_leg, bool init_relay, bool init_transcoding);
+
+    /** initialize given stream (prepares for transcoding) */
+    void initStream(AmRtpAudio *stream, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
 
   public:
     AmB2BMedia(AmB2BSession *_a, AmB2BSession *_b);

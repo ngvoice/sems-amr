@@ -264,6 +264,8 @@ protected:
 
   PayloadMask relay_payloads;
   bool offer_answer_used;
+
+  /** set to true if any data received */
   bool active;
 
 public:

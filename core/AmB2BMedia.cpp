@@ -282,32 +282,46 @@ static void setStreamRelay(AmRtpStream *stream, const SdpMedia &m, AmRtpStream *
   if (stream->hasLocalSocket())
     AmRtpReceiver::instance()->addStream(stream->getLocalSocket(), stream);
 }
-
-void AmB2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
+    
+bool AmB2BMedia::resetInitializedStreams(bool a_leg)
 {
+  bool res = false;
+  for (AudioStreamIterator i = audio.begin(); i != audio.end(); ++i) {
+    if (a_leg) {
+      res = res || i->a_initialized;
+      i->a_initialized = false;
+    } else {
+      res = res || i->b_initialized;
+      i->b_initialized = false;
+    }
+  }
+  return res;
+}
+
+void AmB2BMedia::initStream(AmRtpAudio *stream, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx)
+{
+  // remove from processing to safely update the stream
+  if (stream->hasLocalSocket())
+    AmRtpReceiver::instance()->removeStream(stream->getLocalSocket());
+
+  stream->forceSdpMediaIndex(media_idx);
+  stream->init(local_sdp, remote_sdp);
+  stream->setPlayoutType(playout_type);
   
-  TRACE("updating %s leg remote SDP\n", a_leg ? "A" : "B");
+  // return back for processing if needed
+  if (stream->hasLocalSocket())
+    AmRtpReceiver::instance()->addStream(stream->getLocalSocket(), stream);
+}
 
-  mutex.lock();
-
-  bool local_sdp_initialized;
-
-  AmSdp *sdp;
-  if (a_leg) {
-    a_leg_remote_sdp = remote_sdp;
-    normalize(a_leg_remote_sdp);
-    sdp = &a_leg_remote_sdp;
-    local_sdp_initialized = a_leg_local_sdp.media.size() > 0;
-  }
-  else {
-    b_leg_remote_sdp = remote_sdp;
-    normalize(b_leg_remote_sdp);
-    sdp = &b_leg_remote_sdp;
-    local_sdp_initialized = b_leg_local_sdp.media.size() > 0;
-  }
-
+void AmB2BMedia::updateStreams(bool a_leg, bool init_relay, bool init_transcoding)
+{
   unsigned stream_idx = 0;
   unsigned media_idx = 0;
+
+  AmSdp *sdp;
+  if (a_leg) sdp = &a_leg_remote_sdp;
+  else sdp = &b_leg_remote_sdp;
+
   for (SdpMediaIterator m = sdp->media.begin(); m != sdp->media.end(); ++m, ++media_idx) {
     if (m->type != MT_AUDIO) continue;
 
@@ -320,34 +334,66 @@ void AmB2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
     }
     AudioStreamPair &pair = audio[stream_idx];
 
-    // initialize RTP relay stream and payloads in the other leg (!)
-    // Payloads present in this SDP can be relayed directly by the AmRtpStream
-    // of the other leg to the AmRtpStream of this leg.
-    if (a_leg) setStreamRelay(pair.b, *m, pair.a);
-    else setStreamRelay(pair.a, *m, pair.b);
+    if (init_relay) {
+      // initialize RTP relay stream and payloads in the other leg (!)
+      // Payloads present in this SDP can be relayed directly by the AmRtpStream
+      // of the other leg to the AmRtpStream of this leg.
+      if (a_leg) setStreamRelay(pair.b, *m, pair.a);
+      else setStreamRelay(pair.a, *m, pair.b);
+    }
 
-    // if we have local & remote SDP for current leg we should initialize the
-    // stream for current leg
-    if (a_leg) {
-      if (local_sdp_initialized && (!pair.a_initialized)) {
-        pair.a->forceSdpMediaIndex(media_idx);
-        pair.a->init(a_leg_local_sdp, a_leg_remote_sdp);
-        pair.a->setPlayoutType(playout_type);
+    // initialize the stream for current leg if asked to do so
+    if (init_transcoding) {
+      if (a_leg) {
+        initStream(pair.a, a_leg_local_sdp, a_leg_remote_sdp, media_idx);
         pair.a_initialized = true;
         TRACE("A leg stream initialized\n");
-      }
-    } else {
-      if (local_sdp_initialized && (!pair.b_initialized)) {
-        pair.b->forceSdpMediaIndex(media_idx);
-        pair.b->init(b_leg_local_sdp, b_leg_remote_sdp);
-        pair.b->setPlayoutType(playout_type);
+      } else {
+        initStream(pair.b, b_leg_local_sdp, b_leg_remote_sdp, media_idx);
         pair.b_initialized = true;
         TRACE("B leg stream initialized\n");
       }
     }
-    
+
     stream_idx++;
   }
+
+}
+
+void AmB2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
+{
+  
+  TRACE("updating %s leg remote SDP\n", a_leg ? "A" : "B");
+
+  mutex.lock();
+
+  bool initialize_streams;
+
+  if (a_leg) {
+    a_leg_remote_sdp = remote_sdp;
+    normalize(a_leg_remote_sdp);
+  }
+  else {
+    b_leg_remote_sdp = remote_sdp;
+    normalize(b_leg_remote_sdp);
+  }
+
+  if (resetInitializedStreams(a_leg)) { 
+    // needed to reinitialize later 
+    // streams were initialized before and the local SDP is still not up-to-date
+    // otherwise streams would by alredy reset
+    initialize_streams = false;
+  }
+  else {
+    // streams were not initialized, we should initialize them if we have
+    // local SDP already
+    if (a_leg) initialize_streams = a_leg_local_sdp.media.size() > 0;
+    else initialize_streams = b_leg_local_sdp.media.size() > 0;
+  }
+
+  updateStreams(a_leg, 
+      true /* needed to initialize relay stuff on every remote SDP change */, 
+      initialize_streams);
 
   updateProcessingState(); // start media processing if possible
 
@@ -362,56 +408,34 @@ void AmB2BMedia::updateLocalSdp(bool a_leg, const AmSdp &local_sdp)
   // streams should be created already (replaceConnectionAddress called
   // before updateLocalSdp uses/assignes their port numbers)
 
-  bool remote_sdp_initialized;
-  AmSdp *sdp;
   if (a_leg) {
     a_leg_local_sdp = local_sdp;
     normalize(a_leg_local_sdp);
-    sdp = &a_leg_local_sdp;
-    remote_sdp_initialized = a_leg_remote_sdp.media.size() > 0;
   }
   else {
     b_leg_local_sdp = local_sdp;
     normalize(b_leg_local_sdp);
-    sdp = &b_leg_local_sdp;
-    remote_sdp_initialized = b_leg_remote_sdp.media.size() > 0;
+  }
+ 
+  bool initialize_streams;
+  if (resetInitializedStreams(a_leg)) { 
+    // needed to reinitialize later 
+    // streams were initialized before and the remote SDP is still not up-to-date
+    // otherwise streams would by alredy reset
+    initialize_streams = false;
+  }
+  else {
+    // streams were not initialized, we should initialize them if we have
+    // remote SDP already
+    if (a_leg) initialize_streams = a_leg_remote_sdp.media.size() > 0;
+    else initialize_streams = b_leg_remote_sdp.media.size() > 0;
   }
 
-  if (remote_sdp_initialized) {
-    unsigned media_idx = 0;
-    AudioStreamIterator i = audio.begin();
-    for (SdpMediaIterator m = sdp->media.begin(); 
-        (m != sdp->media.end()) && (i != audio.end()); 
-        ++m, ++media_idx) 
-    {
-      if (m->type != MT_AUDIO) continue;
+  updateStreams(a_leg, 
+      false /* local SDP change has no effect on relay */, 
+      initialize_streams);
 
-      // if we have local & remote SDP for current leg we should initialize the
-      // stream for current leg
-      if (a_leg) {
-        if (!i->a_initialized) {
-          i->a->forceSdpMediaIndex(media_idx);
-          i->a->init(a_leg_local_sdp, a_leg_remote_sdp);
-          i->a_initialized = true;
-          TRACE("A leg stream initialized\n");
-        }
-      } else {
-        if (!i->b_initialized) {
-          i->b->forceSdpMediaIndex(media_idx);
-          i->b->init(b_leg_local_sdp, b_leg_remote_sdp);
-          i->b_initialized = true;
-          TRACE("B leg stream initialized\n");
-        }
-      }
-      
-      ++i;
-    }
-    
-    // FIXME: initialize RTP stream indepedently by local and remote SDP because
-    // we might receive RTP once the remote received our (local) SDP
-    
-    updateProcessingState(); // start media processing if possible
-  }
+  updateProcessingState(); // start media processing if possible
 
   mutex.unlock();
 }

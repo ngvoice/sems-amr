@@ -697,6 +697,7 @@ int AmRtpStream::init(const AmSdp& local,
   }
 #endif
 
+  active = false; // mark as nothing received yet
   return 0;
 }
 
