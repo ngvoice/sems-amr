@@ -86,6 +86,11 @@ void AmB2BMedia::processDtmfEvents()
 {
   // FIXME: really locking here?
   mutex.lock();
+  for (AudioStreamIterator i = audio.begin(); i != audio.end(); ++i) {
+    if (i->a.dtmf_queue) i->a.dtmf_queue->processEvents();
+    if (i->b.dtmf_queue) i->b.dtmf_queue->processEvents();
+  }
+
   if (a) a->processDtmfEvents();
   if (b) b->processDtmfEvents();
   mutex.unlock();

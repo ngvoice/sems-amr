@@ -70,6 +70,9 @@ class AmB2BSession;
  *    between SPA 942 and 941 it seems that at simulated 20% packet loss is the
  *    audio quality better with ADAPTIVE_PLAYOUT in comparison with SIMPLE_PLAYOUT
  *    but can't say it is really big differece)
+ *
+ *  - In-band DTMF detection within relayed payloads not supported yet. Do we
+ *    need it?
  */
 
 class AmB2BMedia: public AmMediaSession
