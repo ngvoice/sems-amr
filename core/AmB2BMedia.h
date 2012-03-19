@@ -6,25 +6,6 @@
 #include "AmRtpAudio.h"
 #include "AmMediaProcessor.h"
 
-/* class reimplementing AmAudioBridge with regard to return just really stored
- * samples */
-
-class AmAudioBuffer: public AmAudio {
-  protected:
-    static const unsigned int buffer_size = 4096;
-
-    unsigned wpos, rpos, stored;
-    unsigned char buffer[buffer_size];
-
-    /** Gets 'size' bytes directly from stream (Read,Pull). */
-    virtual int read(unsigned int user_ts, unsigned int size);
-    /** Puts 'size' bytes directly from stream (Write,Push). */
-    virtual int write(unsigned int user_ts, unsigned int size);
-
-  public:
-    AmAudioBuffer();
-};
-
 class AmB2BSession;
 
 /** \brief Class for control over media relaying and transcoding in a B2B session.
@@ -208,11 +189,11 @@ class AmB2BMedia: public AmMediaSession
      * Because processing is driven by destination stream (i.e. we don't read
      * anything unless the destination stream is ready to send something - see
      * sendIntReached()) all processing is done in writeStreams */
-    virtual int readStreams(unsigned int ts, unsigned char *buffer) { return 0; }
+    virtual int readStreams(unsigned long long ts, unsigned char *buffer) { return 0; }
     
     /** Read and write all RTP streams if data are to be written (see
      * readStreams()). */
-    virtual int writeStreams(unsigned int ts, unsigned char *buffer);
+    virtual int writeStreams(unsigned long long ts, unsigned char *buffer);
 
     /** Calls processDtmfEvent on both AmB2BSessions for which this AmB2BMedia
      * instance manages media. */

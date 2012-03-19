@@ -69,7 +69,7 @@ WebConferenceDialog::~WebConferenceDialog()
   }
 
   prompts.cleanup((long)this);
-  play_list.close(false);
+  play_list.flush();
   if (is_dialout || (InConference == state)) {
     factory->updateStatus(is_dialout?dlg.user:conf_id, 
 			  getLocalTag(), 
@@ -92,13 +92,13 @@ void WebConferenceDialog::connectConference(const string& room) {
 
   // get a channel from the status 
   if (channel.get() == NULL) 
-    channel.reset(AmConferenceStatus::getChannel(conf_id,getLocalTag()));
+    channel.reset(AmConferenceStatus::getChannel(conf_id,getLocalTag(),RTPStream()->getSampleRate()));
   else 
     AmConferenceStatus::postConferenceEvent(conf_id,
 					    ConfNewParticipant,getLocalTag());
 
   // clear the playlist
-  play_list.close();
+  play_list.flush();
 
   // add the channel to our playlist
   play_list.addToPlaylist(new AmPlaylistItem(channel.get(), channel.get()));
@@ -269,8 +269,20 @@ void WebConferenceDialog::onBye(const AmSipRequest& req)
   disconnectConference();
 }
 
+void WebConferenceDialog::onRtpTimeout() {
+  DBG("RTP timeout, removing from conference\n");
+  disconnectConference();
+  AmSession::onRtpTimeout();
+}
+
+void WebConferenceDialog::onSessionTimeout() {
+  DBG("Session Timer: Timeout, removing from conference.\n");
+  disconnectConference();
+  AmSession::onSessionTimeout();
+}
+
 void WebConferenceDialog::disconnectConference() {
-  play_list.close();
+  play_list.flush();
   setInOut(NULL,NULL);
   channel.reset(NULL);
   setStopped();
@@ -366,7 +378,7 @@ void WebConferenceDialog::onDtmf(int event, int duration) {
       pin_str += int2str(event);
       DBG("added '%s': PIN is now '%s'.\n", 
 	  int2str(event).c_str(), pin_str.c_str());
-      play_list.close(false);
+      play_list.flush();
     } else if (event==10 || event==11) {
       // pound and star key
       if (!pin_str.length() || !factory->isValidConference(pin_str)) {
@@ -375,7 +387,7 @@ void WebConferenceDialog::onDtmf(int event, int duration) {
       } else {
 	state = EnteringConference;
 	setInOut(NULL, NULL);
-	play_list.close();
+	play_list.flush();
 	for (size_t i=0;i<pin_str.length();i++) {
 	  string num = "";
 	  num[0] = pin_str[i];
@@ -449,16 +461,16 @@ int WebConferenceDialog::readStreams(unsigned int ts, unsigned char *buffer)
 
   AmRtpAudio *stream = RTPStream();
   unsigned int f_size = stream->getFrameSize();
-  if (stream->checkInterval(ts, f_size)) {
+  if (stream->checkInterval(ts)) {
     int got = 0;
-    if (local_input) got = local_input->get(ts, buffer, f_size);
-    else got = stream->get(ts, buffer, f_size);
+    if (local_input) got = local_input->get(ts, buffer, stream->getSampleRate(), f_size);
+    else got = stream->get(ts, buffer, stream->getSampleRate(), f_size);
     if (got < 0) res = -1;
     if (got > 0) {
       if (isDtmfDetectionEnabled())
         putDtmfAudio(buffer, got, ts);
 
-      if (input) res = input->put(ts, buffer, got);
+      if (input) res = input->put(ts, buffer, stream->getSampleRate(), got);
     }
   }
   

@@ -25,6 +25,7 @@ Features
  o call timer
  o prepaid accounting
  o CDR generation
+ o call teardown from external control through RPC
 
 SBC Profiles
 ------------
@@ -84,6 +85,9 @@ is provided and installed to trigger the reload (through XMLRPC):
                                                 profile or file path changed)
   sems-sbc-get-activeprofile                    get active_profile
   sems-sbc-set-activeprofile <active_profile>   set active_profile
+
+  sems-sbc-teardown-call <call_ltag>            tear down call (use e.g. monitoring's
+                                                sems-list-active-calls to get the ltag)
 
 The xmlrpc2di module must be loaded and the XMLRPC control server bound to port 8090 for
 the scripts to work.
@@ -156,6 +160,9 @@ The patterns which can be used are the following:
 
   $Ri  - destination (local/received) IP address
   $Rp  - destination (local/received) port
+  $Rf  - local/received interface id (0=default)
+  $Rn  - local/received interface name ('default', 'intern', ... as set in sems.conf)
+  $RI  - local/received interface public IP (as set in sems.conf)
 
   $P(paramname) - paramname from P-App-Param
     Example:
@@ -402,6 +409,10 @@ Call control modules
 Call control (CC) modules for the sbc application implement business logic which controls
 how the SBC operates. For example, a CC module can implement concurrent call limits, call
 limits per user, enforce other policies, or implement routing logic.
+
+Call control (CC) modules should be loaded using the load_cc_plugins option in sbc.conf,
+or loaded later into the server by the sems-sbc-loadcallcontrol-modules script
+(loadCallcontrolModules DI function).
 
 Multiple CC modules may be applied for one call. The data that the CC modules get from the
 call may be freely configured. Call control modules may also be applied through message parts

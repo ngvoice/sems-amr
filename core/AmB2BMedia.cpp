@@ -7,66 +7,6 @@
 
 #define TRACE ERROR
 
-AmAudioBuffer::AmAudioBuffer(): 
-  //AmAudio(), 
-  AmAudio(new AmAudioSimpleFormat(CODEC_PCM16)),
-  stored(0), wpos(0), rpos(0)
-{
-}
-
-int AmAudioBuffer::read(unsigned int user_ts, unsigned int size)
-{
-  unsigned char* dst = samples;
-  if (stored > 0) {
-    if (size >= stored) size = stored;
-
-    unsigned space = buffer_size - rpos;
-    if (space >= size) {
-      memcpy(dst, buffer + rpos, size);
-      rpos += size;
-    } else {
-      memcpy(dst, buffer + rpos, space);
-      memcpy(dst + space, buffer, size - space);
-      rpos = size - space;
-    }
-    stored -= size;
-    return size;
-  }
-  else return 0;
-}
-
-int AmAudioBuffer::write(unsigned int user_ts, unsigned int size)
-{
-  if (size == 0) return 0;
-  if (size > buffer_size) {
-    ERROR("too large packet for buffer\n");
-    return -1;
-  }
-  unsigned char* src = samples;
-
-  unsigned space = buffer_size - wpos;
-  if (space >= size) {
-    memcpy(buffer + wpos, src, size);
-    wpos += size;
-  }
-  else {
-    memcpy(buffer + wpos, src, space);
-    memcpy(buffer, src + space, size - space);
-    wpos = size - space;
-  }
-  stored += size;
-  if (stored > buffer_size) {
-    // overflow
-    stored = buffer_size;
-    rpos = wpos;
-    ERROR("overflow\n");
-  }
-
-  return size;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 typedef std::vector<AmB2BMedia::AudioStreamPair>::iterator AudioStreamIterator;
 typedef std::vector<SdpMedia>::iterator SdpMediaIterator;
 
@@ -87,7 +27,7 @@ void AmB2BMedia::normalize(AmSdp &sdp)
   //  - add clock rate if not given (?)
 }
  
-static int writeStream(unsigned ts, unsigned char *buffer,
+static int writeStream(unsigned long long ts, unsigned char *buffer,
     AmRtpAudio *dst, AmRtpAudio *src, 
     AmAudio *alternative_src, 
     AmSession *dtmf_handler)
@@ -96,21 +36,21 @@ static int writeStream(unsigned ts, unsigned char *buffer,
   if (dst->sendIntReached(ts, f_size)) {
     // A leg is ready to send data
     int got = 0;
-    if (alternative_src) got = alternative_src->get(ts, buffer, f_size);
+    if (alternative_src) got = alternative_src->get(ts, buffer, src->getSampleRate(), f_size);
     else {
-      if (src->checkInterval(ts, f_size)) {
-        got = src->get(ts, buffer, f_size);
+      if (src->checkInterval(ts)) {
+        got = src->get(ts, buffer, src->getSampleRate(), f_size);
         if ((got > 0) && dtmf_handler->isDtmfDetectionEnabled()) 
           dtmf_handler->putDtmfAudio(buffer, got, ts);
       }
     }
     if (got < 0) return -1;
-    if (got > 0) return dst->put(ts, buffer, got);
+    if (got > 0) return dst->put(ts, buffer, src->getSampleRate(), got);
   }
   return 0;
 }
 
-int AmB2BMedia::writeStreams(unsigned int ts, unsigned char *buffer)
+int AmB2BMedia::writeStreams(unsigned long long ts, unsigned char *buffer)
 {
   int res = 0;
   mutex.lock();

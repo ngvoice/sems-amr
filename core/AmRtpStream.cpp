@@ -36,6 +36,7 @@
 
 #include "AmDtmfDetector.h"
 #include "rtp/telephone_event.h"
+#include "amci/codecs.h"
 #include "AmJitterBuffer.h"
 
 #include "sip/resolver.h"
@@ -402,8 +403,8 @@ AmRtpStream::~AmRtpStream()
 
 int AmRtpStream::getLocalPort()
 {
-  if (hold)
-    return 0;
+  //  if (hold)
+  //    return 0;
 
   if(!l_port)
     setLocalPort();
@@ -545,82 +546,60 @@ int AmRtpStream::init(const AmSdp& local,
   vector<SdpPayload>::const_iterator sdp_it = local_media.payloads.begin();
   vector<Payload>::iterator p_it = payloads.begin();
 
-  // first pass on local SDP
-  if (offer_answer_used) {
-    while(p_it != payloads.end()) {
+  // first pass on local SDP - fill pl_map with intersection of codecs
+  while(sdp_it != local_media.payloads.end()) {
 
-      amci_payload_t* a_pl = payload_provider->payload(sdp_it->payload_type);
-      if(a_pl == NULL){
-        ERROR("No internal payload corresponding to type %i\n",
-             sdp_it->payload_type);
+    int int_pt = payload_provider->getDynPayload(sdp_it->encoding_name,
+						 sdp_it->clock_rate,
+						 sdp_it->encoding_param);
+    amci_payload_t* a_pl = NULL;
+    if(int_pt >= 0) 
+      a_pl = payload_provider->payload(int_pt);
+
+    if(a_pl == NULL){
+      if (relay_payloads.get(sdp_it->payload_type)) {
+        // this payload should be relayed, ignore
+        ++sdp_it;
+        continue;
+      } else {
+        ERROR("No internal payload corresponding to type %s/%i\n",
+              sdp_it->encoding_name.c_str(),
+              sdp_it->clock_rate);
         return -1;//TODO
-      };
-      
-      p_it->pt         = sdp_it->payload_type;
-      p_it->name       = a_pl->name;
-      p_it->codec_id   = a_pl->codec_id;
-      p_it->clock_rate = a_pl->sample_rate;
+      }
+    };
+    
+    p_it->pt         = sdp_it->payload_type;
+    p_it->name       = sdp_it->encoding_name;
+    p_it->codec_id   = a_pl->codec_id;
+    p_it->clock_rate = a_pl->sample_rate;
+    p_it->advertised_clock_rate = sdp_it->clock_rate;
 
-      pl_map[sdp_it->payload_type].index     = i;
-      pl_map[sdp_it->payload_type].remote_pt = -1;
-      
-      ++p_it;
-      ++sdp_it;
-      ++i;
-    }
-  } else {
-    while(sdp_it != local_media.payloads.end()) {
-      // we can not find payload based on payload ID, because we are not using
-      // our offer/answer, we just modified the other party's SDP to get our local
-      // one, i.e. we must use the other party's payload IDs
-      amci_payload_t* a_pl;
-      int a_pl_id = payload_provider->getDynPayload(sdp_it->encoding_name, 
-          sdp_it->clock_rate, sdp_it->encoding_param);
-      if (a_pl_id >= 0) a_pl = payload_provider->payload(a_pl_id);
-      else a_pl = NULL;
-      if(a_pl == NULL){
-        if (relay_payloads.get(sdp_it->payload_type)) {
-          // this payload should be relayed, ignore
-          ++sdp_it;
-          ++i; // really needed?
-          continue;
-        } else {
-          // it is not a payload for relaying
-          ERROR("No internal payload corresponding to type %i\n",
-              sdp_it->payload_type);
-          return -1;//TODO
-        }
-      };
-      
-      p_it->pt         = sdp_it->payload_type;
-      p_it->name       = a_pl->name;
-      p_it->codec_id   = a_pl->codec_id;
-      p_it->clock_rate = a_pl->sample_rate;
-
-      pl_map[sdp_it->payload_type].index     = i;
-      pl_map[sdp_it->payload_type].remote_pt = -1;
-      
-      ++p_it;
-      ++sdp_it;
-      ++i;
-    }
-    // remove payloads which were not initialised (because of unknown payloads
-    // which are to be relayed)
-    if (p_it != payloads.end()) payloads.erase(p_it, payloads.end());
-
-    // FIXME: just for testing
-    ERROR("%lu payloads to be processed", payloads.size());
-    for (p_it = payloads.begin(); p_it != payloads.end(); ++p_it) 
-      ERROR(" ... %d: %s/%d\n", p_it->pt, p_it->name.c_str(), p_it->clock_rate);
-
+    pl_map[sdp_it->payload_type].index     = i;
+    pl_map[sdp_it->payload_type].remote_pt = -1;
+    
+    ++p_it;
+    ++sdp_it;
+    ++i;
   }
 
-  payload = -1;
+  // remove payloads which were not initialised (because of unknown payloads
+  // which are to be relayed)
+  if (p_it != payloads.end()) payloads.erase(p_it, payloads.end());
 
-  // second pass on remote SDP
+  // FIXME: just for testing
+  ERROR("%lu payloads to be processed", payloads.size());
+  for (p_it = payloads.begin(); p_it != payloads.end(); ++p_it) 
+    ERROR(" ... %d: %s/%d\n", p_it->pt, p_it->name.c_str(), p_it->clock_rate);
+
+  // second pass on remote SDP - initialize payload IDs used by remote (remote_pt)
   sdp_it = remote_media.payloads.begin();
   while(sdp_it != remote_media.payloads.end()) {
 
+    // TODO: match not only on encoding name
+    //       but also on parameters, if necessary
+    //       Some codecs define multiple payloads
+    //       with different encoding parameters
     PayloadMappingTable::iterator pmt_it = pl_map.end();
     if(sdp_it->encoding_name.empty()){ // must be a static payload
 
@@ -630,19 +609,19 @@ int AmRtpStream::init(const AmSdp& local,
       for(p_it = payloads.begin(); p_it != payloads.end(); ++p_it){
 
 	if(!strcasecmp(p_it->name.c_str(),sdp_it->encoding_name.c_str()) && 
-	   (p_it->clock_rate == (unsigned int)sdp_it->clock_rate)){
+	   (p_it->advertised_clock_rate == (unsigned int)sdp_it->clock_rate)){
 	  pmt_it = pl_map.find(p_it->pt);
 	  break;
 	}
       }
     }
 
-    if(pmt_it != pl_map.end()){
+    // TODO: remove following code once proper 
+    //       payload matching is implemented
+    //
+    // initialize remote_pt if not already there
+    if(pmt_it != pl_map.end() && (pmt_it->second.remote_pt < 0)){
       pmt_it->second.remote_pt = sdp_it->payload_type;
-
-      // store first supported payload which is not telephone-event
-      if ((payload == -1) && (sdp_it->encoding_name != "telephone-event")) 
-        payload = sdp_it->payload_type;
     }
     ++sdp_it;
   }
@@ -651,14 +630,18 @@ int AmRtpStream::init(const AmSdp& local,
   setPassiveMode(remote_media.dir == SdpMedia::DirActive);
   setRAddr(remote.conn.address, remote_media.port);
 
-  // TODO: take the first *supported* payload
-  //       (align with the SDP answer algo)
   if(local_media.payloads.empty()) {
 
     ERROR("local_media.payloads.empty()\n");
     return -1;
   }
 
+  payload = getDefaultPT();
+  if(payload < 0) {
+    ERROR("could not set a default payload\n");
+    return -1;
+  }
+  DBG("default payload selected = %i\n",payload);
   last_payload = payload;
 
   remote_telephone_event_pt.reset(remote.telephoneEventPayload());
@@ -726,6 +709,15 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
   memcpy(&last_recv_time, &p->recv_time, sizeof(struct timeval));
 
   if (!receiving && !passive) {
+    if (force_receive_dtmf && local_telephone_event_pt.get() &&
+        p->payload == local_telephone_event_pt->payload_type)
+    {
+      dtmf_payload_t* dpl = (dtmf_payload_t*)p->getData();
+
+      DBG("DTMF: event=%i; e=%i; r=%i; volume=%i; duration=%i; ts=%u\n",
+          dpl->event,dpl->e,dpl->r,dpl->volume,ntohs(dpl->duration),p->timestamp);
+      session->postDtmfEvent(new AmRtpDtmfEvent(dpl, getLocalTelephoneEventRate(), p->timestamp));
+    }
     mem.freePacket(p);
     return;
   }
@@ -820,6 +812,26 @@ void AmRtpStream::clearRTPTimeout(struct timeval* recv_time) {
 
 void AmRtpStream::clearRTPTimeout() {
   gettimeofday(&last_recv_time,NULL);
+}
+
+int AmRtpStream::getDefaultPT()
+{
+  for(PayloadCollection::iterator it = payloads.begin();
+      it != payloads.end(); ++it){
+
+    // skip telephone-events payload
+    if(it->codec_id == CODEC_TELEPHONE_EVENT)
+      continue;
+
+    // skip incompatible payloads
+    PayloadMappingTable::iterator pl_it = pl_map.find(it->pt);
+    if ((pl_it == pl_map.end()) || (pl_it->second.remote_pt < 0))
+      continue;
+
+    return it->pt;
+  }
+
+  return -1;
 }
 
 int AmRtpStream::nextPacket(AmRtpPacket*& p)

@@ -303,6 +303,9 @@ public:
   /** setter for rtp_str->receiving */
   void setReceiving(bool receive) { RTPStream()->receiving = receive; }
 
+  /** setter for rtp_str->force_receive_dtmf*/
+  void setForceDtmfReceiving(bool receive) { RTPStream()->force_receive_dtmf = receive; }
+
   /* ----         SIP dialog attributes                  ---- */
 
   /** Gets the Session's call ID */
@@ -594,8 +597,8 @@ public:
   /* ----------------- media processing interface ------------------- */
 
   public: 
-    virtual int readStreams(unsigned int ts, unsigned char *buffer);
-    virtual int writeStreams(unsigned int ts, unsigned char *buffer);
+    virtual int readStreams(unsigned long long ts, unsigned char *buffer);
+    virtual int writeStreams(unsigned long long ts, unsigned char *buffer);
     virtual void clearRTPTimeout() { RTPStream()->clearRTPTimeout(); }
     virtual void processDtmfEvents();
 

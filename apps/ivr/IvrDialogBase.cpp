@@ -181,7 +181,7 @@ static PyObject* IvrDialogBase_flush(IvrDialogBase* self, PyObject* args)
 {
   assert(self->p_dlg);
 
-  self->p_dlg->playlist.close();
+  self->p_dlg->playlist.flush();
     
   Py_INCREF(Py_None);
   return Py_None;
@@ -210,6 +210,46 @@ static PyObject* IvrDialogBase_unmute(IvrDialogBase* self, PyObject* args)
 
   self->p_dlg->setMute(false);
     
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* IvrDialogBase_enableReceiving(IvrDialogBase* self, PyObject* args)
+{
+  assert(self->p_dlg);
+
+  self->p_dlg->setReceiving(true);
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* IvrDialogBase_disableReceiving(IvrDialogBase* self, PyObject* args)
+{
+  assert(self->p_dlg);
+
+  self->p_dlg->setReceiving(false);
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* IvrDialogBase_enableDTMFReceiving(IvrDialogBase* self, PyObject* args)
+{
+  assert(self->p_dlg);
+
+  self->p_dlg->setForceDtmfReceiving(true);
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* IvrDialogBase_disableDTMFReceiving(IvrDialogBase* self, PyObject* args)
+{
+  assert(self->p_dlg);
+
+  self->p_dlg->setForceDtmfReceiving(false);
+
   Py_INCREF(Py_None);
   return Py_None;
 }
@@ -501,6 +541,18 @@ static PyMethodDef IvrDialogBase_methods[] = {
   },
   {"unmute", (PyCFunction)IvrDialogBase_unmute, METH_NOARGS,
    "unmute the RTP stream (send packets)"
+  },
+  {"enableReceiving", (PyCFunction)IvrDialogBase_enableReceiving, METH_NOARGS,
+   "enable receiving of RTP packets"
+  },
+  {"disableReceiving", (PyCFunction)IvrDialogBase_disableReceiving, METH_NOARGS,
+   "disable receiving of RTP packets"
+  },
+  {"enableDTMFReceiving", (PyCFunction)IvrDialogBase_enableDTMFReceiving, METH_NOARGS,
+   "enable receiving of RFC-2833 DTMF packets even if RTP receiving is disabled"
+  },
+  {"disableDTMFReceiving", (PyCFunction)IvrDialogBase_disableDTMFReceiving, METH_NOARGS,
+   "disable receiving of RFC-2833 DTMF packets when RTP receiving is disabled"
   },
   {"connectMedia", (PyCFunction)IvrDialogBase_add_mediaprocessor, METH_NOARGS,
    "enable the processing of audio and RTP"

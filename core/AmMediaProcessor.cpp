@@ -227,11 +227,12 @@ void AmMediaProcessorThread::run()
 {
   stop_requested = false;
   struct timeval now,next_tick,diff,tick;
+
   // wallclock time
-  unsigned int ts = 0;
+  unsigned long long ts = 0;//4294417296;
 
   tick.tv_sec  = 0;
-  tick.tv_usec = 10000; // 10 ms
+  tick.tv_usec = 1000*WC_INC_MS;
 
   gettimeofday(&now,NULL);
   timeradd(&tick,&now,&next_tick);
@@ -256,7 +257,7 @@ void AmMediaProcessorThread::run()
     events.processEvents();
     processDtmfEvents();
 
-    ts += 10 * SYSTEM_SAMPLERATE / 1000; // 10 ms
+    ts = (ts + WC_INC) & WALLCLOCK_MASK;
     timeradd(&tick,&next_tick,&next_tick);
   }
 }
@@ -274,7 +275,7 @@ void AmMediaProcessorThread::processDtmfEvents()
     }
 }
 
-void AmMediaProcessorThread::processAudio(unsigned int ts)
+void AmMediaProcessorThread::processAudio(unsigned long long ts)
 {
   // receiving
   for(set<AmMediaSession*>::iterator it = sessions.begin();

@@ -87,12 +87,12 @@ class AmMediaSession
      * So for now it seems to be the simplest way just to give the buffer as
      * parameter from AmMediaProcessorThread and reuse it in all sessions handled
      * by this thread (processing is done sequentially one session after another). */
-    virtual int readStreams(unsigned int ts, unsigned char *buffer) = 0;
+    virtual int readStreams(unsigned long long ts, unsigned char *buffer) = 0;
     
     /** Write to all media streams.
      *
      * For the meaning of parameters see description of readStreams() method. */
-    virtual int writeStreams(unsigned int ts, unsigned char *buffer) = 0;
+    virtual int writeStreams(unsigned long long ts, unsigned char *buffer) = 0;
 
     /** Handle events in DTMF event queue.
      * 
@@ -162,7 +162,7 @@ class AmMediaProcessorThread :
   unsigned char   buffer[AUDIO_BUFFER_SIZE];
   set<AmMediaSession*> sessions;
   
-  void processAudio(unsigned int ts);
+  void processAudio(unsigned long long ts);
   /**
    * Process pending DTMF events
    */
