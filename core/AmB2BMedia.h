@@ -5,6 +5,7 @@
 #include "AmRtpStream.h"
 #include "AmRtpAudio.h"
 #include "AmMediaProcessor.h"
+#include "AmDtmfDetector.h"
 
 class AmB2BSession;
 
@@ -80,17 +81,30 @@ class AmB2BMedia: public AmMediaSession
      * rtp_interface) */
     AmB2BSession *a, *b;
 
+    struct AudioStreamData {
+      AmRtpAudio *stream;
+ 
+      /* non-stream input (required for music on hold for example) */
+      AmAudio *in;
+
+      /* Flag set when streams in A/B leg are correctly initialized (for
+       * transcoding purposes). */
+      bool initialized;
+
+      /* quick hack to work with current code
+       * Each stream can use different sampling rate and thus DTMF detection
+       * need to be done independently for each stream. */
+      AmDtmfDetector *dtmf_detector;
+      AmDtmfEventQueue *dtmf_queue;
+
+      AudioStreamData(AmB2BSession *session);
+    };
+
     /** Pair of audio streams with the possibility to use given audio as input
      * instead of the other stream. */
     struct AudioStreamPair {
-      AmRtpAudio *a, *b;
-
-      /* non-stream input (required for music on hold for example) */
-      AmAudio *a_in, *b_in;
-    
-      /* Flag set when streams in A/B leg are correctly initialized (for
-       * transcoding purposes). */
-      bool a_initialized, b_initialized;
+      AudioStreamData a, b;
+      AudioStreamPair(AmB2BSession *_a, AmB2BSession *_b): a(_a), b(_b) { }
     };
 
     /** Callgroup reqired by AmMediaProcessor to distinguish
@@ -119,7 +133,6 @@ class AmB2BMedia: public AmMediaSession
 
     /** SDP normalization is needed to match codecs correctly (TODO) */
     void normalize(AmSdp &sdp);
-    void initStreamPair(AudioStreamPair &pair);
 
     std::vector<AudioStreamPair> audio;
 
@@ -129,6 +142,7 @@ class AmB2BMedia: public AmMediaSession
     /** Clears a_initialized/b_initialized flag if already initialized. Returns
      * true if something was really cleared. */
     bool resetInitializedStreams(bool a_leg);
+    bool resetInitializedStream(AudioStreamData &data);
 
     /** Mark streams in given leg as uninitialized (needed for in-dialog media
      * updates) */
@@ -143,7 +157,7 @@ class AmB2BMedia: public AmMediaSession
     void updateStreams(bool a_leg, bool init_relay, bool init_transcoding);
 
     /** initialize given stream (prepares for transcoding) */
-    void initStream(AmRtpAudio *stream, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
+    void initStream(AudioStreamData &data, AmSession *session, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
 
   public:
     AmB2BMedia(AmB2BSession *_a, AmB2BSession *_b);

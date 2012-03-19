@@ -7,6 +7,23 @@
 
 #define TRACE ERROR
 
+AmB2BMedia::AudioStreamData::AudioStreamData(AmB2BSession *session):
+  in(NULL), initialized(false),
+  dtmf_detector(NULL), dtmf_queue(NULL)
+{
+  stream = new AmRtpAudio(session, session->getRtpRelayInterface());
+  stream->setRtpRelayTransparentSeqno(session->getRtpRelayTransparentSeqno());
+  stream->setRtpRelayTransparentSSRC(session->getRtpRelayTransparentSSRC());
+}
+
+static void stopStreamProcessing(AmRtpStream *stream)
+{
+  if (stream->hasLocalSocket())
+    AmRtpReceiver::instance()->removeStream(stream->getLocalSocket());
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 typedef std::vector<AmB2BMedia::AudioStreamPair>::iterator AudioStreamIterator;
 typedef std::vector<SdpMedia>::iterator SdpMediaIterator;
 
@@ -30,22 +47,23 @@ void AmB2BMedia::normalize(AmSdp &sdp)
 static int writeStream(unsigned long long ts, unsigned char *buffer,
     AmRtpAudio *dst, AmRtpAudio *src, 
     AmAudio *alternative_src, 
-    AmSession *dtmf_handler)
+    AmDtmfEventQueue *dtmf_handler,
+    const char *str)
 {
   unsigned int f_size = dst->getFrameSize();
-  if (dst->sendIntReached(ts, f_size)) {
+  if (dst->sendIntReached(ts)) {
     // A leg is ready to send data
     int got = 0;
     if (alternative_src) got = alternative_src->get(ts, buffer, src->getSampleRate(), f_size);
     else {
       if (src->checkInterval(ts)) {
         got = src->get(ts, buffer, src->getSampleRate(), f_size);
-        if ((got > 0) && dtmf_handler->isDtmfDetectionEnabled()) 
+        if ((got > 0) && dtmf_handler) 
           dtmf_handler->putDtmfAudio(buffer, got, ts);
       }
     }
     if (got < 0) return -1;
-    if (got > 0) return dst->put(ts, buffer, src->getSampleRate(), got);
+    if (got > 0) return dst->put(ts, buffer, dst->getSampleRate(), got);
   }
   return 0;
 }
@@ -55,10 +73,10 @@ int AmB2BMedia::writeStreams(unsigned long long ts, unsigned char *buffer)
   int res = 0;
   mutex.lock();
   for (AudioStreamIterator i = audio.begin(); i != audio.end(); ++i) {
-    if (i->a_initialized && (i->b_initialized || i->a_in))
-      if (writeStream(ts, buffer, i->a, i->b, i->a_in, a) < 0) { res = -1; break; }
-    if (i->b_initialized && (i->a_initialized || i->b_in))
-      if (writeStream(ts, buffer, i->b, i->a, i->b_in, b) < 0) { res = -1; break; }
+    if (i->a.initialized && (i->b.initialized || i->a.in))
+      if (writeStream(ts, buffer, i->a.stream, i->b.stream, i->a.in, i->a.dtmf_queue, NULL) < 0) { res = -1; break; }
+    if (i->b.initialized && (i->a.initialized || i->b.in))
+      if (writeStream(ts, buffer, i->b.stream, i->a.stream, i->b.in, i->b.dtmf_queue, "B") < 0) { res = -1; break; }
   }
   mutex.unlock();
   return res;
@@ -79,24 +97,28 @@ void AmB2BMedia::clearAudio()
 
   for (AudioStreamIterator i = audio.begin(); i != audio.end(); ++i) {
     // remove streams from AmRtpReceiver
-    if (i->a->hasLocalSocket())
-      AmRtpReceiver::instance()->removeStream(i->a->getLocalSocket());
-    if (i->b->hasLocalSocket())
-      AmRtpReceiver::instance()->removeStream(i->b->getLocalSocket());
+    stopStreamProcessing(i->a.stream);
+    stopStreamProcessing(i->b.stream);
 
     // stop and delete alternative inputs
-    if (i->a_in) {
-      i->a_in->close();
-      delete i->a_in;
+    if (i->a.in) {
+      i->a.in->close();
+      delete i->a.in;
     }
-    if (i->b_in) {
-      i->b_in->close();
-      delete i->b_in;
+    if (i->b.in) {
+      i->b.in->close();
+      delete i->b.in;
     }
 
     // delete streams
-    delete i->a;
-    delete i->b;
+    delete i->a.stream;
+    delete i->b.stream;
+
+    if (i->a.dtmf_detector) delete i->a.dtmf_detector;
+    if (i->b.dtmf_detector) delete i->b.dtmf_detector;
+    
+    if (i->a.dtmf_queue) delete i->a.dtmf_queue;
+    if (i->b.dtmf_queue) delete i->b.dtmf_queue;
   }
   audio.clear();
 
@@ -112,8 +134,8 @@ void AmB2BMedia::clearRTPTimeout()
   mutex.lock();
 
   for (AudioStreamIterator i = audio.begin(); i != audio.end(); ++i) {
-    i->a->clearRTPTimeout();
-    i->b->clearRTPTimeout();
+    i->a.stream->clearRTPTimeout();
+    i->b.stream->clearRTPTimeout();
   }
   
   mutex.unlock();
@@ -145,8 +167,8 @@ void AmB2BMedia::replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const s
         DBG("new stream connection address: %s",it->conn.address.c_str());
       }
       try {
-        if (a_leg) it->port = streams->a->getLocalPort();
-        else it->port = streams->b->getLocalPort();
+        if (a_leg) it->port = streams->a.stream->getLocalPort();
+        else it->port = streams->b.stream->getLocalPort();
         replaced_ports += (streams != audio.begin()) ? int2str(it->port) : "/"+int2str(it->port);
       } catch (const string& s) {
         mutex.unlock();
@@ -168,24 +190,7 @@ void AmB2BMedia::replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const s
         
   mutex.unlock();
 }
-
-void AmB2BMedia::initStreamPair(AudioStreamPair &pair)
-{
-  pair.a = new AmRtpAudio(a, a->getRtpRelayInterface());
-  pair.a->setRtpRelayTransparentSeqno(a->getRtpRelayTransparentSeqno());
-  pair.a->setRtpRelayTransparentSSRC(a->getRtpRelayTransparentSSRC());
-
-  pair.b = new AmRtpAudio(b, b->getRtpRelayInterface());
-  pair.b->setRtpRelayTransparentSeqno(b->getRtpRelayTransparentSeqno());
-  pair.b->setRtpRelayTransparentSSRC(b->getRtpRelayTransparentSSRC());
-
-  pair.a_in = NULL;
-  pair.b_in = NULL;
-
-  pair.a_initialized = false;
-  pair.b_initialized = false;
-}
-
+      
 static void setStreamRelay(AmRtpStream *stream, const SdpMedia &m, AmRtpStream *other)
 {
   // We are in locked section, so the stream can not change under our hands
@@ -223,34 +228,54 @@ static void setStreamRelay(AmRtpStream *stream, const SdpMedia &m, AmRtpStream *
     AmRtpReceiver::instance()->addStream(stream->getLocalSocket(), stream);
 }
     
+bool AmB2BMedia::resetInitializedStream(AudioStreamData &data)
+{
+  if (data.initialized) {
+    data.initialized = false;
+
+    if (data.dtmf_detector) {
+      delete data.dtmf_detector;
+      data.dtmf_detector = NULL;
+    }
+    if (data.dtmf_queue) {
+      delete data.dtmf_queue;
+      data.dtmf_queue = NULL;
+    }
+    return true;
+  }
+  return false;
+}
+    
 bool AmB2BMedia::resetInitializedStreams(bool a_leg)
 {
   bool res = false;
   for (AudioStreamIterator i = audio.begin(); i != audio.end(); ++i) {
-    if (a_leg) {
-      res = res || i->a_initialized;
-      i->a_initialized = false;
-    } else {
-      res = res || i->b_initialized;
-      i->b_initialized = false;
-    }
+    if (a_leg) res = res || resetInitializedStream(i->a);
+    else res = res || resetInitializedStream(i->b);
   }
   return res;
 }
-
-void AmB2BMedia::initStream(AmRtpAudio *stream, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx)
+      
+void AmB2BMedia::initStream(AudioStreamData &data, AmSession *session, 
+    AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx)
 {
   // remove from processing to safely update the stream
-  if (stream->hasLocalSocket())
-    AmRtpReceiver::instance()->removeStream(stream->getLocalSocket());
+  if (data.stream->hasLocalSocket())
+    AmRtpReceiver::instance()->removeStream(data.stream->getLocalSocket());
 
-  stream->forceSdpMediaIndex(media_idx);
-  stream->init(local_sdp, remote_sdp);
-  stream->setPlayoutType(playout_type);
-  
+  data.stream->forceSdpMediaIndex(media_idx);
+  data.stream->init(local_sdp, remote_sdp);
+  data.stream->setPlayoutType(playout_type);
+  data.initialized = true;
+  if (session->isDtmfDetectionEnabled()) {
+    data.dtmf_detector = new AmDtmfDetector(session);
+    data.dtmf_queue = new AmDtmfEventQueue(data.dtmf_detector);
+    data.dtmf_detector->setInbandDetector(AmConfig::DefaultDTMFDetector, data.stream->getSampleRate());
+  }
+
   // return back for processing if needed
-  if (stream->hasLocalSocket())
-    AmRtpReceiver::instance()->addStream(stream->getLocalSocket(), stream);
+  if (data.stream->hasLocalSocket())
+    AmRtpReceiver::instance()->addStream(data.stream->getLocalSocket(), data.stream);
 }
 
 void AmB2BMedia::updateStreams(bool a_leg, bool init_relay, bool init_transcoding)
@@ -267,8 +292,7 @@ void AmB2BMedia::updateStreams(bool a_leg, bool init_relay, bool init_transcodin
 
     // create pair of Rtp streams if it doesn't exist yet
     if (stream_idx >= audio.size()) {
-      AudioStreamPair pair;
-      initStreamPair(pair);
+      AudioStreamPair pair(a, b);
       audio.push_back(pair);
       stream_idx = audio.size() - 1;
     }
@@ -278,19 +302,17 @@ void AmB2BMedia::updateStreams(bool a_leg, bool init_relay, bool init_transcodin
       // initialize RTP relay stream and payloads in the other leg (!)
       // Payloads present in this SDP can be relayed directly by the AmRtpStream
       // of the other leg to the AmRtpStream of this leg.
-      if (a_leg) setStreamRelay(pair.b, *m, pair.a);
-      else setStreamRelay(pair.a, *m, pair.b);
+      if (a_leg) setStreamRelay(pair.b.stream, *m, pair.a.stream);
+      else setStreamRelay(pair.a.stream, *m, pair.b.stream);
     }
 
     // initialize the stream for current leg if asked to do so
     if (init_transcoding) {
       if (a_leg) {
-        initStream(pair.a, a_leg_local_sdp, a_leg_remote_sdp, media_idx);
-        pair.a_initialized = true;
+        initStream(pair.a, a, a_leg_local_sdp, a_leg_remote_sdp, media_idx);
         TRACE("A leg stream initialized\n");
       } else {
-        initStream(pair.b, b_leg_local_sdp, b_leg_remote_sdp, media_idx);
-        pair.b_initialized = true;
+        initStream(pair.b, b, b_leg_local_sdp, b_leg_remote_sdp, media_idx);
         TRACE("B leg stream initialized\n");
       }
     }

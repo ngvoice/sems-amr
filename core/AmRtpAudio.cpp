@@ -135,10 +135,10 @@ bool AmRtpAudio::sendIntReached()
   return send_int;
 }
 
-bool AmRtpAudio::sendIntReached(unsigned long long ts, unsigned int frame_size)
+bool AmRtpAudio::sendIntReached(unsigned long long ts)
 {
   if (!last_send_ts_i) return true;
-  else return (scaleSystemTS(ts - last_check) >= getFrameSize());
+  else return (scaleSystemTS(ts - last_send_ts) >= getFrameSize());
 }
 
 unsigned int AmRtpAudio::bytes2samples(unsigned int bytes) const

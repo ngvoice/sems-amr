@@ -131,7 +131,7 @@ public:
 
   bool checkInterval(unsigned long long ts);
   bool sendIntReached();
-  bool sendIntReached(unsigned long long ts, unsigned int frame_size);
+  bool sendIntReached(unsigned long long ts);
 
   int setCurrentPayload(int payload);
   int getCurrentPayload();
