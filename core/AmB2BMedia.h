@@ -116,6 +116,8 @@ class AudioStreamData {
  *
  *  - In-band DTMF detection within relayed payloads not supported yet. Do we
  *    need it?
+ *
+ *  - fix issues when transcoding between 8 and 16kHz (PCMA <-> speex/16000)
  */
 
 class AmB2BMedia: public AmMediaSession
@@ -153,8 +155,7 @@ class AmB2BMedia: public AmMediaSession
      * streams. Please note that ADAPTIVE_PLAYOUT requires some kind of
      * detection if there is really data to read from the buffer because the get
      * function always return something regardless if something was written into
-     * or not. (TODO: update AmRtpAudio to cope with that according Stefan's
-     * wish)
+     * or not. 
      */
     PlayoutType playout_type;
 

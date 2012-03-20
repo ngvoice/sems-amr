@@ -5,8 +5,6 @@
 #include "AmB2BSession.h"
 #include "AmRtpReceiver.h"
 
-#define TRACE ERROR
-
 AudioStreamData::AudioStreamData(AmB2BSession *session):
   in(NULL), initialized(false),
   dtmf_detector(NULL), dtmf_queue(NULL)
@@ -61,15 +59,11 @@ void AudioStreamData::setStreamRelay(const SdpMedia &m, AmRtpStream *other)
   if (m.payloads.size() > 0) {
     PayloadMask mask;
 
-    TRACE("enabling stream relay\n");
-
     // walk through the media line and add all payload IDs to the bit mask
     for (std::vector<SdpPayload>::const_iterator i = m.payloads.begin(); 
         i != m.payloads.end(); ++i) 
     {
       mask.set(i->payload_type);
-    
-      TRACE(" ... payload %d\n", i->payload_type);
     }
 
     stream->enableRtpRelay(mask, other);
@@ -77,7 +71,6 @@ void AudioStreamData::setStreamRelay(const SdpMedia &m, AmRtpStream *other)
   else {
     // nothing to relay
     stream->disableRtpRelay();
-    TRACE("disabling stream relay\n");
   }
 
   resumeStreamProcessing();
@@ -310,10 +303,8 @@ void AmB2BMedia::updateStreams(bool a_leg, bool init_relay, bool init_transcodin
     if (init_transcoding) {
       if (a_leg) {
         pair.a.initStream(a, playout_type, a_leg_local_sdp, a_leg_remote_sdp, media_idx);
-        TRACE("A leg stream initialized\n");
       } else {
         pair.b.initStream(b, playout_type, b_leg_local_sdp, b_leg_remote_sdp, media_idx);
-        TRACE("B leg stream initialized\n");
       }
     }
 
@@ -324,9 +315,6 @@ void AmB2BMedia::updateStreams(bool a_leg, bool init_relay, bool init_transcodin
 
 void AmB2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
 {
-  
-  TRACE("updating %s leg remote SDP\n", a_leg ? "A" : "B");
-
   mutex.lock();
 
   bool initialize_streams;
@@ -358,8 +346,6 @@ void AmB2BMedia::updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp)
     
 void AmB2BMedia::updateLocalSdp(bool a_leg, const AmSdp &local_sdp)
 {
-  TRACE("updating %s leg local SDP\n", a_leg ? "A" : "B");
-
   mutex.lock();
   // streams should be created already (replaceConnectionAddress called
   // before updateLocalSdp uses/assignes their port numbers)
@@ -404,7 +390,6 @@ void AmB2BMedia::updateProcessingState()
       !isProcessingMedia()) 
   {
     ref_cnt++; // add reference (hold by AmMediaProcessor)
-    TRACE("starting media processing (ref cnt = %d)\n", ref_cnt);
     AmMediaProcessor::instance()->addSession(this, callgroup);
   }
 }
@@ -421,11 +406,8 @@ void AmB2BMedia::onMediaProcessingTerminated()
   AmMediaSession::onMediaProcessingTerminated();
   clearAudio();
 
-  TRACE("media processing terminated\n");
-
   // release reference held by AmMediaProcessor
   if (releaseReference()) { 
-    TRACE("releasing myself!\n");
     delete this; // this should really work :-D
   }
 }
