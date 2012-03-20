@@ -129,19 +129,20 @@ int AudioStreamData::writeStream(unsigned long long ts, unsigned char *buffer, A
   unsigned int f_size = stream->getFrameSize();
   if (stream->sendIntReached(ts)) {
     // A leg is ready to send data
+    int sample_rate = stream->getSampleRate();
     int got = 0;
-    if (in) got = in->get(ts, buffer, stream->getSampleRate(), f_size);
+    if (in) got = in->get(ts, buffer, sample_rate, f_size);
     else {
       if (!src.isInitialized()) return 0;
       AmRtpAudio *src_stream = src.getStream();
       if (src_stream->checkInterval(ts)) {
-        got = src_stream->get(ts, buffer, src_stream->getSampleRate(), f_size);
+        got = src_stream->get(ts, buffer, sample_rate, f_size);
         if ((got > 0) && dtmf_queue) 
           dtmf_queue->putDtmfAudio(buffer, got, ts);
       }
     }
     if (got < 0) return -1;
-    if (got > 0) return stream->put(ts, buffer, stream->getSampleRate(), got);
+    if (got > 0) return stream->put(ts, buffer, sample_rate, got);
   }
   return 0;
 }
