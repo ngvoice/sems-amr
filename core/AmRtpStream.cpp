@@ -587,11 +587,6 @@ int AmRtpStream::init(const AmSdp& local,
   // which are to be relayed)
   if (p_it != payloads.end()) payloads.erase(p_it, payloads.end());
 
-  // FIXME: just for testing
-  ERROR("%lu payloads to be processed", payloads.size());
-  for (p_it = payloads.begin(); p_it != payloads.end(); ++p_it) 
-    ERROR(" ... %d: %s/%d\n", p_it->pt, p_it->name.c_str(), p_it->clock_rate);
-
   // second pass on remote SDP - initialize payload IDs used by remote (remote_pt)
   sdp_it = remote_media.payloads.begin();
   while(sdp_it != remote_media.payloads.end()) {
@@ -725,7 +720,6 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
   if (relay_enabled) {
     if (relay_payloads.get(p->payload)) {
       active = false;
-      //ERROR("going to relay payload %d\n", p->payload); // FIXME: for testign only
       handleSymmetricRtp(p);
 
       if (NULL != relay_stream) {
@@ -736,7 +730,6 @@ void AmRtpStream::bufferPacket(AmRtpPacket* p)
     }
   }
   active = true;
-  //ERROR("going to process payload %d\n", p->payload); // FIXME: for testign only
 
   receive_mut.lock();
   // free packet on double packet for TS received

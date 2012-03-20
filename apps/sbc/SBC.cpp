@@ -59,8 +59,6 @@ RegexMapper SBCFactory::regex_mappings;
 EXPORT_MODULE_FACTORY(SBCFactory);
 DEFINE_MODULE_INSTANCE(SBCFactory, MOD_NAME);
 
-#define TRACE ERROR // vku: for testing only
-
 // helper functions
 
 static bool containsPayload(const std::vector<SdpPayload>& payloads, const SdpPayload &payload)
@@ -102,12 +100,6 @@ static void appendTranscoderCodecs(AmSdp &sdp, MediaType mtype, std::vector<SdpP
         if (!containsPayload(m->payloads, *p)) {
           m->payloads.push_back(*p);
           if (p->payload_type < 0) m->payloads.back().payload_type = id++;
-
-          // remeber added payload ID: 
-//TODO:          added_payloads.push_back(m->payloads.back().payload_type);
-
-          TRACE("added codec %s/%d with id %d\n", 
-              p->encoding_name.c_str(), p->clock_rate, m->payloads.back().payload_type);
         }
       }
       if (id > 128) ERROR("assigned too high payload type number (%d), see RFC 3551\n", id);
@@ -1096,7 +1088,6 @@ void SBCDialog::filterBody(AmSipReply &reply, AmSdp &sdp)
 
 
 void SBCDialog::onSipRequest(const AmSipRequest& req) {
-  TRACE("SBCDialog::onSipRequest\n");
   // AmB2BSession does not call AmSession::onSipRequest for 
   // forwarded requests - so lets call event handlers here
   // todo: this is a hack, replace this by calling proper session 
@@ -1786,65 +1777,6 @@ void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
 {
   ::filterBody(reply, sdp, call_profile);
 }
-
-bool SBCCalleeSession::getSdpOffer(AmSdp& offer) 
-{
-  // experimental:
-  TRACE("CALLEE: getSdpOffer called\n");
-/*
-  if (call_profile.transcoder_audio_codecs.size() < 1) {
-    ERROR("BUG: getSdpOffer() shouldn't be called\n");
-    return false;
-  }
-
-  if (initial_sdp.get()) {
-    // we should have initial body ready here
-    // if not, something is strange, let AmB2BCalleeSession do fallback
-    offer = *initial_sdp.get();
-    return true;
-  }
-  else*/ return AmB2BCalleeSession::getSdpOffer(offer);
-}
-  
-bool SBCCalleeSession::getSdpAnswer(const AmSdp& offer, AmSdp& answer)
-{
-  TRACE("CALLEE: getSdpAnswer called\n");
-  return AmB2BSession::getSdpAnswer(offer, answer);
-}
-
-int SBCCalleeSession::onSdpCompleted(const AmSdp& offer, const AmSdp& answer)
-{
-  TRACE("CALLEE: onSdpCompleted called\n");
-  return AmB2BSession::onSdpCompleted(offer, answer);
-}
-
-#if 0
-void SBCCalleeSession::storeRelayedSdp(const AmMimeBody* body)
-{
-  const AmMimeBody* body = co_ev->body.hasContentType(SIP_APPLICATION_SDP);
-  if (body) {
-    // the body is already normalized, filtered and codecs are ordered
-    relayed_sdp.reset(new AmSdp());
-    if (initial_sdp->parse((const char*)body->getPayload())) {
-      DBG("initial SDP parsing failed!\n");
-    }
-    replaceConnectionAddress(*initial_sdp); // needed to offer our IP/ports
-    appendTranscoderCodecs(*initial_sdp);
-  }
-/*      else {
-        // TODO: the body was empty or unsupported type, we need to create a new
-        // one just with transcoder codecs
-
-        // TODO: in this case we must NOT filter out the codecs from reply which
-        // will be relayed back to A leg ... simply just the transcoder codecs
-        // will be offered in 200/INVITE in A leg (note: need to transcode
-        // those not chosen by caller in its answer later on but for now we
-        // should mark all of them as codecs for transcoding)
-      }
-    }
-*/
-}
-#endif
 
 void assertEndCRLF(string& s) {
   if (s[s.size()-2] != '\r' ||

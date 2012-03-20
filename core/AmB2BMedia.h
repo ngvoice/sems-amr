@@ -116,8 +116,6 @@ class AudioStreamData {
  *
  *  - In-band DTMF detection within relayed payloads not supported yet. Do we
  *    need it?
- *
- *  - fix issues when transcoding between 8 and 16kHz (PCMA <-> speex/16000)
  */
 
 class AmB2BMedia: public AmMediaSession

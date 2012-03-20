@@ -210,11 +210,6 @@ class SBCCalleeSession
 
   void appendTranscoderCodecs(AmSdp &sdp);
   
-  // payloads added to outgoing INVITE, which need to be transcoded and removed from relayed reply
-  // TODO: won't work for multiple media lines - remember [media, payload] for that case,
-  // TODO: optimize using bit field
-  std::vector<int> added_payloads;
-
  protected:
   int relayEvent(AmEvent* ev);
 
@@ -239,10 +234,6 @@ class SBCCalleeSession
   inline UACAuthCred* getCredentials();
   
   void setAuthHandler(AmSessionEventHandler* h) { auth = h; }
-
-  virtual bool getSdpOffer(AmSdp& offer);
-  virtual bool getSdpAnswer(const AmSdp& offer, AmSdp& answer);
-  virtual int onSdpCompleted(const AmSdp& offer, const AmSdp& answer);
 };
 
 extern void assertEndCRLF(string& s);
