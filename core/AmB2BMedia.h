@@ -9,6 +9,49 @@
 
 class AmB2BSession;
 
+
+class AudioStreamData {
+  private:
+    AmRtpAudio *stream;
+
+    /* non-stream input (required for music on hold for example) */
+    AmAudio *in;
+
+    /* Flag set when streams in A/B leg are correctly initialized (for
+     * transcoding purposes). */
+    bool initialized;
+
+    /* quick hack to work with current code
+     * Each stream can use different sampling rate and thus DTMF detection
+     * need to be done independently for each stream. */
+    AmDtmfDetector *dtmf_detector;
+    AmDtmfEventQueue *dtmf_queue;
+
+  public:
+    AudioStreamData(AmB2BSession *session);
+
+    /** Frees all allocated data. Stream and its peer (relay stream) must be
+     * removed from processing before calling this method! */
+    void clear();
+
+    void stopStreamProcessing();
+    void resumeStreamProcessing();
+
+    void setStreamRelay(const SdpMedia &m, AmRtpStream *other);
+
+    void initStream(AmSession *session, PlayoutType playout_type, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
+
+    bool resetInitializedStream();
+    void processDtmfEvents() { if (dtmf_queue) dtmf_queue->processEvents(); }
+
+    int writeStream(unsigned long long ts, unsigned char *buffer, AudioStreamData &src);
+    void clearRTPTimeout() { if (stream) stream->clearRTPTimeout(); }
+    int getLocalPort() { if (stream) return stream->getLocalPort(); else return 0; }
+    AmRtpAudio *getStream() { return stream; }
+    bool isInitialized() { return initialized; }
+};
+
+
 /** \brief Class for control over media relaying and transcoding in a B2B session.
  *
  * This class manages RTP streams of both call legs, configures AmRtpStream
@@ -84,25 +127,6 @@ class AmB2BMedia: public AmMediaSession
      * rtp_interface) */
     AmB2BSession *a, *b;
 
-    struct AudioStreamData {
-      AmRtpAudio *stream;
- 
-      /* non-stream input (required for music on hold for example) */
-      AmAudio *in;
-
-      /* Flag set when streams in A/B leg are correctly initialized (for
-       * transcoding purposes). */
-      bool initialized;
-
-      /* quick hack to work with current code
-       * Each stream can use different sampling rate and thus DTMF detection
-       * need to be done independently for each stream. */
-      AmDtmfDetector *dtmf_detector;
-      AmDtmfEventQueue *dtmf_queue;
-
-      AudioStreamData(AmB2BSession *session);
-    };
-
     /** Pair of audio streams with the possibility to use given audio as input
      * instead of the other stream. */
     struct AudioStreamPair {
@@ -133,9 +157,6 @@ class AmB2BMedia: public AmMediaSession
      * wish)
      */
     PlayoutType playout_type;
-
-    /** SDP normalization is needed to match codecs correctly (TODO) */
-    void normalize(AmSdp &sdp);
 
     std::vector<AudioStreamPair> audio;
 
