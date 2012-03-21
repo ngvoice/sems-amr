@@ -297,6 +297,40 @@ modes. The payload names in the list are case-insensitive (PCMU==pcmu).
 
 The s, u and o-lines of the SDP can be anonymized with the setting sdp_anonymize=yes.
 
+Codec reordering
+----------------
+Payloads within SDP body might be reordered according to value of payload_order call
+profile option. Payload names are case-insensitive, clock rate is considered if
+given.
+
+for example:
+  payload_order=G723/16000,PCMA,g726-16,PCMU
+
+  incoming SDP:
+        a=rtpmap:8 PCMA/8000
+        a=rtpmap:0 PCMU/8000
+        a=rtpmap:2 G726-32/8000
+        a=rtpmap:4 G723/8000
+        a=rtpmap:18 G729a/8000
+        a=rtpmap:96 G726-40/8000
+        a=rtpmap:97 G726-24/8000
+        a=rtpmap:98 G726-16/8000
+        a=rtpmap:101 telephone-event/8000
+
+  outgoing SDP:
+        a=rtpmap:0 PCMU/8000
+        a=rtpmap:98 G726-16/8000
+        a=rtpmap:8 PCMA/8000
+        a=rtpmap:4 G723/8000
+        a=rtpmap:18 G729a/8000
+        a=rtpmap:96 G726-40/8000
+        a=rtpmap:97 G726-24/8000
+        a=rtpmap:2 G726-32/8000
+        a=rtpmap:101 telephone-event/8000
+
+Please note that codecs are ordered when filtering is done, for SDP offer and
+for SDP answer as well.
+
 RTP relay
 ---------
 RTP can be bridged through the SBC. Where without rtprelay, A call would go only

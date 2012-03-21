@@ -790,7 +790,7 @@ void SBCCallProfile::orderSDP(AmSdp& sdp)
 	 sdp.media.begin(); m_it != sdp.media.end(); ++m_it) {
     SdpMedia& media = *m_it;
 
-    int pos = 0;
+    unsigned pos = 0;
     unsigned idx;
     unsigned cnt = media.payloads.size();
 
@@ -798,14 +798,15 @@ void SBCCallProfile::orderSDP(AmSdp& sdp)
     // for each predefined payloads in their order
     for (vector<PayloadDesc>::iterator i = payload_order.begin(); i != payload_order.end(); ++i) {
       // try to find this payload in SDP 
-      // (not needed to go through already sorted members and current
-      // destination pos)
-      for (idx = pos + 1; idx < cnt; idx++) {
+      // (not needed to go through already sorted members)
+      for (idx = pos; idx < cnt; idx++) {
         if (i->match(media.payloads[idx])) {
           // found, exchange elements at pos and idx
-          SdpPayload p = media.payloads[idx]; 
-          media.payloads[idx] = media.payloads[pos];
-          media.payloads[pos] = p;
+          if (idx != pos) {
+            SdpPayload p = media.payloads[idx]; 
+            media.payloads[idx] = media.payloads[pos];
+            media.payloads[pos] = p;
+          }
 	
 	  ++pos; // next payload index
           break;
@@ -819,8 +820,10 @@ void SBCCallProfile::orderSDP(AmSdp& sdp)
 
 bool PayloadDesc::match(const SdpPayload &p) const
 {
-  //FIXME: payload names case sensitive?
-  if ((name.size() > 0) && (name != p.encoding_name)) return false;
+  string enc_name = p.encoding_name;
+  transform(enc_name.begin(), enc_name.end(), enc_name.begin(), ::tolower);
+      
+  if ((name.size() > 0) && (name != enc_name)) return false;
   if (clock_rate && (p.clock_rate > 0) && clock_rate != (unsigned)p.clock_rate) return false;
   return true;
 }
@@ -836,6 +839,7 @@ bool PayloadDesc::read(const std::string &s)
     name = elems[0];
     clock_rate = 0;
   }
+  transform(name.begin(), name.end(), name.begin(), ::tolower);
   return true;
 }
 
