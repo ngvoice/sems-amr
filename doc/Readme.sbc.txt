@@ -341,6 +341,29 @@ send RTP media to SEMS. SEMS then relays the RTP packets between the two sides.
 RTP relay can be enabled by setting
   enable_rtprelay=yes
 
+The SBC is able to do transcoding together with relaying. 
+
+To trigger transcoding configure transcoder_audio_codecs to a set of codecs
+which are understand by SEMS. These codecs are appended to the end (advertising
+that their priority is lower) of outgoing SDP and allow to the other party to
+choose from more codecs than used in the original SDP. 
+
+  for example:
+
+    Caller understands only PCMA codec, callee: understands only PCMU codec.
+
+    transcoder_audio_codecs=PCMU,PCMA
+    incoming SDP offer: PCMA
+    outgoing SDP offer: PCMA, PCMU
+    incoming SDP answer: PCMU
+    outgoing SDP answer: PCMU, PCMA
+
+    Caller generates RTP with PCMA payload, SEMS in between transcodes to PCMU
+    and sends PCMU RTP to the callee.
+
+    Callee generates RTP with PCMU payload, SEMS in between transcodes to PCMA
+    and sends PCMA RTP to the caller.
+
 The SBC detects if UAs indicate that they are behind NAT by setting a=direction:active
 in SDP, and goes into passive mode until it receives the first packet from the NATed
 client, from which it learns the remote address. This mechanism is called "symmetric
@@ -356,6 +379,18 @@ header to the INVITE to indicate forcing of symmetric RTP. With the sbc profile
 option
  rtprelay_msgflags_symmetric_rtp=yes
 the SBC honors this and sets symmetric RTP accordingly.
+
+Warning: 
+ - currently only audio streams are relayed through or transcoded
+ - setting transcoder_audio_codecs causes automatical enabling of RTP relay
+ - usage of transparent vs. non-transparent SSRC and sequence numbers is a bit
+   tricky when transcoding is possible and let on correct user configuration for
+   now (sometimes one of the variants is more suitable, unless we will be
+   handling SSRC changes in incoming RTP neither of them will be working for
+   100%)
+ - handling of "on hold" streams when transcoding is in use can cause RTP media
+   send in hold state (sendonly stream) though they need not to be sent (caused
+   by buffering strategy)
 
 Adding headers
 --------------
