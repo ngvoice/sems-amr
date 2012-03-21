@@ -56,7 +56,7 @@ void AudioStreamData::setStreamRelay(const SdpMedia &m, AmRtpStream *other)
   // solution than using additional locking within AmRtpStream.
   stopStreamProcessing();
 
-  if (m.payloads.size() > 0) {
+  if ((m.payloads.size() > 0) && other) {
     PayloadMask mask;
 
     // walk through the media line and add all payload IDs to the bit mask

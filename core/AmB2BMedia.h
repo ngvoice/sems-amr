@@ -9,42 +9,90 @@
 
 class AmB2BSession;
 
+/** \brief Storage for several data items required to be held with one RTP
+ * stream for B2B media processing.
+ *
+ * It has shown that there are more items to be remembered with one RTP stream
+ * so this class is an attempt to encapsulate them together and make the code
+ * better manageable (less duplicates - the same things were often done for
+ * A leg stuff and then for B leg stuff). */
 
 class AudioStreamData {
   private:
+    /** The RTP stream itself.
+     *
+     * Audio only for now. */
     AmRtpAudio *stream;
 
-    /* non-stream input (required for music on hold for example) */
+    /** Non-stream input (required for music on hold for example). */
     AmAudio *in;
 
-    /* Flag set when streams in A/B leg are correctly initialized (for
+    /** Flag set when streams in A/B leg are correctly initialized (for
      * transcoding purposes). */
     bool initialized;
 
-    /* quick hack to work with current code
-     * Each stream can use different sampling rate and thus DTMF detection
-     * need to be done independently for each stream. */
+    /** DTMF detector used by dtmf_queue */
     AmDtmfDetector *dtmf_detector;
+    
+    /** Queue for handling raw DTMF events. 
+     *
+     * It is rather quick hack to make B2B media working with current code.
+     * Each stream can use different sampling rate and thus DTMF detection need
+     * to be done independently for each stream. */
     AmDtmfEventQueue *dtmf_queue;
 
   public:
+    /** Creates data based on associated signaling leg data. */
     AudioStreamData(AmB2BSession *session);
 
-    /** Frees all allocated data. Stream and its peer (relay stream) must be
-     * removed from processing before calling this method! */
+    /** Frees all allocated data. 
+     *
+     * Stream and its peer (relay stream) must be removed from processing before
+     * calling this method! This method doesn't call stopStreamProcessing()
+     * itself because of the stream here is used as relay stream in the other
+     * leg. Before freeing current stream the other one has to be removed from
+     * processing as well. 
+     *
+     * Please note that the "in" member is freed - this need not to be the right
+     * thing but this will show once it will be really used. */
     void clear();
 
+    /** Removes stream from processing by AmRtpReceiver. */
     void stopStreamProcessing();
+    
+    /** Returns stream from processing by AmRtpReceiver if it was already there. */
     void resumeStreamProcessing();
 
+    /** Set relay stream and payload IDs to be relayed.
+     *
+     * Removes the stream from AmRtpReceiver before updating and returns it back
+     * once done. */
     void setStreamRelay(const SdpMedia &m, AmRtpStream *other);
 
+    /** Initializes RTP stream with local and remote media (needed for
+     * transcoding). */
     void initStream(AmSession *session, PlayoutType playout_type, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
 
+    /** Discards initialization flag and DTMF related members if the stream was
+     * already initialized. In such case true is returned. If the stream wasn't
+     * initialized yet this method returns false.
+     * 
+     * Each time SDP is changed the stream has to be reinitialized with new one
+     * (needed to have SDP of both sides to that). */
     bool resetInitializedStream();
+
+    /** Processes raw DTMF events in own queue. */
     void processDtmfEvents() { if (dtmf_queue) dtmf_queue->processEvents(); }
 
+    /** Writes data to won stream. Data are read either from local alternative
+     * input (in) or from stream given by src parameter. 
+     *
+     * Buffer is just space used to read data before writing them,
+     * AmMediaProcessor buffer should be propagated here (see AmMediaSession) */
     int writeStream(unsigned long long ts, unsigned char *buffer, AudioStreamData &src);
+
+    // --- helper methods propagating our private member to outside world ---
+
     void clearRTPTimeout() { if (stream) stream->clearRTPTimeout(); }
     int getLocalPort() { if (stream) return stream->getLocalPort(); else return 0; }
     AmRtpAudio *getStream() { return stream; }
