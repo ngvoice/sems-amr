@@ -1,0 +1,72 @@
+SEMS-MIB DEFINITIONS ::= BEGIN
+
+--
+-- MIB Objects for SEMS monitoring
+--
+-- Note: we use for now the sip-router enterprise number
+--       until the registration at the IANA has completed.
+-- 
+
+IMPORTS
+	MODULE-IDENTITY, OBJECT-TYPE, Integer32,
+	enterprises	FROM SNMPv2-SMI;
+
+sems MODULE-IDENTITY
+	LAST-UPDATED "201103300000Z"
+	ORGANIZATION "SIP Express Media Server"
+	CONTACT-INFO 
+	  "email: sems@lists.iptel.org"
+	DESCRIPTION  
+	  "MIB Objects for SEMS monitoring"
+	REVISION     "201103300000Z"
+	DESCRIPTION  "Initial Draft"
+	::= { enterprises 24960 }
+
+
+semsObjects   		  OBJECT IDENTIFIER ::= { sems 1 }
+
+--
+-- Call statistics
+--
+
+semsStats		OBJECT IDENTIFIER ::= { semsObjects 1 }
+
+semsStatsCallsAvg	OBJECT-TYPE
+	SYNTAX	    Integer32
+	MAX-ACCESS  read-only
+	STATUS	    current
+	DESCRIPTION
+	  "The number of active calls (average since the last query).
+	   This number is obtained by multiplying the floating point
+	   number by 100 and converting it into an integer."
+	::= { semsStats 1 }
+
+semsStatsCallsMax	OBJECT-TYPE
+	SYNTAX	    Integer32
+	MAX-ACCESS  read-only
+	STATUS	    current
+	DESCRIPTION
+	  "The maximum number of active calls (since the last query)."
+	::= { semsStats 2 }
+
+semsStatsCpsAvg		OBJECT-TYPE
+	SYNTAX	    Integer32
+	MAX-ACCESS  read-only
+	STATUS	    current
+	DESCRIPTION
+	  "The number of new calls per second (average since the 
+	   last query). This number is obtained by multiplying the 
+	   floating point number by 100 and converting it into an 
+	   integer."
+	::= { semsStats 3 }
+
+semsStatsCpsMax		OBJECT-TYPE
+	SYNTAX	    Integer32
+	MAX-ACCESS  read-only
+	STATUS	    current
+	DESCRIPTION
+	  "The maximum number of new calls per second (since the 
+	   last query)."
+	::= { semsStats 4 }
+
+END
