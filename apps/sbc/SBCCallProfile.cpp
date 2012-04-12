@@ -281,8 +281,9 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
 
   outbound_interface = cfg.getParameter("outbound_interface");
 
-  if (!readPayloadOrder(cfg.getParameter("payload_order"))) return false;
-  if (payload_order.size() && (!sdpfilter_enabled)) {
+  if (!readPayloadOrder(bleg_payload_order, cfg.getParameter("codec_preference"))) return false;
+  if (!readPayloadOrder(aleg_payload_order, cfg.getParameter("codec_preference_aleg"))) return false;
+  if ((!aleg_payload_order.empty() || !bleg_payload_order.empty()) && (!sdpfilter_enabled)) {
     sdpfilter_enabled = true;
     sdpfilter = Transparent;
   }
@@ -415,10 +416,16 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
     INFO("SBC:      append headers '%s'\n", append_headers.c_str());
   }
 
-  if (payload_order.size() > 0) {
-    INFO("SBC:      payload order:\n");
-    for (vector<PayloadDesc>::iterator i = payload_order.begin(); i != payload_order.end(); ++i)
-    INFO("SBC:         - %s\n", i->print().c_str());
+  if (aleg_payload_order.size() > 0) {
+    INFO("SBC:      A leg codec preference:\n");
+    for (vector<PayloadDesc>::iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i)
+      INFO("SBC:         - %s\n", i->print().c_str());
+  }
+  
+  if (bleg_payload_order.size() > 0) {
+    INFO("SBC:      B leg codec preference:\n");
+    for (vector<PayloadDesc>::iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i)
+      INFO("SBC:         - %s\n", i->print().c_str());
   }
 
   if (transcoder_audio_codecs.size() > 0) {
@@ -488,7 +495,8 @@ bool SBCCallProfile::operator==(const SBCCallProfile& rhs) const {
       auth_aleg_credentials.user == rhs.auth_aleg_credentials.user &&
       auth_aleg_credentials.pwd == rhs.auth_aleg_credentials.pwd;
   }
-  res = res && payloadDescsEqual(payload_order, rhs.payload_order);
+  res = res && payloadDescsEqual(aleg_payload_order, rhs.aleg_payload_order);
+  res = res && payloadDescsEqual(bleg_payload_order, rhs.bleg_payload_order);
   // TODO: transcoder_audio_codecs
   return res;
 }
@@ -534,9 +542,14 @@ string SBCCallProfile::print() const {
   res += "rtprelay_enabled:     " + string(rtprelay_enabled?"true":"false") + "\n";
   res += "force_symmetric_rtp:  " + force_symmetric_rtp;
   res += "msgflags_symmetric_rtp: " + string(msgflags_symmetric_rtp?"true":"false") + "\n";
-  res += "payload_order:        ";
-  for (vector<PayloadDesc>::const_iterator i = payload_order.begin(); i != payload_order.end(); ++i) {
-    if (i != payload_order.begin()) res += ",";
+  res += "codec_preference:     ";
+  for (vector<PayloadDesc>::const_iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i) {
+    if (i != bleg_payload_order.begin()) res += ",";
+    res += i->print();
+  }
+  res += "codec_preference_aleg:    ";
+  for (vector<PayloadDesc>::const_iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i) {
+    if (i != aleg_payload_order.begin()) res += ",";
     res += i->print();
   }
   res += "\n";
@@ -727,13 +740,14 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
 }
 
 
-bool SBCCallProfile::readPayloadOrder(const std::string &src)
+bool SBCCallProfile::readPayloadOrder(std::vector<PayloadDesc> &dst, const std::string &src)
 {
+  dst.clear();
   vector<string> elems = explode(src, ",");
   for (vector<string>::iterator it=elems.begin(); it != elems.end(); ++it) {
     PayloadDesc payload;
     if (!payload.read(*it)) return false;
-    payload_order.push_back(payload);
+    dst.push_back(payload);
   }
   return true;
 }
@@ -781,8 +795,11 @@ bool SBCCallProfile::read(const std::string &src, vector<SdpPayload> &codecs)
   return true;
 }
 
-void SBCCallProfile::orderSDP(AmSdp& sdp)
+void SBCCallProfile::orderSDP(AmSdp& sdp, bool a_leg)
 {
+  // get order of payloads for the other leg!
+  std::vector<PayloadDesc> &payload_order = a_leg ? bleg_payload_order: aleg_payload_order;
+
   if (payload_order.size() < 1) return; // nothing to do - no predefined order
 
   DBG("ordering SDP\n");
@@ -815,6 +832,14 @@ void SBCCallProfile::orderSDP(AmSdp& sdp)
       }
     }
   }
+}
+
+bool SBCCallProfile::shouldOrderPayloads(bool a_leg)
+{
+  // returns true if order of payloads for the other leg is set! (i.e. if we
+  // have to order payloads)
+  if (a_leg) return !bleg_payload_order.empty();
+  else return !aleg_payload_order.empty();
 }
 
 //////////////////////////////////////////////////////////////////////////////////

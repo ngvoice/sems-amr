@@ -108,16 +108,16 @@ static void appendTranscoderCodecs(AmSdp &sdp, MediaType mtype, std::vector<SdpP
 }
 
 // do the filtering, returns true if SDP was changed
-static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile)
+static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
 {
   bool changed = false;
 
   // We have to order payloads before adding transcoder codecs to leave
   // transcoding as the last chance (always prefer relaying to transcoding).
 
-  if (call_profile.payload_order.size()) {
+  if (call_profile.shouldOrderPayloads(a_leg)) {
     normalizeSDP(sdp, call_profile.anonymize_sdp);
-    call_profile.orderSDP(sdp);
+    call_profile.orderSDP(sdp, a_leg);
   }
 
   // Add transcoder codecs before filtering because otherwise SDP filter could
@@ -154,7 +154,7 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile)
   return changed;
 }
 
-static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile &call_profile) 
+static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile &call_profile, bool a_leg) 
 {
   int res = sdp.parse((const char *)body->getPayload());
   if (0 != res) {
@@ -162,7 +162,7 @@ static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile &call_profile
     return res;
   }
 
-  if (doFiltering(sdp, call_profile)) {
+  if (doFiltering(sdp, call_profile, a_leg)) {
     string n_body;
     sdp.print(n_body);
     body->setPayload((const unsigned char*)n_body.c_str(),
@@ -171,7 +171,7 @@ static int filterBody(AmMimeBody *body, AmSdp& sdp, SBCCallProfile &call_profile
   return 0;
 }
 
-static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile &call_profile)
+static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
 {
   AmMimeBody* body = req.body.hasContentType(SIP_APPLICATION_SDP);
 
@@ -183,18 +183,18 @@ static void filterBody(AmSipRequest &req, AmSdp &sdp, SBCCallProfile &call_profi
        req.method == SIP_METH_ACK)) {
 
     // todo: handle filtering errors
-    filterBody(body, sdp, call_profile);
+    filterBody(body, sdp, call_profile, a_leg);
   }
 }
 
-static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile &call_profile)
+static void filterBody(AmSipReply &reply, AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
 {
   AmMimeBody* body = reply.body.hasContentType(SIP_APPLICATION_SDP);
 
   DBG("filtering body of relayed reply %d\n", reply.code);
   if (body &&
       (reply.cseq_method == SIP_METH_INVITE || reply.cseq_method == SIP_METH_UPDATE)) {
-    filterBody(body, sdp, call_profile);
+    filterBody(body, sdp, call_profile, a_leg);
   }
 }
 
@@ -1078,12 +1078,12 @@ int SBCDialog::relayEvent(AmEvent* ev) {
 
 void SBCDialog::filterBody(AmSipRequest &req, AmSdp &sdp)
 {
-  ::filterBody(req, sdp, call_profile);
+  ::filterBody(req, sdp, call_profile, a_leg);
 }
 
 void SBCDialog::filterBody(AmSipReply &reply, AmSdp &sdp)
 {
-  ::filterBody(reply, sdp, call_profile);
+  ::filterBody(reply, sdp, call_profile, a_leg);
 }
 
 
@@ -1770,12 +1770,12 @@ void SBCCalleeSession::onControlCmd(string& cmd, AmArg& params) {
 
 void SBCCalleeSession::filterBody(AmSipRequest &req, AmSdp &sdp)
 {
-  ::filterBody(req, sdp, call_profile);
+  ::filterBody(req, sdp, call_profile, a_leg);
 }
 
 void SBCCalleeSession::filterBody(AmSipReply &reply, AmSdp &sdp)
 {
-  ::filterBody(reply, sdp, call_profile);
+  ::filterBody(reply, sdp, call_profile, a_leg);
 }
 
 void assertEndCRLF(string& s) {

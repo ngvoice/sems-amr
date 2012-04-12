@@ -150,9 +150,11 @@ struct SBCCallProfile
 
   std::vector<SdpPayload> transcoder_audio_codecs;
 
-  std::vector<PayloadDesc> payload_order;
-  bool readPayloadOrder(const std::string &src);
-  void orderSDP(AmSdp& sdp); // do the SDP changes
+  std::vector<PayloadDesc> aleg_payload_order;
+  std::vector<PayloadDesc> bleg_payload_order;
+  bool readPayloadOrder(std::vector<PayloadDesc> &dst, const std::string &src);
+  void orderSDP(AmSdp& sdp, bool a_leg); // do the SDP changes
+  bool shouldOrderPayloads(bool a_leg); // returns if call to orderSDP is needed
 
   // todo: RTP transcoding mode
 
