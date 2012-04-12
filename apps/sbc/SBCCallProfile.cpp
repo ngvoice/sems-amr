@@ -801,11 +801,12 @@ void SBCCallProfile::orderSDP(AmSdp& sdp)
       // (not needed to go through already sorted members)
       for (idx = pos; idx < cnt; idx++) {
         if (i->match(media.payloads[idx])) {
-          // found, exchange elements at pos and idx
+          // found, insert found element at pos and delete the occurence on idx
+          // (can not swap these elements to avoid changing order of codecs
+          // which are not in the payload_order list)
           if (idx != pos) {
-            SdpPayload p = media.payloads[idx]; 
-            media.payloads[idx] = media.payloads[pos];
-            media.payloads[pos] = p;
+            media.payloads.insert(media.payloads.begin() + pos, media.payloads[idx]);
+            media.payloads.erase(media.payloads.begin() + idx + 1);
           }
 	
 	  ++pos; // next payload index
