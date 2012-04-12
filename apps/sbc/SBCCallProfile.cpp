@@ -288,7 +288,7 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
     sdpfilter = Transparent;
   }
   
-  if (!read(cfg.getParameter("transcoder_audio_codecs"), transcoder_audio_codecs)) 
+  if (!read(cfg.getParameter("transcoder_codecs"), transcoder_audio_codecs)) 
     return false;
   // TODO: verify that transcoder_audio_codecs are really supported natively!
 
