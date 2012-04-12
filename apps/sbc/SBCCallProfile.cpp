@@ -34,6 +34,7 @@
 
 #include "ampi/SBCCallControlAPI.h"
 #include "RTPParameters.h"
+#include "SDPFilter.h"
 
 typedef vector<SdpPayload>::iterator PayloadIterator;
 static string payload2str(SdpPayload &p);
@@ -291,6 +292,11 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
   if (!read(cfg.getParameter("transcoder_codecs"), transcoder_audio_codecs)) 
     return false;
   // TODO: verify that transcoder_audio_codecs are really supported natively!
+  
+  if (!readPayloadOrder(callee_codec_capabilities, 
+        cfg.getParameter("callee_codeccaps"))) return false;
+  
+  if (!readTranscoderMode(cfg.getParameter("enable_transcoder"))) return false;
 
   md5hash = "<unknown>";
   if (!cfg.getMD5(profile_file_name, md5hash)){
@@ -433,6 +439,21 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
     for (PayloadIterator i = transcoder_audio_codecs.begin(); i != transcoder_audio_codecs.end(); ++i)
       INFO("SBC:         - %s\n", payload2str(*i).c_str());
   }
+  if (callee_codec_capabilities.size() > 0) {
+    INFO("SBC:      callee codec capabilities:\n");
+    for (vector<PayloadDesc>::iterator i = callee_codec_capabilities.begin(); 
+        i != callee_codec_capabilities.end(); ++i)
+    {
+      INFO("SBC:         - %s\n", i->print().c_str());
+    }
+  }
+  string s("?");
+  switch (transcoder_mode) {
+    case Always: s = "always"; break;
+    case Never: s = "never"; break;
+    case OnMissingCompatible: s = "on_missing_compatible"; break;
+  }
+  INFO("SBC:      enable transcoder: %s\n", s.c_str());
 
   return true;
 }
@@ -586,6 +607,34 @@ static bool str2bool(const string &s, bool &dst)
   return false;
 }
 
+static bool isTranscoderNeeded(const AmSipRequest& req, vector<PayloadDesc> &caps, bool default_value)
+{
+  const AmMimeBody* body = req.body.hasContentType(SIP_APPLICATION_SDP);
+  if (!body) return default_value;
+
+  AmSdp sdp;
+  int res = sdp.parse((const char *)body->getPayload());
+  if (res != 0) {
+    DBG("SDP parsing failed!\n");
+    return default_value;
+  }
+  
+  // not nice, but we need to compare codec names and thus normalized SDP is
+  // required
+  normalizeSDP(sdp, false);
+
+  // go through payloads and try find one of the supported ones
+  for (vector<SdpMedia>::iterator m = sdp.media.begin(); m != sdp.media.end(); ++m) { 
+    for (vector<SdpPayload>::iterator p = m->payloads.begin(); p != m->payloads.end(); ++p) {
+      for (vector<PayloadDesc>::iterator i = caps.begin(); i != caps.end(); ++i) {
+        if (i->match(*p)) return false; // found compatible codec
+      }
+    }
+  }
+
+  return true; // no compatible codec found, transcoding needed
+}
+
 bool SBCCallProfile::evaluate(const AmSipRequest& req,
     const string& app_param,
     AmUriParser& ruri_parser, AmUriParser& from_parser,
@@ -729,6 +778,22 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
 
   REPLACE_IFACE(outbound_interface, outbound_interface_value);
 
+  // enable transcoder according to transcoder mode and optionally request's SDP
+  switch (transcoder_mode) {
+    case Always: transcoder_enabled = true; break;
+    case Never: transcoder_enabled = false; break;
+    case OnMissingCompatible: 
+      transcoder_enabled = isTranscoderNeeded(req, callee_codec_capabilities, 
+                                 true /* if SDP can't be analyzed, enable transcoder */); 
+      break;
+  }
+  ERROR("transcoder %s\n", transcoder_enabled ? "enabled" : "disabled");
+
+  if (transcoder_enabled && transcoder_audio_codecs.empty()) {
+    ERROR("transcoder is enabled but no transcoder codecs selected ... disabling it\n");
+    transcoder_enabled = false;
+  }
+
   #undef REPLACE_VALS
   #undef REPLACE_STR
   #undef REPLACE_NONEMPTY_STR
@@ -840,6 +905,21 @@ bool SBCCallProfile::shouldOrderPayloads(bool a_leg)
   // have to order payloads)
   if (a_leg) return !bleg_payload_order.empty();
   else return !aleg_payload_order.empty();
+}
+
+bool SBCCallProfile::readTranscoderMode(const std::string &src)
+{
+  static const string always("always");
+  static const string never("never");
+  static const string on_missing_compatible("on_missing_compatible");
+
+  if (src == always) { transcoder_mode = Always; return true; }
+  if (src == never) { transcoder_mode = Never; return true; }
+  if (src == on_missing_compatible) { transcoder_mode = OnMissingCompatible; return true; }
+  if (src.empty()) { transcoder_mode = Never; return true; } // like default value
+  ERROR("unknown value of enable_transcoder option: %s\n", src.c_str());
+
+  return false;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

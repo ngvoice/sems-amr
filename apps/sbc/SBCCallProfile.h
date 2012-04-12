@@ -147,8 +147,13 @@ struct SBCCallProfile
 
   string outbound_interface;
   int outbound_interface_value;
-
+ 
+  std::vector<PayloadDesc> callee_codec_capabilities;
   std::vector<SdpPayload> transcoder_audio_codecs;
+  enum { Always, OnMissingCompatible, Never } transcoder_mode;
+  bool readTranscoderMode(const std::string &src);
+  
+  bool transcoder_enabled;
 
   std::vector<PayloadDesc> aleg_payload_order;
   std::vector<PayloadDesc> bleg_payload_order;

@@ -118,12 +118,13 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
   if (call_profile.shouldOrderPayloads(a_leg)) {
     normalizeSDP(sdp, call_profile.anonymize_sdp);
     call_profile.orderSDP(sdp, a_leg);
+    changed = true;
   }
 
   // Add transcoder codecs before filtering because otherwise SDP filter could
   // inactivate some media lines which shouldn't be inactivated.
 
-  if (call_profile.transcoder_audio_codecs.size() > 0) {
+  if (call_profile.transcoder_enabled) {
     if (!changed) // otherwise already normalized
       normalizeSDP(sdp, call_profile.anonymize_sdp);
     appendTranscoderCodecs(sdp, MT_AUDIO, call_profile.transcoder_audio_codecs);
