@@ -147,29 +147,52 @@ struct SBCCallProfile
 
   string outbound_interface;
   int outbound_interface_value;
- 
-  std::vector<PayloadDesc> callee_codec_capabilities;
-  std::vector<SdpPayload> transcoder_audio_codecs;
-  enum { Always, OnMissingCompatible, Never } transcoder_mode;
-  bool readTranscoderMode(const std::string &src);
-  
-  bool transcoder_enabled;
 
-  /** when reordering payloads in relayed SDP from B leg to A leg prefer already
-   * present payloads to the added ones by transcoder; i.e. transcoder codecs
-   * are not ordered but added after ordering is done */
-  bool aleg_prefer_existing_payloads;
-  std::vector<PayloadDesc> aleg_payload_order;
+  struct TranscoderSettings {
+    std::vector<PayloadDesc> callee_codec_capabilities;
+    std::vector<SdpPayload> audio_codecs;
+    enum { Always, OnMissingCompatible, Never } transcoder_mode;
+    bool readTranscoderMode(const std::string &src);
   
-  /** when reordering payloads in relayed SDP from A leg to B leg prefer already
-   * present payloads to the added ones by transcoder; i.e. transcoder codecs
-   * are not ordered but added after ordering is done */
-  bool bleg_prefer_existing_payloads;
-  std::vector<PayloadDesc> bleg_payload_order;
+    bool enabled;
+    
+    bool evaluate(const AmSipRequest& req);
+    bool readConfig(AmConfigReader &cfg);
+    void infoPrint() const;
+    bool operator==(const TranscoderSettings& rhs) const;
+    string print() const;
 
-  bool readPayloadOrder(std::vector<PayloadDesc> &dst, const std::string &src);
-  void orderSDP(AmSdp& sdp, bool a_leg); // do the SDP changes
-  bool shouldOrderPayloads(bool a_leg); // returns if call to orderSDP is needed
+    bool isActive() { return enabled; }
+  } transcoder;
+
+  struct CodecPreferences {
+    /** when reordering payloads in relayed SDP from B leg to A leg prefer already
+     * present payloads to the added ones by transcoder; i.e. transcoder codecs
+     * are not ordered but added after ordering is done */
+    bool aleg_prefer_existing_payloads;
+    std::vector<PayloadDesc> aleg_payload_order;
+    
+    /** when reordering payloads in relayed SDP from A leg to B leg prefer already
+     * present payloads to the added ones by transcoder; i.e. transcoder codecs
+     * are not ordered but added after ordering is done */
+    bool bleg_prefer_existing_payloads;
+    std::vector<PayloadDesc> bleg_payload_order;
+
+    bool readConfig(AmConfigReader &cfg);
+    void infoPrint() const;
+    bool operator==(const CodecPreferences& rhs) const;
+    string print() const;
+  
+    void orderSDP(AmSdp& sdp, bool a_leg); // do the SDP changes
+    bool shouldOrderPayloads(bool a_leg); // returns if call to orderSDP is needed
+
+    // return true if ordering should be done before adding transcoder codecs
+    bool preferExistingCodecs(bool a_leg) {
+      return a_leg ? bleg_prefer_existing_payloads : aleg_prefer_existing_payloads;
+    }
+
+    bool evaluate(const AmSipRequest& req);
+  } codec_prefs;
 
   // todo: RTP transcoding mode
 
@@ -204,8 +227,6 @@ struct SBCCallProfile
       const string& app_param,
       AmUriParser& ruri_parser, AmUriParser& from_parser,
       AmUriParser& to_parser);
-
-  bool read(const std::string &src, vector<SdpPayload> &codecs);
 };
 
 #endif // _SBCCallProfile_h

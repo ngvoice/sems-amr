@@ -37,7 +37,7 @@
 #include "SDPFilter.h"
 
 typedef vector<SdpPayload>::iterator PayloadIterator;
-static string payload2str(SdpPayload &p);
+static string payload2str(const SdpPayload &p);
 
 bool SBCCallProfile::readFromConfiguration(const string& name,
 					   const string profile_file_name) {
@@ -282,25 +282,8 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
 
   outbound_interface = cfg.getParameter("outbound_interface");
 
-  if (!readPayloadOrder(bleg_payload_order, cfg.getParameter("codec_preference"))) return false;
-  bleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs") == "yes";
-
-  if (!readPayloadOrder(aleg_payload_order, cfg.getParameter("codec_preference_aleg"))) return false;
-  aleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs_aleg") == "yes";
-
-  if ((!aleg_payload_order.empty() || !bleg_payload_order.empty()) && (!sdpfilter_enabled)) {
-    sdpfilter_enabled = true;
-    sdpfilter = Transparent;
-  }
-  
-  if (!read(cfg.getParameter("transcoder_codecs"), transcoder_audio_codecs)) 
-    return false;
-  // TODO: verify that transcoder_audio_codecs are really supported natively!
-  
-  if (!readPayloadOrder(callee_codec_capabilities, 
-        cfg.getParameter("callee_codeccaps"))) return false;
-  
-  if (!readTranscoderMode(cfg.getParameter("enable_transcoder"))) return false;
+  if (!codec_prefs.readConfig(cfg)) return false;
+  if (!transcoder.readConfig(cfg)) return false;
 
   md5hash = "<unknown>";
   if (!cfg.getMD5(profile_file_name, md5hash)){
@@ -426,40 +409,8 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
     INFO("SBC:      append headers '%s'\n", append_headers.c_str());
   }
 
-  if (aleg_payload_order.size() > 0) {
-    INFO("SBC:      A leg codec preference: %s prefer existing codecs\n", 
-        aleg_prefer_existing_payloads ? "" : "do not");
-    for (vector<PayloadDesc>::iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i)
-      INFO("SBC:         - %s\n", i->print().c_str());
-  }
-  
-  if (bleg_payload_order.size() > 0) {
-    INFO("SBC:      B leg codec preference: %s prefer existing codecs\n", 
-        bleg_prefer_existing_payloads ? "" : "do not");
-    for (vector<PayloadDesc>::iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i)
-      INFO("SBC:         - %s\n", i->print().c_str());
-  }
-
-  if (transcoder_audio_codecs.size() > 0) {
-    INFO("SBC:      transcode audio:\n");
-    for (PayloadIterator i = transcoder_audio_codecs.begin(); i != transcoder_audio_codecs.end(); ++i)
-      INFO("SBC:         - %s\n", payload2str(*i).c_str());
-  }
-  if (callee_codec_capabilities.size() > 0) {
-    INFO("SBC:      callee codec capabilities:\n");
-    for (vector<PayloadDesc>::iterator i = callee_codec_capabilities.begin(); 
-        i != callee_codec_capabilities.end(); ++i)
-    {
-      INFO("SBC:         - %s\n", i->print().c_str());
-    }
-  }
-  string s("?");
-  switch (transcoder_mode) {
-    case Always: s = "always"; break;
-    case Never: s = "never"; break;
-    case OnMissingCompatible: s = "on_missing_compatible"; break;
-  }
-  INFO("SBC:      enable transcoder: %s\n", s.c_str());
+  codec_prefs.infoPrint();
+  transcoder.infoPrint();
 
   return true;
 }
@@ -522,9 +473,8 @@ bool SBCCallProfile::operator==(const SBCCallProfile& rhs) const {
       auth_aleg_credentials.user == rhs.auth_aleg_credentials.user &&
       auth_aleg_credentials.pwd == rhs.auth_aleg_credentials.pwd;
   }
-  res = res && payloadDescsEqual(aleg_payload_order, rhs.aleg_payload_order);
-  res = res && payloadDescsEqual(bleg_payload_order, rhs.bleg_payload_order);
-  // TODO: transcoder_audio_codecs
+  res = res && (codec_prefs == rhs.codec_prefs);
+  res = res && (transcoder == rhs.transcoder);
   return res;
 }
 
@@ -569,19 +519,9 @@ string SBCCallProfile::print() const {
   res += "rtprelay_enabled:     " + string(rtprelay_enabled?"true":"false") + "\n";
   res += "force_symmetric_rtp:  " + force_symmetric_rtp;
   res += "msgflags_symmetric_rtp: " + string(msgflags_symmetric_rtp?"true":"false") + "\n";
-  res += "codec_preference:     ";
-  for (vector<PayloadDesc>::const_iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i) {
-    if (i != bleg_payload_order.begin()) res += ",";
-    res += i->print();
-  }
-  res += "codec_preference_aleg:    ";
-  for (vector<PayloadDesc>::const_iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i) {
-    if (i != aleg_payload_order.begin()) res += ",";
-    res += i->print();
-  }
-  res += "\n";
-  // TODO: transcoder_audio_codecs
-
+  
+  res += codec_prefs.print();
+  res += transcoder.print();
 
   if (reply_translations.size()) {
     string reply_trans_codes;
@@ -784,21 +724,14 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
 
   REPLACE_IFACE(outbound_interface, outbound_interface_value);
 
-  // enable transcoder according to transcoder mode and optionally request's SDP
-  switch (transcoder_mode) {
-    case Always: transcoder_enabled = true; break;
-    case Never: transcoder_enabled = false; break;
-    case OnMissingCompatible: 
-      transcoder_enabled = isTranscoderNeeded(req, callee_codec_capabilities, 
-                                 true /* if SDP can't be analyzed, enable transcoder */); 
-      break;
-  }
-  ERROR("transcoder %s\n", transcoder_enabled ? "enabled" : "disabled");
+  if (!transcoder.evaluate(req)) return false;
 
-  if (transcoder_enabled && transcoder_audio_codecs.empty()) {
-    ERROR("transcoder is enabled but no transcoder codecs selected ... disabling it\n");
-    transcoder_enabled = false;
-  }
+  // TODO: activate filter if transcoder or codec_pres set?
+/*  if ((!aleg_payload_order.empty() || !bleg_payload_order.empty()) && (!sdpfilter_enabled)) {
+    sdpfilter_enabled = true;
+    sdpfilter = Transparent;
+  }*/
+ 
 
   #undef REPLACE_VALS
   #undef REPLACE_STR
@@ -811,7 +744,7 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
 }
 
 
-bool SBCCallProfile::readPayloadOrder(std::vector<PayloadDesc> &dst, const std::string &src)
+static bool readPayloadList(std::vector<PayloadDesc> &dst, const std::string &src)
 {
   dst.clear();
   vector<string> elems = explode(src, ",");
@@ -846,7 +779,7 @@ static bool readPayload(SdpPayload &p, const string &src)
   return true;
 }
 
-static string payload2str(SdpPayload &p)
+static string payload2str(const SdpPayload &p)
 {
   string s(p.encoding_name);
   s += "/";
@@ -854,7 +787,7 @@ static string payload2str(SdpPayload &p)
   return s;
 }
 
-bool SBCCallProfile::read(const std::string &src, vector<SdpPayload> &codecs)
+static bool read(const std::string &src, vector<SdpPayload> &codecs)
 {
   vector<string> elems = explode(src, ",");
 
@@ -866,7 +799,9 @@ bool SBCCallProfile::read(const std::string &src, vector<SdpPayload> &codecs)
   return true;
 }
 
-void SBCCallProfile::orderSDP(AmSdp& sdp, bool a_leg)
+//////////////////////////////////////////////////////////////////////////////////
+
+void SBCCallProfile::CodecPreferences::orderSDP(AmSdp& sdp, bool a_leg)
 {
   // get order of payloads for the other leg!
   std::vector<PayloadDesc> &payload_order = a_leg ? bleg_payload_order: aleg_payload_order;
@@ -905,7 +840,7 @@ void SBCCallProfile::orderSDP(AmSdp& sdp, bool a_leg)
   }
 }
 
-bool SBCCallProfile::shouldOrderPayloads(bool a_leg)
+bool SBCCallProfile::CodecPreferences::shouldOrderPayloads(bool a_leg)
 {
   // returns true if order of payloads for the other leg is set! (i.e. if we
   // have to order payloads)
@@ -913,7 +848,68 @@ bool SBCCallProfile::shouldOrderPayloads(bool a_leg)
   else return !aleg_payload_order.empty();
 }
 
-bool SBCCallProfile::readTranscoderMode(const std::string &src)
+bool SBCCallProfile::CodecPreferences::readConfig(AmConfigReader &cfg)
+{
+  if (!readPayloadList(bleg_payload_order, cfg.getParameter("codec_preference"))) return false;
+  bleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs") == "yes";
+
+  if (!readPayloadList(aleg_payload_order, cfg.getParameter("codec_preference_aleg"))) return false;
+  aleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs_aleg") == "yes";
+
+  return true;
+}
+
+void SBCCallProfile::CodecPreferences::infoPrint() const
+{
+  if (aleg_payload_order.size() > 0) {
+    INFO("SBC:      A leg codec preference: %s prefer existing codecs\n", 
+        aleg_prefer_existing_payloads ? "" : "do not");
+    for (vector<PayloadDesc>::const_iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i)
+      INFO("SBC:         - %s\n", i->print().c_str());
+  }
+  
+  if (bleg_payload_order.size() > 0) {
+    INFO("SBC:      B leg codec preference: %s prefer existing codecs\n", 
+        bleg_prefer_existing_payloads ? "" : "do not");
+    for (vector<PayloadDesc>::const_iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i)
+      INFO("SBC:         - %s\n", i->print().c_str());
+  }
+}
+
+bool SBCCallProfile::CodecPreferences::operator==(const CodecPreferences& rhs) const
+{
+  if (!payloadDescsEqual(aleg_payload_order, rhs.aleg_payload_order)) return false;
+  if (!payloadDescsEqual(bleg_payload_order, rhs.bleg_payload_order)) return false;
+  // TODO
+  return true;
+}
+
+string SBCCallProfile::CodecPreferences::print() const
+{
+  string res;
+
+  res += "codec_preference:     ";
+  for (vector<PayloadDesc>::const_iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i) {
+    if (i != bleg_payload_order.begin()) res += ",";
+    res += i->print();
+  }
+  res += "\n";
+
+  res += "codec_preference_aleg:    ";
+  for (vector<PayloadDesc>::const_iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i) {
+    if (i != aleg_payload_order.begin()) res += ",";
+    res += i->print();
+  }
+  res += "\n";
+
+  // TODO:
+
+  return res;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+bool SBCCallProfile::TranscoderSettings::readTranscoderMode(const std::string &src)
 {
   static const string always("always");
   static const string never("never");
@@ -926,6 +922,78 @@ bool SBCCallProfile::readTranscoderMode(const std::string &src)
   ERROR("unknown value of enable_transcoder option: %s\n", src.c_str());
 
   return false;
+}
+
+void SBCCallProfile::TranscoderSettings::infoPrint() const
+{
+  if (audio_codecs.size() > 0) {
+    INFO("SBC:      transcode audio:\n");
+    for (vector<SdpPayload>::const_iterator i = audio_codecs.begin(); i != audio_codecs.end(); ++i)
+      INFO("SBC:         - %s\n", payload2str(*i).c_str());
+  }
+  if (callee_codec_capabilities.size() > 0) {
+    INFO("SBC:      callee codec capabilities:\n");
+    for (vector<PayloadDesc>::const_iterator i = callee_codec_capabilities.begin(); 
+        i != callee_codec_capabilities.end(); ++i)
+    {
+      INFO("SBC:         - %s\n", i->print().c_str());
+    }
+  }
+  string s("?");
+  switch (transcoder_mode) {
+    case Always: s = "always"; break;
+    case Never: s = "never"; break;
+    case OnMissingCompatible: s = "on_missing_compatible"; break;
+  }
+  INFO("SBC:      enable transcoder: %s\n", s.c_str());
+}
+
+bool SBCCallProfile::TranscoderSettings::readConfig(AmConfigReader &cfg)
+{
+  if (!read(cfg.getParameter("transcoder_codecs"), audio_codecs)) 
+    return false;
+  // TODO: verify that transcoder_audio_codecs are really supported natively!
+  
+  if (!readPayloadList(callee_codec_capabilities, 
+        cfg.getParameter("callee_codeccaps"))) return false;
+  
+  if (!readTranscoderMode(cfg.getParameter("enable_transcoder"))) return false;
+
+  return true;
+}
+
+bool SBCCallProfile::TranscoderSettings::operator==(const TranscoderSettings& rhs) const
+{
+  // TODO:transcoder_audio_codecs, mode, ...
+  return true;
+}
+
+string SBCCallProfile::TranscoderSettings::print() const
+{
+  string res;
+  // TODO: transcoder_audio_codecs, mode, ...
+  return res;
+}
+  
+bool SBCCallProfile::TranscoderSettings::evaluate(const AmSipRequest &req)
+{
+  // enable transcoder according to transcoder mode and optionally request's SDP
+  switch (transcoder_mode) {
+    case Always: enabled = true; break;
+    case Never: enabled = false; break;
+    case OnMissingCompatible: 
+      enabled = isTranscoderNeeded(req, callee_codec_capabilities, 
+                                 true /* if SDP can't be analyzed, enable transcoder */); 
+      break;
+  }
+  ERROR("transcoder %s\n", enabled ? "enabled" : "disabled");
+
+  if (enabled && audio_codecs.empty()) {
+    ERROR("transcoder is enabled but no transcoder codecs selected ... disabling it\n");
+    enabled = false;
+  }
+
+  return true;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

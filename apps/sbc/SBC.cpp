@@ -112,17 +112,15 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
 {
   bool changed = false;
 
-  bool prefer_existing_codecs = a_leg ? 
-    call_profile.bleg_prefer_existing_payloads : 
-    call_profile.aleg_prefer_existing_payloads;
+  bool prefer_existing_codecs = call_profile.codec_prefs.preferExistingCodecs(a_leg);
 
   if (prefer_existing_codecs) {
     // We have to order payloads before adding transcoder codecs to leave
     // transcoding as the last chance (existing codecs are preferred thus
     // relaying will be used if possible).
-    if (call_profile.shouldOrderPayloads(a_leg)) {
+    if (call_profile.codec_prefs.shouldOrderPayloads(a_leg)) {
       normalizeSDP(sdp, call_profile.anonymize_sdp);
-      call_profile.orderSDP(sdp, a_leg);
+      call_profile.codec_prefs.orderSDP(sdp, a_leg);
       changed = true;
     }
   }
@@ -130,10 +128,10 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
   // Add transcoder codecs before filtering because otherwise SDP filter could
   // inactivate some media lines which shouldn't be inactivated.
 
-  if (call_profile.transcoder_enabled) {
+  if (call_profile.transcoder.isActive()) {
     if (!changed) // otherwise already normalized
       normalizeSDP(sdp, call_profile.anonymize_sdp);
-    appendTranscoderCodecs(sdp, MT_AUDIO, call_profile.transcoder_audio_codecs);
+    appendTranscoderCodecs(sdp, MT_AUDIO, call_profile.transcoder.audio_codecs);
     changed = true;
   }
   
@@ -141,9 +139,9 @@ static bool doFiltering(AmSdp &sdp, SBCCallProfile &call_profile, bool a_leg)
     // existing codecs are not preferred - reorder AFTER adding transcoder
     // codecs so it might happen that transcoding will be forced though relaying
     // would be possible
-    if (call_profile.shouldOrderPayloads(a_leg)) {
+    if (call_profile.codec_prefs.shouldOrderPayloads(a_leg)) {
       if (!changed) normalizeSDP(sdp, call_profile.anonymize_sdp);
-      call_profile.orderSDP(sdp, a_leg);
+      call_profile.codec_prefs.orderSDP(sdp, a_leg);
       changed = true;
     }
   }
@@ -902,7 +900,7 @@ void SBCDialog::onInvite(const AmSipRequest& req)
   to = call_profile.to.empty() ? req.to : call_profile.to;
   callid = call_profile.callid;
 
-  if (call_profile.rtprelay_enabled || call_profile.transcoder_audio_codecs.size()) {
+  if (call_profile.rtprelay_enabled || call_profile.transcoder.isActive()) {
     DBG("Enabling RTP relay mode for SBC call\n");
 
     if (call_profile.force_symmetric_rtp_value) {
