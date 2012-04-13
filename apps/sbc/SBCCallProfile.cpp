@@ -283,7 +283,11 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
   outbound_interface = cfg.getParameter("outbound_interface");
 
   if (!readPayloadOrder(bleg_payload_order, cfg.getParameter("codec_preference"))) return false;
+  bleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs") == "yes";
+
   if (!readPayloadOrder(aleg_payload_order, cfg.getParameter("codec_preference_aleg"))) return false;
+  aleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs_aleg") == "yes";
+
   if ((!aleg_payload_order.empty() || !bleg_payload_order.empty()) && (!sdpfilter_enabled)) {
     sdpfilter_enabled = true;
     sdpfilter = Transparent;
@@ -423,13 +427,15 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
   }
 
   if (aleg_payload_order.size() > 0) {
-    INFO("SBC:      A leg codec preference:\n");
+    INFO("SBC:      A leg codec preference: %s prefer existing codecs\n", 
+        aleg_prefer_existing_payloads ? "" : "do not");
     for (vector<PayloadDesc>::iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i)
       INFO("SBC:         - %s\n", i->print().c_str());
   }
   
   if (bleg_payload_order.size() > 0) {
-    INFO("SBC:      B leg codec preference:\n");
+    INFO("SBC:      B leg codec preference: %s prefer existing codecs\n", 
+        bleg_prefer_existing_payloads ? "" : "do not");
     for (vector<PayloadDesc>::iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i)
       INFO("SBC:         - %s\n", i->print().c_str());
   }

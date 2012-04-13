@@ -155,8 +155,18 @@ struct SBCCallProfile
   
   bool transcoder_enabled;
 
+  /** when reordering payloads in relayed SDP from B leg to A leg prefer already
+   * present payloads to the added ones by transcoder; i.e. transcoder codecs
+   * are not ordered but added after ordering is done */
+  bool aleg_prefer_existing_payloads;
   std::vector<PayloadDesc> aleg_payload_order;
+  
+  /** when reordering payloads in relayed SDP from A leg to B leg prefer already
+   * present payloads to the added ones by transcoder; i.e. transcoder codecs
+   * are not ordered but added after ordering is done */
+  bool bleg_prefer_existing_payloads;
   std::vector<PayloadDesc> bleg_payload_order;
+
   bool readPayloadOrder(std::vector<PayloadDesc> &dst, const std::string &src);
   void orderSDP(AmSdp& sdp, bool a_leg); // do the SDP changes
   bool shouldOrderPayloads(bool a_leg); // returns if call to orderSDP is needed
