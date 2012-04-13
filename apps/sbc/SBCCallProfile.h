@@ -149,6 +149,9 @@ struct SBCCallProfile
   int outbound_interface_value;
 
   struct TranscoderSettings {
+    // non-replaced parameters
+    string callee_codec_capabilities_str, audio_codecs_str, transcoder_mode_str;
+
     std::vector<PayloadDesc> callee_codec_capabilities;
     std::vector<SdpPayload> audio_codecs;
     enum { Always, OnMissingCompatible, Never } transcoder_mode;
@@ -156,7 +159,12 @@ struct SBCCallProfile
   
     bool enabled;
     
-    bool evaluate(const AmSipRequest& req);
+    bool evaluate(const AmSipRequest& req, 
+                  const string& app_param, 
+                  AmUriParser& ruri_parser, 
+                  AmUriParser& from_parser, 
+                  AmUriParser& to_parser);
+
     bool readConfig(AmConfigReader &cfg);
     void infoPrint() const;
     bool operator==(const TranscoderSettings& rhs) const;

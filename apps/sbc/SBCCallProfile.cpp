@@ -729,10 +729,10 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
 
   REPLACE_IFACE(outbound_interface, outbound_interface_value);
 
-  if (!transcoder.evaluate(req)) return false;
+  if (!transcoder.evaluate(REPLACE_VALS)) return false;
   if (!codec_prefs.evaluate(REPLACE_VALS)) return false;
 
-  // TODO: activate filter if transcoder or codec_pres set?
+  // TODO: activate filter if transcoder or codec_prefs is set?
 /*  if ((!aleg_payload_order.empty() || !bleg_payload_order.empty()) && (!sdpfilter_enabled)) {
     sdpfilter_enabled = true;
     sdpfilter = Transparent;
@@ -964,14 +964,10 @@ void SBCCallProfile::TranscoderSettings::infoPrint() const
 
 bool SBCCallProfile::TranscoderSettings::readConfig(AmConfigReader &cfg)
 {
-  if (!read(cfg.getParameter("transcoder_codecs"), audio_codecs)) 
-    return false;
-  // TODO: verify that transcoder_audio_codecs are really supported natively!
-  
-  if (!readPayloadList(callee_codec_capabilities, 
-        cfg.getParameter("callee_codeccaps"))) return false;
-  
-  if (!readTranscoderMode(cfg.getParameter("enable_transcoder"))) return false;
+  // store string values for later evaluation
+  audio_codecs_str = cfg.getParameter("transcoder_codecs");
+  callee_codec_capabilities_str = cfg.getParameter("callee_codeccaps");
+  transcoder_mode_str = cfg.getParameter("enable_transcoder");
 
   return true;
 }
@@ -989,8 +985,24 @@ string SBCCallProfile::TranscoderSettings::print() const
   return res;
 }
   
-bool SBCCallProfile::TranscoderSettings::evaluate(const AmSipRequest &req)
+bool SBCCallProfile::TranscoderSettings::evaluate(const AmSipRequest& req,
+    const string& app_param,
+    AmUriParser& ruri_parser, AmUriParser& from_parser,
+    AmUriParser& to_parser)
 {
+  REPLACE_NONEMPTY_STR(transcoder_mode_str);
+  REPLACE_NONEMPTY_STR(audio_codecs_str);
+  REPLACE_NONEMPTY_STR(callee_codec_capabilities_str);
+
+  if (!read(audio_codecs_str, audio_codecs)) return false;
+
+  // TODO: verify that transcoder_audio_codecs are really supported natively!
+  
+  if (!readPayloadList(callee_codec_capabilities, callee_codec_capabilities_str)) 
+    return false;
+  
+  if (!readTranscoderMode(transcoder_mode_str)) return false;
+
   // enable transcoder according to transcoder mode and optionally request's SDP
   switch (transcoder_mode) {
     case Always: enabled = true; break;
@@ -1000,7 +1012,6 @@ bool SBCCallProfile::TranscoderSettings::evaluate(const AmSipRequest &req)
                                  true /* if SDP can't be analyzed, enable transcoder */); 
       break;
   }
-  ERROR("transcoder %s\n", enabled ? "enabled" : "disabled");
 
   if (enabled && audio_codecs.empty()) {
     ERROR("transcoder is enabled but no transcoder codecs selected ... disabling it\n");
