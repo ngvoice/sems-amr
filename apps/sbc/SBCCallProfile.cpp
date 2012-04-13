@@ -39,6 +39,74 @@
 typedef vector<SdpPayload>::iterator PayloadIterator;
 static string payload2str(const SdpPayload &p);
 
+
+//////////////////////////////////////////////////////////////////////////////////
+// helper defines for parameter evaluation
+
+#define REPLACE_VALS req, app_param, ruri_parser, from_parser, to_parser
+
+// FIXME: r_type in replaceParameters is just for debug output?
+
+#define REPLACE_STR(what) do { \
+  what = replaceParameters(what, #what, REPLACE_VALS); \
+  DBG(#what " = '%s'\n", what.c_str()); \
+} while(0)
+
+#define REPLACE_NONEMPTY_STR(what) do { \
+  if (!what.empty()) { \
+    REPLACE_STR(what); \
+  } \
+} while(0)
+
+#define REPLACE_NUM(what, dst_num) do { \
+  if (!what.empty()) { \
+    what = replaceParameters(what, #what, REPLACE_VALS); \
+    unsigned int num; \
+    if (str2i(what, num)) { \
+      ERROR(#what " '%s' not understood\n", what.c_str()); \
+      return false; \
+    } \
+    DBG(#what " = '%s'\n", what.c_str()); \
+    dst_num = num; \
+  } \
+} while(0)
+
+#define REPLACE_BOOL(what, dst_value) do { \
+  if (!what.empty()) { \
+    what = replaceParameters(what, #what, REPLACE_VALS); \
+    if (!what.empty()) { \
+      if (!str2bool(what, dst_value)) { \
+      ERROR(#what " '%s' not understood\n", what.c_str()); \
+        return false; \
+      } \
+    } \
+    DBG(#what " = '%s'\n", dst_value ? "yes" : "no"); \
+  } \
+} while(0)
+
+#define REPLACE_IFACE(what, iface) do { \
+  if (!what.empty()) { \
+    what = replaceParameters(what, #what, REPLACE_VALS); \
+    DBG("set " #what " to '%s'\n", what.c_str()); \
+    if (!what.empty()) { \
+      if (what == "default") iface = 0; \
+      else { \
+        map<string,unsigned short>::iterator name_it = AmConfig::If_names.find(what); \
+        if (name_it != AmConfig::If_names.end()) iface = name_it->second; \
+        else { \
+          ERROR("selected " #what " '%s' does not exist as an interface. " \
+              "Please check the 'additional_interfaces' " \
+              "parameter in the main configuration file.", \
+              what.c_str()); \
+          return false; \
+        } \
+      } \
+    } \
+  } \
+} while(0)
+
+//////////////////////////////////////////////////////////////////////////////////
+
 bool SBCCallProfile::readFromConfiguration(const string& name,
 					   const string profile_file_name) {
   AmConfigReader cfg;
@@ -586,69 +654,6 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
     AmUriParser& ruri_parser, AmUriParser& from_parser,
     AmUriParser& to_parser)
 {
-  #define REPLACE_VALS req, app_param, ruri_parser, from_parser, to_parser
-
-  // FIXME: r_type in replaceParameters is just for debug output?
-
-  #define REPLACE_STR(what) do { \
-    what = replaceParameters(what, #what, REPLACE_VALS); \
-    DBG(#what " = '%s'\n", what.c_str()); \
-  } while(0)
-
-  #define REPLACE_NONEMPTY_STR(what) do { \
-    if (!what.empty()) { \
-      REPLACE_STR(what); \
-    } \
-  } while(0)
-  
-  #define REPLACE_NUM(what, dst_num) do { \
-    if (!what.empty()) { \
-      what = replaceParameters(what, #what, REPLACE_VALS); \
-      unsigned int num; \
-      if (str2i(what, num)) { \
-	ERROR(#what " '%s' not understood\n", what.c_str()); \
-        return false; \
-      } \
-      DBG(#what " = '%s'\n", what.c_str()); \
-      dst_num = num; \
-    } \
-  } while(0)
-  
-  #define REPLACE_BOOL(what, dst_value) do { \
-    if (!what.empty()) { \
-      what = replaceParameters(what, #what, REPLACE_VALS); \
-      if (!what.empty()) { \
-        if (!str2bool(what, dst_value)) { \
-  	ERROR(#what " '%s' not understood\n", what.c_str()); \
-          return false; \
-        } \
-      } \
-      DBG(#what " = '%s'\n", dst_value ? "yes" : "no"); \
-    } \
-  } while(0)
-
-  #define REPLACE_IFACE(what, iface) do { \
-    if (!what.empty()) { \
-      what = replaceParameters(what, #what, REPLACE_VALS); \
-      DBG("set " #what " to '%s'\n", what.c_str()); \
-      if (!what.empty()) { \
-        if (what == "default") iface = 0; \
-        else { \
-          map<string,unsigned short>::iterator name_it = AmConfig::If_names.find(what); \
-          if (name_it != AmConfig::If_names.end()) iface = name_it->second; \
-          else { \
-            ERROR("selected " #what " '%s' does not exist as an interface. " \
-                "Please check the 'additional_interfaces' " \
-                "parameter in the main configuration file.", \
-                what.c_str()); \
-            return false; \
-          } \
-        } \
-      } \
-    } \
-  } while(0)
-
-
   REPLACE_NONEMPTY_STR(ruri);
   REPLACE_NONEMPTY_STR(from);
   REPLACE_NONEMPTY_STR(to);
@@ -725,20 +730,13 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
   REPLACE_IFACE(outbound_interface, outbound_interface_value);
 
   if (!transcoder.evaluate(req)) return false;
+  if (!codec_prefs.evaluate(REPLACE_VALS)) return false;
 
   // TODO: activate filter if transcoder or codec_pres set?
 /*  if ((!aleg_payload_order.empty() || !bleg_payload_order.empty()) && (!sdpfilter_enabled)) {
     sdpfilter_enabled = true;
     sdpfilter = Transparent;
   }*/
- 
-
-  #undef REPLACE_VALS
-  #undef REPLACE_STR
-  #undef REPLACE_NONEMPTY_STR
-  #undef REPLACE_NUM
-  #undef REPLACE_BOOL
-  #undef REPLACE_IFACE
 
   return true;
 }
@@ -850,37 +848,30 @@ bool SBCCallProfile::CodecPreferences::shouldOrderPayloads(bool a_leg)
 
 bool SBCCallProfile::CodecPreferences::readConfig(AmConfigReader &cfg)
 {
-  if (!readPayloadList(bleg_payload_order, cfg.getParameter("codec_preference"))) return false;
-  bleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs") == "yes";
-
-  if (!readPayloadList(aleg_payload_order, cfg.getParameter("codec_preference_aleg"))) return false;
-  aleg_prefer_existing_payloads = cfg.getParameter("prefer_existing_codecs_aleg") == "yes";
+  // store string values for later evaluation
+  bleg_payload_order_str = cfg.getParameter("codec_preference");
+  bleg_prefer_existing_payloads_str = cfg.getParameter("prefer_existing_codecs");
+  
+  aleg_payload_order_str = cfg.getParameter("codec_preference_aleg");
+  aleg_prefer_existing_payloads_str = cfg.getParameter("prefer_existing_codecs_aleg");
 
   return true;
 }
 
 void SBCCallProfile::CodecPreferences::infoPrint() const
 {
-  if (aleg_payload_order.size() > 0) {
-    INFO("SBC:      A leg codec preference: %s prefer existing codecs\n", 
-        aleg_prefer_existing_payloads ? "" : "do not");
-    for (vector<PayloadDesc>::const_iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i)
-      INFO("SBC:         - %s\n", i->print().c_str());
-  }
-  
-  if (bleg_payload_order.size() > 0) {
-    INFO("SBC:      B leg codec preference: %s prefer existing codecs\n", 
-        bleg_prefer_existing_payloads ? "" : "do not");
-    for (vector<PayloadDesc>::const_iterator i = bleg_payload_order.begin(); i != bleg_payload_order.end(); ++i)
-      INFO("SBC:         - %s\n", i->print().c_str());
-  }
+  INFO("SBC:      A leg codec preference: %s\n", aleg_payload_order_str.c_str());
+  INFO("SBC:      A leg prefer existing codecs: %s\n", aleg_prefer_existing_payloads_str.c_str());
+  INFO("SBC:      B leg codec preference: %s\n", bleg_payload_order_str.c_str());
+  INFO("SBC:      B leg prefer existing codecs: %s\n", bleg_prefer_existing_payloads_str.c_str());
 }
 
 bool SBCCallProfile::CodecPreferences::operator==(const CodecPreferences& rhs) const
 {
   if (!payloadDescsEqual(aleg_payload_order, rhs.aleg_payload_order)) return false;
   if (!payloadDescsEqual(bleg_payload_order, rhs.bleg_payload_order)) return false;
-  // TODO
+  if (aleg_prefer_existing_payloads != rhs.aleg_prefer_existing_payloads) return false;
+  if (bleg_prefer_existing_payloads != rhs.bleg_prefer_existing_payloads) return false;
   return true;
 }
 
@@ -894,6 +885,10 @@ string SBCCallProfile::CodecPreferences::print() const
     res += i->print();
   }
   res += "\n";
+  
+  res += "prefer_existing_codecs: ";
+  if (bleg_prefer_existing_payloads) res += "yes\n"; 
+  else res += "no\n";
 
   res += "codec_preference_aleg:    ";
   for (vector<PayloadDesc>::const_iterator i = aleg_payload_order.begin(); i != aleg_payload_order.end(); ++i) {
@@ -901,10 +896,29 @@ string SBCCallProfile::CodecPreferences::print() const
     res += i->print();
   }
   res += "\n";
-
-  // TODO:
+  
+  res += "prefer_existing_codecs_aleg: ";
+  if (aleg_prefer_existing_payloads) res += "yes\n"; 
+  else res += "no\n";
 
   return res;
+}
+
+bool SBCCallProfile::CodecPreferences::evaluate(const AmSipRequest& req,
+    const string& app_param,
+    AmUriParser& ruri_parser, AmUriParser& from_parser,
+    AmUriParser& to_parser)
+{
+  REPLACE_BOOL(aleg_prefer_existing_payloads_str, aleg_prefer_existing_payloads);
+  REPLACE_BOOL(bleg_prefer_existing_payloads_str, bleg_prefer_existing_payloads);
+  
+  REPLACE_NONEMPTY_STR(aleg_payload_order_str);
+  REPLACE_NONEMPTY_STR(bleg_payload_order_str);
+
+  if (!readPayloadList(bleg_payload_order, bleg_payload_order_str)) return false;
+  if (!readPayloadList(aleg_payload_order, aleg_payload_order_str)) return false;
+
+  return true;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

@@ -166,6 +166,10 @@ struct SBCCallProfile
   } transcoder;
 
   struct CodecPreferences {
+    // non-replaced parameters
+    string aleg_prefer_existing_payloads_str, aleg_payload_order_str;
+    string bleg_prefer_existing_payloads_str, bleg_payload_order_str;
+
     /** when reordering payloads in relayed SDP from B leg to A leg prefer already
      * present payloads to the added ones by transcoder; i.e. transcoder codecs
      * are not ordered but added after ordering is done */
@@ -191,7 +195,14 @@ struct SBCCallProfile
       return a_leg ? bleg_prefer_existing_payloads : aleg_prefer_existing_payloads;
     }
 
-    bool evaluate(const AmSipRequest& req);
+    bool evaluate(const AmSipRequest& req, 
+                  const string& app_param, 
+                  AmUriParser& ruri_parser, 
+                  AmUriParser& from_parser, 
+                  AmUriParser& to_parser);
+
+    // default settings
+    CodecPreferences(): aleg_prefer_existing_payloads(false) ,bleg_prefer_existing_payloads(false) { }
   } codec_prefs;
 
   // todo: RTP transcoding mode
