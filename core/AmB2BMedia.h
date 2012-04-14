@@ -182,6 +182,9 @@ class AmB2BMedia: public AmMediaSession
       AudioStreamPair(AmB2BSession *_a, AmB2BSession *_b): a(_a), b(_b) { }
     };
 
+    typedef std::vector<AudioStreamPair>::iterator AudioStreamIterator;
+    typedef std::vector<SdpMedia>::iterator SdpMediaIterator;
+
     /** Callgroup reqired by AmMediaProcessor to distinguish
      * AmMediaProcessorThread which should take care about media session.
      *

@@ -142,9 +142,6 @@ int AudioStreamData::writeStream(unsigned long long ts, unsigned char *buffer, A
 
 //////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<AmB2BMedia::AudioStreamPair>::iterator AudioStreamIterator;
-typedef std::vector<SdpMedia>::iterator SdpMediaIterator;
-
 AmB2BMedia::AmB2BMedia(AmB2BSession *_a, AmB2BSession *_b): 
   ref_cnt(0), // everybody who wants to use must add one reference itselves
   a(_a), b(_b),
