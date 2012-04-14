@@ -454,7 +454,7 @@ void WebConferenceDialog::setLocalInput(AmAudio* in)
   unlockAudio();
 }
 
-int WebConferenceDialog::readStreams(unsigned int ts, unsigned char *buffer) 
+int WebConferenceDialog::readStreams(unsigned long long ts, unsigned char *buffer) 
 { 
   int res = 0;
   lockAudio();

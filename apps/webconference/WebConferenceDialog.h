@@ -116,7 +116,7 @@ public:
   UACAuthCred* getCredentials() { return cred; }
 
   // overriden media processing (local_input)
-  virtual int readStreams(unsigned int ts, unsigned char *buffer);
+  virtual int readStreams(unsigned long long ts, unsigned char *buffer);
   virtual bool isAudioSet();
   virtual void clearAudio();
 };
