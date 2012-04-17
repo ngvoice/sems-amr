@@ -93,22 +93,33 @@ static void appendTranscoderCodecs(AmSdp &sdp, MediaType mtype, std::vector<SdpP
 
     // handle audio transcoder codecs
     if (m->type == mtype) {
+      // transcoder codecs can be added only if there are common payloads with
+      // the remote (only those allowed for transcoder)
+      // if there are no such common payloads adding transcoder codecs can't help
+      // because we won't be able to transcode later on!
+      // (we have to check for each media stream independently)
 
-      // find first unused dynamic payload number
+      // find first unused dynamic payload number & detect transcodable codecs
+      // in original SDP
       int id = 96;
+      bool transcodable = false;
       for (p = m->payloads.begin(); p != m->payloads.end(); ++p) {
         if (p->payload_type >= id) id = p->payload_type + 1;
+        if (containsPayload(transcoder_codecs, *p)) transcodable = true;
       }
 
-      for (p = transcoder_codecs.begin(); 
-           p != transcoder_codecs.end(); ++p) {
-        // add all payloads which are not already there
-        if (!containsPayload(m->payloads, *p)) {
-          m->payloads.push_back(*p);
-          if (p->payload_type < 0) m->payloads.back().payload_type = id++;
+      if (transcodable) {
+        // there are some transcodable codecs present in the SDP, we can safely
+        // add the other transcoder codecs to the SDP
+        for (p = transcoder_codecs.begin(); p != transcoder_codecs.end(); ++p) {
+          // add all payloads which are not already there
+          if (!containsPayload(m->payloads, *p)) {
+            m->payloads.push_back(*p);
+            if (p->payload_type < 0) m->payloads.back().payload_type = id++;
+          }
         }
+        if (id > 128) ERROR("assigned too high payload type number (%d), see RFC 3551\n", id);
       }
-      if (id > 128) ERROR("assigned too high payload type number (%d), see RFC 3551\n", id);
     }
   }
 }
