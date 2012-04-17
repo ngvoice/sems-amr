@@ -153,6 +153,12 @@ int AmRtpAudio::receive(unsigned long long system_ts)
   int size;
   unsigned int rtp_ts;
   int new_payload = -1;
+
+  if(!fmt.get()) {
+    DBG("audio format not initialized\n");
+    return RTP_ERROR;
+  }
+
   unsigned int wallclock_ts = scaleSystemTS(system_ts);
 
   while(true) {

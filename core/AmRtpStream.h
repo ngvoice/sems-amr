@@ -48,11 +48,12 @@ using std::pair;
 
 // return values of AmRtpStream::receive
 #define RTP_EMPTY        0 // no rtp packet available
-#define RTP_PARSE_ERROR -1 // error while parsing rtp packet
-#define RTP_TIMEOUT     -2 // last received packet is too old
-#define RTP_DTMF        -3 // dtmf packet has been received
-#define RTP_BUFFER_SIZE -4 // buffer overrun
-#define RTP_UNKNOWN_PL  -5 // unknown payload
+#define RTP_ERROR       -1 // generic error
+#define RTP_PARSE_ERROR -2 // error while parsing rtp packet
+#define RTP_TIMEOUT     -3 // last received packet is too old
+#define RTP_DTMF        -4 // dtmf packet has been received
+#define RTP_BUFFER_SIZE -5 // buffer overrun
+#define RTP_UNKNOWN_PL  -6 // unknown payload
 
 
 /**
