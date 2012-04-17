@@ -47,6 +47,7 @@ SBC - feature-wishlist
 #include "HeaderFilter.h"
 #include "ParamReplacer.h"
 #include "SDPFilter.h"
+#include <algorithm>
 
 using std::map;
 
@@ -63,8 +64,13 @@ DEFINE_MODULE_INSTANCE(SBCFactory, MOD_NAME);
 
 static bool containsPayload(const std::vector<SdpPayload>& payloads, const SdpPayload &payload)
 {
+  string pname = payload.encoding_name;
+  transform(pname.begin(), pname.end(), pname.begin(), ::tolower);
+
   for (vector<SdpPayload>::const_iterator p = payloads.begin(); p != payloads.end(); ++p) {
-    if (p->encoding_name != payload.encoding_name) continue;
+    string s = p->encoding_name;
+    transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s != pname) continue;
     if (p->clock_rate != payload.clock_rate) continue;
     if ((p->encoding_param >= 0) && (payload.encoding_param >= 0) && 
         (p->encoding_param != payload.encoding_param)) continue;

@@ -765,10 +765,15 @@ static bool readPayload(SdpPayload &p, const string &src)
   else p.clock_rate = 8000; // default value
   p.encoding_name = elems[0];
   
+  string pname = p.encoding_name;
+  transform(pname.begin(), pname.end(), pname.begin(), ::tolower);
+
   // fix static payload type numbers
   // (http://www.iana.org/assignments/rtp-parameters/rtp-parameters.xml)
   for (int i = 0; i < IANA_RTP_PAYLOADS_SIZE; i++) {
-    if (p.encoding_name == IANA_RTP_PAYLOADS[i].payload_name && 
+    string s = IANA_RTP_PAYLOADS[i].payload_name;
+    transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (p.encoding_name == s && 
         (unsigned)p.clock_rate == IANA_RTP_PAYLOADS[i].clock_rate && 
         (p.encoding_param == -1 || ((unsigned)p.encoding_param == IANA_RTP_PAYLOADS[i].channels))) 
       p.payload_type = i;
