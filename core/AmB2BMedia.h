@@ -70,8 +70,10 @@ class AudioStreamData {
     void setStreamRelay(const SdpMedia &m, AmRtpStream *other);
 
     /** Initializes RTP stream with local and remote media (needed for
-     * transcoding). */
-    void initStream(AmSession *session, PlayoutType playout_type, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
+     * transcoding). 
+     *
+     * Returns false if the initialization failed. */
+    bool initStream(AmSession *session, PlayoutType playout_type, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
 
     /** Discards initialization flag and DTMF related members if the stream was
      * already initialized. In such case true is returned. If the stream wasn't
@@ -227,8 +229,10 @@ class AmB2BMedia: public AmMediaSession
      * Creates them if they don't exist and initializes if they need to be
      * initialized. 
      *
-     * Method initializes relay & transcoding settings if told to do so. */
-    void updateStreams(bool a_leg, bool init_relay, bool init_transcoding);
+     * Method initializes relay & transcoding settings if told to do so. 
+     *
+     * Returns false if update failed. */
+    bool updateStreams(bool a_leg, bool init_relay, bool init_transcoding);
 
     /** initialize given stream (prepares for transcoding) */
     void initStream(AudioStreamData &data, AmSession *session, AmSdp &local_sdp, AmSdp &remote_sdp, int media_idx);
@@ -258,11 +262,13 @@ class AmB2BMedia: public AmMediaSession
      * Throws an exception (string) in case of error. (FIXME?) */
     void replaceConnectionAddress(AmSdp &parser_sdp, bool a_leg, const string &relay_address);
 
-    /** Store remote SDP for given leg and update media session appropriately. */
-    void updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp);
+    /** Store remote SDP for given leg and update media session appropriately. 
+     * Returns false if update failed. */
+    bool updateRemoteSdp(bool a_leg, const AmSdp &remote_sdp);
     
-    /** Store local SDP for given leg and update media session appropriately. */
-    void updateLocalSdp(bool a_leg, const AmSdp &local_sdp);
+    /** Store local SDP for given leg and update media session appropriately. 
+     * Returns false if update failed. */
+    bool updateLocalSdp(bool a_leg, const AmSdp &local_sdp);
 
     /** Clear audio and stop processing. 
      *

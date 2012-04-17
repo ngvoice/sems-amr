@@ -322,8 +322,21 @@ void AmB2BSession::onSipRequest(const AmSipRequest& req)
     if ((rtp_relay_mode == RTP_Relay) && media_session) {
       // We have to update media session before filtering because we may want to
       // use the codec later filtered out for transcoding.
-      if (parseSdp(sdp, req)) 
-        media_session->updateRemoteSdp(a_leg, sdp);
+      if (parseSdp(sdp, req)) {
+        if (!media_session->updateRemoteSdp(a_leg, sdp)) {
+          ERROR("media update failed, reply internal error\n");
+          dlg.reply(req, 500, SIP_REPLY_SERVER_INTERNAL_ERROR);
+
+          // cleanup
+          delete r_ev;
+          if(req.method != SIP_METH_ACK) {
+            std::map<int,AmSipRequest>::iterator r = recvd_req.find(req.cseq);
+            if (r != recvd_req.end()) recvd_req.erase(r);
+          }
+
+          return;
+        }
+      }
     }
 
     // filter relayed INVITE/UPDATE body
