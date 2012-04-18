@@ -5,7 +5,7 @@
 #include "AmB2BSession.h"
 #include "AmRtpReceiver.h"
 
-#define TRACE ERROR
+#define TRACE DBG
 
 AudioStreamData::AudioStreamData(AmB2BSession *session):
   in(NULL), initialized(false),
