@@ -82,6 +82,7 @@ struct SBCCallProfile
   string profile_file;
 
   string ruri;       /* updated if set */
+  string ruri_host;  /* updated if set */
   string from;       /* updated if set */
   string to;         /* updated if set */
   string contact;
@@ -91,9 +92,7 @@ struct SBCCallProfile
   string outbound_proxy;
   bool force_outbound_proxy;
 
-  string next_hop_ip;
-  string next_hop_port;
-  unsigned short next_hop_port_i;
+  string next_hop;
   string next_hop_for_replies;
 
   FilterType headerfilter;
@@ -223,7 +222,6 @@ struct SBCCallProfile
     sdpalinesfilter_enabled(false),
     sdpalinesfilter(Undefined),
     auth_enabled(false),
-    next_hop_port_i(0),
     sst_enabled_value(false),
     rtprelay_enabled(false),
     force_symmetric_rtp_value(false),

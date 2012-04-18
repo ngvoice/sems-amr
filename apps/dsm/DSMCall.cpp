@@ -31,6 +31,7 @@
 #include "DSM.h"
 #include "AmConferenceStatus.h"
 #include "AmAdvancedAudio.h"
+#include "AmSipSubscription.h"
 
 #include "../apps/jsonrpc/JsonRPCEvents.h" // todo!
 
@@ -99,9 +100,12 @@ void DSMCall::onInvite(const AmSipRequest& req) {
     
   bool run_session_invite = engine.onInvite(req, this);
 
+  avar[DSM_AVAR_REQUEST] = AmArg(&req);
+
   DBG("before runEvent(this, this, DSMCondition::Invite);\n");
   AmSipDialog::Status old_st = dlg.getStatus();
   engine.runEvent(this, this, DSMCondition::Invite, NULL);
+  avar.erase(DSM_AVAR_REQUEST);
 
   if ( old_st != dlg.getStatus()
        //checkVar(DSM_CONNECT_SESSION, DSM_CONNECT_SESSION_FALSE)
@@ -525,6 +529,24 @@ void DSMCall::process(AmEvent* event)
 
   }
 
+  if (event->event_id == E_SIP_SUBSCRIPTION) {
+    SIPSubscriptionEvent* sub_ev = dynamic_cast<SIPSubscriptionEvent*>(event);
+    if (sub_ev) {
+      DBG("DSM Call received SIP Subscription Event\n");
+      map<string, string> params;
+      params["status"] = sub_ev->getStatusText();
+      params["code"] = int2str(sub_ev->code);
+      params["reason"] = sub_ev->reason;
+      params["expires"] = int2str(sub_ev->expires);
+      params["has_body"] = sub_ev->notify_body.get()?"true":"false";
+      if (sub_ev->notify_body.get()) {
+	avar[DSM_AVAR_SIPSUBSCRIPTION_BODY] = AmArg(sub_ev->notify_body.get());
+      }
+      engine.runEvent(this, this, DSMCondition::SIPSubscription, &params);
+      avar.erase(DSM_AVAR_SIPSUBSCRIPTION_BODY);
+    }
+  }
+
   AmRtpTimeoutEvent* timeout_ev = dynamic_cast<AmRtpTimeoutEvent*>(event);
   if (timeout_ev) {
     map<string, string> params;
@@ -729,10 +751,14 @@ void DSMCall::addSeparator(const string& name, bool front) {
 }
 
 void DSMCall::transferOwnership(DSMDisposable* d) {
+  if (d == NULL)
+    return;
   gc_trash.insert(d);
 }
 
 void DSMCall::releaseOwnership(DSMDisposable* d) {
+  if (d == NULL)
+    return;
   gc_trash.erase(d);
 }
 

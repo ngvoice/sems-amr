@@ -118,6 +118,7 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
   profile_file = profile_file_name;
 
   ruri = cfg.getParameter("RURI");
+  ruri_host = cfg.getParameter("RURI_host");
   from = cfg.getParameter("From");
   to = cfg.getParameter("To");
   contact = cfg.getParameter("Contact");
@@ -127,8 +128,7 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
   force_outbound_proxy = cfg.getParameter("force_outbound_proxy") == "yes";
   outbound_proxy = cfg.getParameter("outbound_proxy");
 
-  next_hop_ip = cfg.getParameter("next_hop_ip");
-  next_hop_port = cfg.getParameter("next_hop_port");
+  next_hop = cfg.getParameter("next_hop");
   next_hop_for_replies = cfg.getParameter("next_hop_for_replies");
 
   if (cfg.hasParameter("header_filter")) {
@@ -363,7 +363,8 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
   if (!refuse_with.empty()) {
     INFO("SBC:      refusing calls with '%s'\n", refuse_with.c_str());
   } else {
-    INFO("SBC:      RURI = '%s'\n", ruri.c_str());
+    INFO("SBC:      RURI      = '%s'\n", ruri.c_str());
+    INFO("SBC:      RURI-host = '%s'\n", ruri_host.c_str());
     INFO("SBC:      From = '%s'\n", from.c_str());
     INFO("SBC:      To   = '%s'\n", to.c_str());
     if (!contact.empty()) {
@@ -375,9 +376,8 @@ bool SBCCallProfile::readFromConfiguration(const string& name,
 
     INFO("SBC:      force outbound proxy: %s\n", force_outbound_proxy?"yes":"no");
     INFO("SBC:      outbound proxy = '%s'\n", outbound_proxy.c_str());
-    if (!next_hop_ip.empty()) {
-      INFO("SBC:      next hop = %s%s\n", next_hop_ip.c_str(),
-	   next_hop_port.empty()? "" : (":"+next_hop_port).c_str());
+    if (!next_hop.empty()) {
+      INFO("SBC:      next hop = %s\n", next_hop.c_str());
 
       if (!next_hop_for_replies.empty()) {
 	INFO("SBC:      next hop used for replies: '%s'\n", next_hop_for_replies.c_str());
@@ -500,15 +500,14 @@ static bool payloadDescsEqual(const vector<PayloadDesc> &a, const vector<Payload
 bool SBCCallProfile::operator==(const SBCCallProfile& rhs) const {
   bool res =
     ruri == rhs.ruri &&
+    ruri_host == rhs.ruri_host &&
     from == rhs.from &&
     to == rhs.to &&
     contact == rhs.contact &&
     callid == rhs.callid &&
     outbound_proxy == rhs.outbound_proxy &&
     force_outbound_proxy == rhs.force_outbound_proxy &&
-    next_hop_ip == rhs.next_hop_ip &&
-    next_hop_port == rhs.next_hop_port &&
-    next_hop_port_i == rhs.next_hop_port_i &&
+    next_hop == rhs.next_hop &&
     next_hop_for_replies == rhs.next_hop_for_replies &&
     headerfilter == rhs.headerfilter &&
     headerfilter_list == rhs.headerfilter_list &&
@@ -557,15 +556,14 @@ string SBCCallProfile::print() const {
   string res = 
     "SBC call profile dump: ~~~~~~~~~~~~~~~~~\n";
   res += "ruri:                 " + ruri + "\n";
+  res += "ruri_host:            " + ruri_host + "\n";
   res += "from:                 " + from + "\n";
   res += "to:                   " + to + "\n";
   res += "contact:              " + contact + "\n";
   res += "callid:               " + callid + "\n";
   res += "outbound_proxy:       " + outbound_proxy + "\n";
   res += "force_outbound_proxy: " + string(force_outbound_proxy?"true":"false") + "\n";
-  res += "next_hop_ip:          " + next_hop_ip + "\n";
-  res += "next_hop_port:        " + next_hop_port + "\n";
-  res += "next_hop_port_i:      " + int2str(next_hop_port_i) + "\n";
+  res += "next_hop:             " + next_hop + "\n";
   res += "next_hop_for_replies: " + next_hop_for_replies + "\n";
   res += "headerfilter:         " + string(FilterType2String(headerfilter)) + "\n";
   res += "headerfilter_list:    " + stringset_print(headerfilter_list) + "\n";
@@ -655,6 +653,7 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
     AmUriParser& to_parser)
 {
   REPLACE_NONEMPTY_STR(ruri);
+  REPLACE_NONEMPTY_STR(ruri_host);
   REPLACE_NONEMPTY_STR(from);
   REPLACE_NONEMPTY_STR(to);
   REPLACE_NONEMPTY_STR(contact);
@@ -662,9 +661,8 @@ bool SBCCallProfile::evaluate(const AmSipRequest& req,
 
   REPLACE_NONEMPTY_STR(outbound_proxy);
 
-  if (!next_hop_ip.empty()) {
-    REPLACE_STR(next_hop_ip);
-    REPLACE_NUM(next_hop_port, next_hop_port_i);
+  if (!next_hop.empty()) {
+    REPLACE_STR(next_hop);
     REPLACE_NONEMPTY_STR(next_hop_for_replies);
   }
 

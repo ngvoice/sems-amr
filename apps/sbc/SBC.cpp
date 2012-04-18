@@ -797,29 +797,60 @@ UACAuthCred* SBCDialog::getCredentials() {
 
 void SBCDialog::fixupCCInterface(const string& val, CCInterface& cc_if) {
   DBG("instantiating CC interface from '%s'\n", val.c_str());
-  vector<string> cc_params = explode(val, ";");
-  if (cc_params.size()) {
-    vector<string>::iterator it=cc_params.begin();
-    cc_if.cc_module = *it;
-    DBG("    module='%s'\n", it->c_str());
-    it++;
-    while (it != cc_params.end()) {
-      size_t epos = it->find('=');
-      string p, v;
-      if (epos != string::npos) {
-	p = it->substr(0, epos);
-	if (it->length()>epos+1)
-	  v = it->substr(epos+1);
-      } else {
-	p = *it;
-      }
-      DBG("    '%s'='%s'\n", p.c_str(), v.c_str());
-      cc_if.cc_values.insert(make_pair(p,v));
-      it++;
-    }
+  size_t spos, last = val.length() - 1;
+  if (last < 0) {
+      spos = string::npos;
+      cc_if.cc_module = "";
   } else {
-    cc_if.cc_module = "";
+      spos = val.find(";", 0);
+      cc_if.cc_module = val.substr(0, spos);
   }
+  DBG("    module='%s'\n", cc_if.cc_module.c_str());
+  while (spos < last) {
+      size_t epos = val.find("=", spos + 1);
+      if (epos == string::npos) {
+	  cc_if.cc_values.insert(make_pair(val.substr(spos + 1), ""));
+	  DBG("    '%s'='%s'\n", val.substr(spos + 1).c_str(), "");
+	  return;
+      }
+      if (epos == last) {
+	  cc_if.cc_values.insert(make_pair(val.substr(spos + 1, epos - spos - 1), ""));
+	  DBG("    '%s'='%s'\n", val.substr(spos + 1, epos - spos - 1).c_str(), "");
+	  return;
+      }
+      // if value starts with " char, it continues until another " is found
+      if (val[epos + 1] == '"') {
+	  if (epos + 1 == last) {
+	      cc_if.cc_values.insert(make_pair(val.substr(spos + 1, epos - spos - 1), ""));
+	      DBG("    '%s'='%s'\n", val.substr(spos + 1, epos - spos - 1).c_str(), "");
+	      return;
+	  }
+	  size_t qpos = val.find('"', epos + 2);
+	  if (qpos == string::npos) {
+	      cc_if.cc_values.insert(make_pair(val.substr(spos + 1, epos - spos -1), val.substr(epos + 2)));
+	      DBG("    '%s'='%s'\n", val.substr(spos + 1, epos - spos - 1).c_str(), val.substr(epos + 2).c_str());
+	      return;
+	  }
+	  cc_if.cc_values.insert(make_pair(val.substr(spos + 1, epos - spos - 1), val.substr(epos + 2, qpos - epos - 2)));
+	  DBG("    '%s'='%s'\n", val.substr(spos + 1, epos - spos - 1).c_str(), val.substr(epos + 2, qpos - epos - 2).c_str());
+	  if (qpos < last) {
+	      spos = val.find(";", qpos + 1);
+	  } else {
+	      return;
+	  }
+      } else {
+	  size_t new_spos = val.find(";", epos + 1);
+	  if (new_spos == string::npos) {
+	      cc_if.cc_values.insert(make_pair(val.substr(spos + 1, epos - spos - 1), val.substr(epos + 1)));
+	      DBG("    '%s'='%s'\n", val.substr(spos + 1, epos - spos - 1).c_str(), val.substr(epos + 1).c_str());
+	      return;
+	  }
+	  cc_if.cc_values.insert(make_pair(val.substr(spos + 1, epos - spos - 1), val.substr(epos + 1, new_spos - epos - 1)));
+	  DBG("    '%s'='%s'\n", val.substr(spos + 1, epos - spos - 1).c_str(), val.substr(epos + 1, new_spos - epos - 1).c_str());
+	  spos = new_spos;
+      }
+  }
+  return;
 }
 
 void SBCDialog::onInvite(const AmSipRequest& req)
@@ -913,6 +944,17 @@ void SBCDialog::onInvite(const AmSipRequest& req)
   }
 
   ruri = call_profile.ruri.empty() ? req.r_uri : call_profile.ruri;
+  if(!call_profile.ruri_host.empty()){
+    ruri_parser.uri = ruri;
+    if(!ruri_parser.parse_uri()) {
+      WARN("Error parsing R-URI '%s'\n", ruri.c_str());
+    }
+    else {
+      ruri_parser.uri_port.clear();
+      ruri_parser.uri_host = call_profile.ruri_host;
+      ruri = ruri_parser.uri_str();
+    }
+  }
   from = call_profile.from.empty() ? req.from : call_profile.from;
   to = call_profile.to.empty() ? req.to : call_profile.to;
   callid = call_profile.callid;
@@ -1599,10 +1641,8 @@ void SBCDialog::createCalleeSession()
     callee_dlg.force_outbound_proxy = call_profile.force_outbound_proxy;
   }
   
-  if (!call_profile.next_hop_ip.empty()) {
-    callee_dlg.next_hop_ip = call_profile.next_hop_ip;
-    callee_dlg.next_hop_port = call_profile.next_hop_port.empty() ?
-      5060 : call_profile.next_hop_port_i;
+  if (!call_profile.next_hop.empty()) {
+    callee_dlg.next_hop = call_profile.next_hop;
   }
 
   if(outbound_interface >= 0)

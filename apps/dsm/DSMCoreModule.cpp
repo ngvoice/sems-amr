@@ -74,6 +74,7 @@ DSMAction* DSMCoreModule::getAction(const string& from_str) {
   DEF_CMD("disableReceiving", SCDisableReceivingAction);
   DEF_CMD("enableForceDTMFReceiving", SCEnableForceDTMFReceiving);
   DEF_CMD("disableForceDTMFReceiving", SCDisableForceDTMFReceiving);
+  DEF_CMD("monitorRTPTimeout", SCMonitorRTPTimeoutAction);
   DEF_CMD("mute", SCMuteAction);
   DEF_CMD("unmute", SCUnmuteAction);
   DEF_CMD("enableDTMFDetection", SCEnableDTMFDetection);
@@ -129,6 +130,10 @@ DSMAction* DSMCoreModule::getAction(const string& from_str) {
   DEF_CMD("B2B.addHeader", SCB2BAddHeaderAction);
   DEF_CMD("B2B.clearHeaders", SCB2BClearHeadersAction);
   DEF_CMD("B2B.setHeaders", SCB2BSetHeadersAction);
+
+  DEF_CMD("trackObject", SCTrackObjectAction);
+  DEF_CMD("releaseObject", SCReleaseObjectAction);
+  DEF_CMD("freeObject", SCFreeObjectAction);
 
   return NULL;
 }
@@ -211,6 +216,9 @@ DSMCondition* DSMCoreModule::getCondition(const string& from_str) {
 
   if (cmd == "jsonRpcResponse") 
     return new TestDSMCondition(params, DSMCondition::JsonRpcResponse);  
+
+  if (cmd == "subscription")
+    return new TestDSMCondition(params, DSMCondition::SIPSubscription);
 
   if (cmd == "startup")
     return new TestDSMCondition(params, DSMCondition::Startup);
@@ -385,6 +393,12 @@ EXEC_ACTION_START(SCEnableForceDTMFReceiving) {
 EXEC_ACTION_START(SCDisableForceDTMFReceiving) {
   DBG("disabling forced DTMF RTP receving in session\nb");
   sess->setForceDtmfReceiving(false);
+} EXEC_ACTION_END;
+
+EXEC_ACTION_START(SCMonitorRTPTimeoutAction) {
+  string e = resolveVars(arg, sess, sc_sess, event_params);
+  DBG("setting RTP stream to %smonitor RTP timeout\n", e=="true"?"":"not");
+  sess->RTPStream()->setMonitorRTPTimeout(e=="true");
 } EXEC_ACTION_END;
 
 EXEC_ACTION_START(SCMuteAction) {
@@ -1395,3 +1409,49 @@ EXEC_ACTION_START(SCCreateSystemDSMAction) {
   
 } EXEC_ACTION_END;
 
+DSMDisposable* getObjectFromVariable(DSMSession* sc_sess, const string& var_name) {
+  AVarMapT::iterator it = sc_sess->avar.find(var_name);
+  if (it == sc_sess->avar.end()) {
+    DBG("object '%s' not found\n", var_name.c_str());
+    sc_sess->SET_ERRNO(DSM_ERRNO_UNKNOWN_ARG);
+    sc_sess->SET_STRERROR("object '"+var_name+"' not found\n");
+    return NULL;
+  }
+
+  DSMDisposable* disp = dynamic_cast<DSMDisposable*>(it->second.asObject());
+  if (NULL == disp) {
+    DBG("object '%s' is not a DSMDisposable\n", var_name.c_str());
+    sc_sess->SET_ERRNO(DSM_ERRNO_UNKNOWN_ARG);
+    sc_sess->SET_STRERROR("object '"+var_name+"' is not a DSMDisposable\n");
+    return NULL;
+  }
+  return disp;
+}
+
+EXEC_ACTION_START(SCTrackObjectAction) {
+  string var_name = resolveVars(arg, sess, sc_sess, event_params);
+  DSMDisposable* disp = getObjectFromVariable(sc_sess, var_name);
+  if (NULL == disp) {
+    EXEC_ACTION_STOP;
+  }
+  sc_sess->transferOwnership(disp);
+} EXEC_ACTION_END;
+
+EXEC_ACTION_START(SCReleaseObjectAction) {
+  string var_name = resolveVars(arg, sess, sc_sess, event_params);
+  DSMDisposable* disp = getObjectFromVariable(sc_sess, var_name);
+  if (NULL == disp) {
+    EXEC_ACTION_STOP;
+  }
+  sc_sess->releaseOwnership(disp);
+} EXEC_ACTION_END;
+
+EXEC_ACTION_START(SCFreeObjectAction) {
+  string var_name = resolveVars(arg, sess, sc_sess, event_params);
+  DSMDisposable* disp = getObjectFromVariable(sc_sess, var_name);
+  if (NULL == disp) {
+    EXEC_ACTION_STOP;
+  }
+  delete disp;
+  sc_sess->avar.erase(var_name);
+} EXEC_ACTION_END;

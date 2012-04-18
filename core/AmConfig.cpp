@@ -78,9 +78,9 @@ int          AmConfig::RTPReceiverThreads      = NUM_RTP_RECEIVERS;
 int          AmConfig::SIPServerThreads        = NUM_SIP_SERVERS;
 string       AmConfig::OutboundProxy           = "";
 bool         AmConfig::ForceOutboundProxy      = false;
-string       AmConfig::NextHopIP               = "";
-unsigned int AmConfig::NextHopPort             = 0;
+string       AmConfig::NextHop                 = "";
 bool         AmConfig::ProxyStickyAuth         = false;
+bool         AmConfig::IgnoreNotifyLowerCSeq   = false;
 bool         AmConfig::DisableDNSSRV           = false;
 string       AmConfig::Signature               = "";
 unsigned int AmConfig::MaxForwards             = MAX_FORWARDS;
@@ -317,16 +317,16 @@ int AmConfig::readConfiguration()
     ForceOutboundProxy = (cfg.getParameter("force_outbound_proxy") == "yes");
   }
 
-  if(cfg.hasParameter("next_hop_ip")) {
-    NextHopIP = cfg.getParameter("next_hop_ip");
-  }
-
-  if(cfg.hasParameter("next_hop_port")) {
-    NextHopPort = cfg.getParameterInt("next_hop_port", 0);
+  if(cfg.hasParameter("next_hop")) {
+    NextHop = cfg.getParameter("next_hop");
   }
 
   if(cfg.hasParameter("proxy_sticky_auth")) {
     ProxyStickyAuth = (cfg.getParameter("proxy_sticky_auth") == "yes");
+  }
+
+  if(cfg.hasParameter("ignore_notify_lower_cseq")) {
+    IgnoreNotifyLowerCSeq = (cfg.getParameter("ignore_notify_lower_cseq") == "yes");
   }
 
   if(cfg.hasParameter("disable_dns_srv")) {

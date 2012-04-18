@@ -141,12 +141,12 @@ struct AmConfig
   static string OutboundProxy;
   /** force Outbound Proxy to be used for in dialog requests */
   static bool ForceOutboundProxy;
-  /** force next hop IP */
-  static string NextHopIP;
-  /** force next hop port */
-  static unsigned int NextHopPort;
+  /** force next hop IP[:port] */
+  static string NextHop;
   /** update ruri-host to previously resolved IP:port on SIP auth */
   static bool ProxyStickyAuth;
+  /** Ignore Low CSeq on NOTIFY  - for RFC 3265 instead of 5057 */
+  static bool IgnoreNotifyLowerCSeq;
   /** skip DNS SRV lookup for resolving destination address*/
   static bool DisableDNSSRV;
   /** Server/User-Agent header (optional) */
