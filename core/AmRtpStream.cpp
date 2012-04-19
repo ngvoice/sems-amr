@@ -159,7 +159,7 @@ void AmRtpStream::setLocalPort()
 
   l_port = port;
   AmRtpReceiver::instance()->addStream(l_sd,this);
-  DBG("added to RTP receiver (%s:%i)\n",get_addr_str(l_saddr.sin_addr).c_str(),l_port);
+  DBG("added to RTP receiver (%s:%i)\n",get_addr_str( ((struct sockaddr_in*)&l_saddr)->sin_addr ).c_str(),l_port);
 }
 
 int AmRtpStream::ping()
