@@ -13,10 +13,10 @@
 void
 init_semsStats(void)
 {
-    const oid semsStatsCallsAvg_oid[] = { 1,3,6,1,4,1,24960,1,1,1 };
-    const oid semsStatsCallsMax_oid[] = { 1,3,6,1,4,1,24960,1,1,2 };
-    const oid semsStatsCpsAvg_oid[] = { 1,3,6,1,4,1,24960,1,1,3 };
-    const oid semsStatsCpsMax_oid[] = { 1,3,6,1,4,1,24960,1,1,4 };
+    const oid semsStatsCallsAvg_oid[] = { 1,3,6,1,4,1,39771,1,1,1 };
+    const oid semsStatsCallsMax_oid[] = { 1,3,6,1,4,1,39771,1,1,2 };
+    const oid semsStatsCpsAvg_oid[] = { 1,3,6,1,4,1,39771,1,1,3 };
+    const oid semsStatsCpsMax_oid[] = { 1,3,6,1,4,1,39771,1,1,4 };
 
   DEBUGMSGTL(("semsStats", "Initializing\n"));
 

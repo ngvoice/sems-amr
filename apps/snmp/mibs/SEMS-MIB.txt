@@ -12,15 +12,15 @@ IMPORTS
 	enterprises	FROM SNMPv2-SMI;
 
 sems MODULE-IDENTITY
-	LAST-UPDATED "201103300000Z"
+	LAST-UPDATED "201208080000Z"
 	ORGANIZATION "SIP Express Media Server"
 	CONTACT-INFO 
 	  "email: sems@lists.iptel.org"
 	DESCRIPTION  
 	  "MIB Objects for SEMS monitoring"
-	REVISION     "201103300000Z"
+	REVISION     "201208080000Z"
 	DESCRIPTION  "Initial Draft"
-	::= { enterprises 24960 }
+	::= { enterprises 39771 }
 
 
 semsObjects   		  OBJECT IDENTIFIER ::= { sems 1 }
