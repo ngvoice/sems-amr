@@ -4,6 +4,7 @@
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include "semsStats.h"
+#include "log.h"
 
 #define MOD_NAME "snmp"
 
@@ -16,12 +17,29 @@ SnmpFactory::SnmpFactory(const string& name)
 {
 }
 
+int snmp_custom_log_fct(int majorID, int minorID, 
+			void* serverarg, void* clientarg)
+{
+  struct snmp_log_message* slm = (struct snmp_log_message*)serverarg;
+  if(!slm) return 0;
+
+  int prio = slm->priority - LOG_ERR/*snmp def*/;
+  if(prio < 0) prio = 0;
+
+  _LOG(prio,"snmp: %s",slm->msg);
+
+  return 1;
+}
+
 void SnmpFactory::run()
 {
   // Start SNMP Agent
   agent_running.set(true);
 
-  snmp_enable_stderrlog();
+  // register our own log handler
+  snmp_register_callback(SNMP_CALLBACK_LIBRARY,SNMP_CALLBACK_LOGGING,
+			 snmp_custom_log_fct,NULL);
+  snmp_enable_calllog();
 
   /* make us a agentx client. */
   netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
@@ -47,7 +65,7 @@ void SnmpFactory::run()
     /* if you use select(), see snmp_select_info() in snmp_api(3) */
     /*     --- OR ---  */
     agent_check_and_process(1); /* 0 == don't block */
-    snmp_log(LOG_INFO,"one time.\n");
+    //snmp_log(LOG_INFO,"one time.\n");
   }
 
   /* at shutdown time */
