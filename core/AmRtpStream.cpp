@@ -793,7 +793,7 @@ inline void PacketMem::freePacket(AmRtpPacket* p) {
   if (!p)  return;
 
   int idx = p-packets;
-  assert(idx > 0);
+  assert(idx >= 0);
   assert(idx < MAX_PACKETS);
 
   if(!used[idx]) {
