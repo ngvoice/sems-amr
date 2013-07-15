@@ -797,7 +797,7 @@ inline void PacketMem::freePacket(AmRtpPacket* p) {
   assert(idx < MAX_PACKETS);
 
   if(!used[idx]) {
-    ERROR("freePacket() double free: n_used = %d, idx = %d",n_used,idx);
+    ERROR("freePacket() double free: idx = %d\n", idx);
     return;
   }
 
