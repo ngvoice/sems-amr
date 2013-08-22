@@ -50,6 +50,7 @@ core: $(OBJS) ../Makefile.defs
 include ../Makefile.defs
 
 CPPFLAGS += -I$(COREPATH) -fno-strict-aliasing
+LDFLAGS += -levent
 
 ifdef USE_LIBSAMPLERATE
 CPPFLAGS += -DUSE_LIBSAMPLERATE
