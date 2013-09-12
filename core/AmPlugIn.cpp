@@ -794,14 +794,14 @@ AmSessionFactory* AmPlugIn::findSessionFactory(AmSipRequest& req)
     }
 
     if (req.cmd.empty()) {
-	ERROR("could not find any application matching configured criteria\n");
+	INFO("could not find any application matching configured criteria\n");
 	return NULL;
     }
   }
 
   AmSessionFactory* session_factory = getFactory4App(req.cmd);
   if(!session_factory) {
-    ERROR("AmPlugIn::findSessionFactory: application '%s' not found !\n", req.cmd.c_str());
+    INFO("AmPlugIn::findSessionFactory: application '%s' not found !\n", req.cmd.c_str());
   }
 
   return session_factory;

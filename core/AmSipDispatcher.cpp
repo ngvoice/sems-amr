@@ -66,6 +66,7 @@ void AmSipDispatcher::handleSipMsg(AmSipRequest &req)
   AmEventDispatcher* ev_disp = AmEventDispatcher::instance();
 
   if(!local_tag.empty()) {
+    // in-dlg request
     AmSipRequestEvent* ev = new AmSipRequestEvent(req);
 
       if(!ev_disp->post(local_tag,ev)) {
@@ -111,8 +112,13 @@ void AmSipDispatcher::handleSipMsg(AmSipRequest &req)
       AmSessionFactory* sess_fact = AmPlugIn::instance()->findSessionFactory(req);
       if(!sess_fact){
 
-	  AmSipDialog::reply_error(req,404,"Not found");
+	if (req.method == SIP_METH_OPTIONS) {
+	  AmSessionFactory::replyOptions(req);
 	  return;
+	}
+
+	AmSipDialog::reply_error(req,404,"Not found");
+	return;
       }
 
       sess_fact->onOoDRequest(req);
@@ -126,4 +132,5 @@ void AmSipDispatcher::handleSipMsg(AmSipRequest &req)
       return;
     }
   }
+
 }
