@@ -1,0 +1,130 @@
+#!/bin/bash
+#
+# Startup script for SEMS
+# tested under redhat 7.3
+#
+# chkconfig: - 85 15
+# description: SEMS is a SIP Media Server.
+#
+# processname: sems
+
+### BEGIN INIT INFO
+# Provides: sems
+# Required-Start: $local_fs $network $syslog
+# Required-Stop: $local_fs $network $syslog
+# Default-Start:
+# Default-Stop: 0 1 6
+# Short-Description: SEMS is a SIP Media Server.
+# Description: SEMS is a media and application server for SIP based VoIP services.
+### END INIT INFO
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+prog=sems
+sems=/usr/sbin/$prog
+
+pidfile=/var/run/$prog/$prog.pid
+lockfile=/var/lock/subsys/$prog
+conffile=/etc/$prog/$prog.conf
+
+OPTIONS=""
+
+# User-defined options and/or overrides of the variables, listed above,
+# should go there:
+[ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
+
+# try to source Debian-like default settings
+[ -e /etc/default/$prog ] && . /etc/default/$prog
+
+RETVAL=0
+
+if test "$SEMS_CREATE_CORE" = "yes" ; then
+        ulimit -c unlimited
+        DAEMON_COREFILE_LIMIT="unlimited"
+fi
+
+
+start() {
+        echo -n $"Starting $prog: "
+
+	# Check user's rights (we need only creating/opening fds
+	# so we check only effective UID)
+	if [ $EUID -ne 0 ] ; then
+		echo -n "not enough rights" && failure && echo
+		RETVAL=4
+		return $RETVAL
+	fi
+
+	# check whether SEMS was already started
+	if pidofproc -p $pidfile > /dev/null 2>&1 ; then
+		echo -n "already running" && warning && echo
+		return 0
+	fi
+
+        daemon $sems -P $pidfile -u sems -g sems -f $conffile $OPTIONS
+        RETVAL=$?
+        echo
+        [ $RETVAL = 0 ] && touch $lockfile
+        return $RETVAL
+}
+
+stop() {
+	echo -n $"Stopping $prog: "
+
+	# Check user's rights (we need only creating/opening fds
+	# so we check only effective UID)
+	if [ $EUID -ne 0 ] ; then
+		echo -n "not enough rights" && failure && echo
+		RETVAL=4
+		return $RETVAL
+	fi
+
+	# check whether SEMS is running
+	if ! pidofproc -p $pidfile > /dev/null 2>&1 ; then
+		echo -n "not running" && warning && echo
+		return 0
+	fi
+
+	killproc -p $pidfile 2> /dev/null
+	RETVAL=$?
+	echo
+	[ $RETVAL = 0 ] && rm -f $lockfile $pidfile
+        return $RETVAL
+}
+
+restart() {
+	stop
+	start
+}
+
+# See how we were called.
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  status)
+        status $prog
+	RETVAL=$?
+	;;
+  restart|force-reload)
+	restart
+	;;
+  reload)
+	echo -n $"Reloading $prog: not supported" && failure && echo
+	RETVAL=3
+	;;
+  condrestart|try-restart)
+	if [ -f $pidfile ] ; then
+		restart
+	fi
+	;;
+  *)
+	echo $"Usage: $prog {start|stop|restart|force-reload|condrestart|try-restart|status|help}"
+	[ "$1" = 'help' ] && RETVAL=0 || RETVAL=2
+esac
+
+exit $RETVAL

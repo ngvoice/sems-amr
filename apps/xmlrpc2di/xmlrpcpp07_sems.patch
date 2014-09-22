@@ -1,0 +1,96 @@
+diff -c -r xmlrpc++0.7.orig/Makefile xmlrpc++0.7/Makefile
+*** xmlrpc++0.7.orig/Makefile	Fri Nov 14 16:22:41 2008
+--- xmlrpc++0.7/Makefile	Fri Nov 14 16:23:25 2008
+***************
+*** 1,10 ****
+  # makefile written for gnu make
+  CXX		= g++
+  SRC		= ./src
+! CPPFLAGS	= -I$(SRC)
+  DEBUG		= -g
+  OPTIMIZE	= -O2
+! GCCWARN		= -Wall -Wstrict-prototypes
+  CXXFLAGS	= $(DEBUG) $(GCCWARN) $(OPTIMIZE) $(INCLUDES)
+  
+  LIB		= ./libXmlRpc.a
+--- 1,10 ----
+  # makefile written for gnu make
+  CXX		= g++
+  SRC		= ./src
+! CPPFLAGS	= -I$(SRC) -fPIC
+  DEBUG		= -g
+  OPTIMIZE	= -O2
+! GCCWARN		= -Wall #-Wstrict-prototypes
+  CXXFLAGS	= $(DEBUG) $(GCCWARN) $(OPTIMIZE) $(INCLUDES)
+  
+  LIB		= ./libXmlRpc.a
+diff -c -r xmlrpc++0.7.orig/src/XmlRpc.h xmlrpc++0.7/src/XmlRpc.h
+*** xmlrpc++0.7.orig/src/XmlRpc.h	Fri Nov 14 16:22:41 2008
+--- xmlrpc++0.7/src/XmlRpc.h	Fri Nov 14 16:23:25 2008
+***************
+*** 38,43 ****
+--- 38,46 ----
+    //! An interface allowing custom handling of error message reporting.
+    class XmlRpcErrorHandler {
+    public:
++     // make destructor virtual in virtual class
++     virtual ~XmlRpcErrorHandler() { }
++ 
+      //! Returns a pointer to the currently installed error handling object.
+      static XmlRpcErrorHandler* getErrorHandler() 
+      { return _errorHandler; }
+***************
+*** 56,61 ****
+--- 59,67 ----
+    //! An interface allowing custom handling of informational message reporting.
+    class XmlRpcLogHandler {
+    public:
++     // make destructor virtual in virtual class
++     virtual ~XmlRpcLogHandler() { }
++ 
+      //! Returns a pointer to the currently installed message reporting object.
+      static XmlRpcLogHandler* getLogHandler() 
+      { return _logHandler; }
+diff -c -r xmlrpc++0.7.orig/src/XmlRpcClient.cpp xmlrpc++0.7/src/XmlRpcClient.cpp
+*** xmlrpc++0.7.orig/src/XmlRpcClient.cpp	Fri Nov 14 16:22:41 2008
+--- xmlrpc++0.7/src/XmlRpcClient.cpp	Fri Nov 14 16:24:26 2008
+***************
+*** 7,12 ****
+--- 7,14 ----
+  #include <stdio.h>
+  #include <stdlib.h>
+  
++ #include <string.h>
++ #include <strings.h>
+  
+  using namespace XmlRpc;
+  
+diff -c -r xmlrpc++0.7.orig/src/XmlRpcServerConnection.cpp xmlrpc++0.7/src/XmlRpcServerConnection.cpp
+*** xmlrpc++0.7.orig/src/XmlRpcServerConnection.cpp	Fri Nov 14 16:22:41 2008
+--- xmlrpc++0.7/src/XmlRpcServerConnection.cpp	Fri Nov 14 16:25:00 2008
+***************
+*** 8,13 ****
+--- 8,16 ----
+  # include <stdlib.h>
+  #endif
+  
++ #include <string.h>
++ #include <strings.h>
++ 
+  using namespace XmlRpc;
+  
+  // Static data
+diff -c -r xmlrpc++0.7.orig/src/XmlRpcSocket.cpp xmlrpc++0.7/src/XmlRpcSocket.cpp
+*** xmlrpc++0.7.orig/src/XmlRpcSocket.cpp	Fri Nov 14 16:22:41 2008
+--- xmlrpc++0.7/src/XmlRpcSocket.cpp	Fri Nov 14 16:25:30 2008
+***************
+*** 27,32 ****
+--- 27,34 ----
+  
+  #endif // MAKEDEPEND
+  
++ #include <string.h>
++ #include <strings.h>
+  
+  using namespace XmlRpc;
+  
