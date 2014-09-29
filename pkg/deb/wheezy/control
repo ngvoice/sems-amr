@@ -21,7 +21,7 @@ Standards-Version: 3.9.5
 
 Package: sems
 Architecture: any
-Depends: adduser, python, ${misc:Depends}, ${shlibs:Depends}
+Depends: adduser, python, libamr, ${misc:Depends}, ${shlibs:Depends}
 Description: SIP Express Media Server, very fast and flexible SIP media server
  SEMS, the SIP Express Media Server, is a free, high performance,
  extensible media server and SBC for SIP (RFC3261) based VoIP  services. It
