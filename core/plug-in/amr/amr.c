@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include "amci.h"
 #include "codecs.h"
-#include "amrnblib/interf_enc.h"
-#include "amrnblib/interf_dec.h"
+#include <amrnb/interf_enc.h>
+#include <amrnb/interf_dec.h>
 #else
 #include <stdio.h>
 #define ERROR  printf

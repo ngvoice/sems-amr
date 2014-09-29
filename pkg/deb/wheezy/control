@@ -16,7 +16,8 @@ Build-Depends: debhelper (>= 9~),
                libxml2-dev,
                openssl,
                python-dev,
-               python-sip-dev
+               python-sip-dev,
+               libamr
 Standards-Version: 3.9.5
 
 Package: sems
