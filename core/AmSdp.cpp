@@ -371,10 +371,6 @@ void AmSdp::print(string& body) const
 	    options += "a=rtpmap:" + int2str(pl_it->payload_type) + " "
 	      + pl_it->encoding_name + "/" + int2str(pl_it->clock_rate);
 
-	    if (pl_it->encoding_name == "amr") {
-		options += "/1";
-	    }
-
 	    if(pl_it->encoding_param > 0){
 	      options += "/" + int2str(pl_it->encoding_param);
 	    }
@@ -383,14 +379,11 @@ void AmSdp::print(string& body) const
 	  }
 	  
 	  // "a=fmtp:" line
-	  if (pl_it->encoding_name == "amr") {
-	   options += "a=fmtp:" + int2str(pl_it->payload_type) + "octet-align=1;mode-change-capability=2;max-red=220\r\n";
-	  } else {
-            if(pl_it->sdp_format_parameters.size()){
-	      options += "a=fmtp:" + int2str(pl_it->payload_type) + " "
-	        + pl_it->sdp_format_parameters + "\r\n";
-	    }
+	  if(pl_it->sdp_format_parameters.size()){
+	    options += "a=fmtp:" + int2str(pl_it->payload_type) + " "
+	      + pl_it->sdp_format_parameters + "\r\n";
 	  }
+	  
 	}
       }
       else {
