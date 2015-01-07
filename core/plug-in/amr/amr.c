@@ -228,7 +228,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     pbits += 0/*octet_aligned */ ? 8 : 4;
 
     len = Encoder_Interface_Encode(codec->encoder, /*context->enc_mode*/7, (int16_t *) in_buf, sbuffer, 0);
-    ERROR("Encoder_Interface_Encode returned %li\n", len);
+    ERROR("Encoder_Interface_Encode returned %i\n", len);
 
     mode = (sbuffer[0] >> 3)&0x0F;
     q = (sbuffer[0] >> 2)&0x01;
@@ -251,7 +251,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     pack_bits(&phdr, h_offset, (void *) &xzero, npad); /* zero out the rest of the padding bits. */
     len = (sbits + pbits + npad + 7) / 8; /* Round up to nearest octet. */
-ERROR("(sbits %i + pbits %i + npad %i + 7) / 8 = %li\n", sbits, pbits, npad, len);
+ERROR("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len);
 
     return len; //out_size;
 }
@@ -300,6 +300,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     /* Now get the speech bits, and decode as we go. */
     int samples = 0;
+ERROR("nframes = %i\n", nframes);
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
 	int bits = /*xoctet_aligned*/0 ? (num_bits[ft] + 7)&~7 : num_bits[ft];
@@ -332,6 +333,8 @@ loop:
 //    /* Honour the requested codec? */
 //    if (cmr < tmp->enc_mode)
 //	tmp->enc_mode = cmr;
+
+ERROR("datalen = %i\n", datalen);
 
     return datalen;
 }
