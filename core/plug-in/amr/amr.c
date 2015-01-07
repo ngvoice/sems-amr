@@ -260,7 +260,7 @@ ERROR("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len)
 static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 	unsigned int channels, unsigned int rate, long h_codec) {
     /* div_t blocks; */
-    unsigned int datalen;
+    int datalen = 0;
     int x, more_frames = 1, nframes = 0;
     struct amr_codec *codec = (struct amr_codec *) h_codec;
     unsigned char *src = in_buf;
@@ -300,7 +300,6 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     /* Now get the speech bits, and decode as we go. */
     int samples = 0;
-ERROR("nframes = %i\n", nframes);
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
 	int bits = /*xoctet_aligned*/0 ? (num_bits[ft] + 7)&~7 : num_bits[ft];
@@ -325,9 +324,7 @@ ERROR("nframes = %i\n", nframes);
 
 loop:
 	(void) 0;
-//#if 0
-//	ast_verbose("amr2lin: %d/%d Decode ft=%u, num_bits=%d\n", x, nframes, ft, bits);
-//#endif
+
     }
 
 //    /* Honour the requested codec? */
@@ -340,11 +337,11 @@ ERROR("datalen = %i\n", datalen);
 }
 
 static unsigned int amr_bytes2samples(long h_codec, unsigned int num_bytes) {
-    DBG("asked how many samples for %d bytes", num_bytes);
+    ERROR("asked how many samples for %d bytes? %d!\n", num_bytes, ((AMR_SAMPLES_PER_FRAME * num_bytes) / AMR_BYTES_PER_FRAME));
     return (AMR_SAMPLES_PER_FRAME * num_bytes) / AMR_BYTES_PER_FRAME;
 }
 
 static unsigned int amr_samples2bytes(long h_codec, unsigned int num_samples) {
-    DBG("asked how many bytes for %d samples", num_samples);
+    ERROR("asked how many bytes for %d samples? %d!\n", num_samples, (AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME));
     return AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME;
 }
