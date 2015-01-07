@@ -253,7 +253,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     pack_bits(&phdr, h_offset, (void *) &xzero, npad); /* zero out the rest of the padding bits. */
     len = (sbits + pbits + npad + 7) / 8; /* Round up to nearest octet. */
-    DBG("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len);
+    ERROR("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len);
 
     return len; //out_size;
 }
@@ -318,7 +318,7 @@ loop:
 
     }
 
-    DBG("datalen = %i\n", datalen);
+    ERROR("datalen = %i\n", datalen);
 
     return datalen;
 }
