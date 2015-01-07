@@ -281,7 +281,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     }
 
     unsigned char* end_ptr = in_buf + size;
-    int pos = unpack_bits(&src, 7, &cmr, octed_aligned ? 8 : 4);
+    int pos = unpack_bits(&src, 0, &cmr, octed_aligned ? 8 : 4);
     cmr >>= 4;
     
 ERROR("pos = %i\n", pos);
@@ -293,9 +293,11 @@ ERROR("pos = %i\n", pos);
 	pos = unpack_bits(&src, pos, &ch, octed_aligned ? 8 : 6);
 
 	more_frames = (ch >> 7);
-ERROR("more_frames = %i\n", more_frames);
 	toc[nframes].ft = (ch >> 3) & 0x0F; /* Kill Q bit */
 	toc[nframes].q = (ch >> 2) & 0x01;
+ERROR("more_frames = %i\n", more_frames);
+ERROR("ft = %i\n", toc[nframes].ft);
+ERROR("q = %i\n", toc[nframes].q);
 	nframes++;
     }
 
@@ -303,10 +305,10 @@ ERROR("more_frames = %i\n", more_frames);
     int samples = 0;
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
-	// int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
-	int bits = num_bits[ft];
+	int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
 ERROR("bits = %i\n", bits);
-ERROR("ft = %i\n", ft);
+	bits = num_bits[ft];
+ERROR("bits = %i\n", bits);
 	if (ft == 14 || ft == 15) /* No data */
 	    goto loop;
 
