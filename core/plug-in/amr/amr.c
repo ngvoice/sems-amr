@@ -271,8 +271,10 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     } toc[50];	    //(BUFFER_SAMPLES*1000)/(SAMPLES_PER_SEC_NB*20) 8000*1000/8000*20
 
 
-    if (!h_codec)
+    if (!h_codec) {
+	ERROR("Codec not initialized (h_codec = %li)?!?\n", h_codec);
 	return -1;
+    }
     
     unsigned char* end_ptr = in_buf + size;
     int pos = unpack_bits(&in_buf, 7, &cmr, 0/*octet_aligned*/ ? 8 : 4);
