@@ -66,7 +66,7 @@ static unsigned int amr_samples2bytes(long, unsigned int);
 #define AMR_BYTES_PER_FRAME     10
 #define AMR_SAMPLES_PER_FRAME   160
 
-#define OCTET_ALIGNED 1
+#define OCTET_ALIGNED 0
 
 #ifndef TEST 
 
