@@ -303,7 +303,8 @@ ERROR("more_frames = %i\n", more_frames);
     int samples = 0;
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
-	int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
+	// int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
+	int bits = num_bits[ft];
 ERROR("bits = %i\n", bits);
 ERROR("ft = %i\n", ft);
 	if (ft == 14 || ft == 15) /* No data */
