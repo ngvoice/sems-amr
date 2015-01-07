@@ -66,6 +66,8 @@ static unsigned int amr_samples2bytes(long, unsigned int);
 #define AMR_BYTES_PER_FRAME     10
 #define AMR_SAMPLES_PER_FRAME   160
 
+#define OCTET_ALIGNED 1
+
 #ifndef TEST 
 
 BEGIN_EXPORTS("amr", AMCI_NO_MODULEINIT, AMCI_NO_MODULEDESTROY)
@@ -224,8 +226,8 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     cmr = 7;
     cmr <<= 4;
     h_offset = d_offset = 7;
-    h_offset = pack_bits(&phdr, h_offset, &cmr, 0/*octet_aligned*/ ? 8 : 4);
-    pbits += 0/*octet_aligned */ ? 8 : 4;
+    h_offset = pack_bits(&phdr, h_offset, &cmr, OCTET_ALIGNED ? 8 : 4);
+    pbits += OCTET_ALIGNED ? 8 : 4;
 
     len = Encoder_Interface_Encode(codec->encoder, /*context->enc_mode*/7, (int16_t *) in_buf, sbuffer, 0);
     DBG("Encoder_Interface_Encode returned %i\n", len);
@@ -233,11 +235,11 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     mode = (sbuffer[0] >> 3)&0x0F;
     q = (sbuffer[0] >> 2)&0x01;
     toc_entry = (mode << 3) | (q << 2);
-    bits = /*octet_aligned ? (num_bits[mode] + 7)&~7 : */num_bits[mode];
+    bits = OCTET_ALIGNED ? (num_bits[mode] + 7)&~7 : num_bits[mode];
 
-    h_offset = pack_bits(&phdr, h_offset, &toc_entry, 0/*switch_test_flag(context, AMR_OPT_OCTET_ALIGN)*/ ? 8 : 6); /* put in the table of contents element. */
+    h_offset = pack_bits(&phdr, h_offset, &toc_entry, OCTET_ALIGNED ? 8 : 6); /* put in the table of contents element. */
 
-    pbits += 0/*switch_test_flag(context, AMR_OPT_OCTET_ALIGN)*/ ? 8 : 6;
+    pbits += OCTET_ALIGNED ? 8 : 6;
     /* Pack the bits of the speech. */
     d_offset = pack_bits(&pdata, d_offset, &sbuffer[1], bits);
     sbits += bits;
@@ -246,7 +248,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     h_offset = pack_bits(&phdr, h_offset, sbuffer/*tmp->speech_bits*/, sbits);
     npad = (8 - ((sbits + pbits) & 7))&0x7; /* Number of padding bits */
 
-    if (0/*switch_test_flag(context, AMR_OPT_OCTET_ALIGN)*/ && npad != 0)
+    if (OCTET_ALIGNED && npad != 0)
 	ERROR("Padding bits cannot be > 0 in octet aligned mode!\n");
 
     pack_bits(&phdr, h_offset, (void *) &xzero, npad); /* zero out the rest of the padding bits. */
@@ -279,14 +281,14 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     }
     
     unsigned char* end_ptr = in_buf + size;
-    int pos = unpack_bits(&in_buf, 7, &cmr, 0/*octet_aligned*/ ? 8 : 4);
+    int pos = unpack_bits(&in_buf, 7, &cmr, OCTET_ALIGNED ? 8 : 4);
     cmr >>= 4;
     
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
 	unsigned char ch;
 	/* get table of contents. */
-	pos = unpack_bits(&src, pos, &ch, /*xoctet_aligned)*/0 ? 8 : 6);
+	pos = unpack_bits(&src, pos, &ch, OCTET_ALIGNED ? 8 : 6);
 
 	more_frames = (ch >> 7);
 	toc[nframes].ft = (ch >> 3) & 0x0F; /* Kill Q bit */
@@ -298,7 +300,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     int samples = 0;
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
-	int bits = /*xoctet_aligned*/0 ? (num_bits[ft] + 7)&~7 : num_bits[ft];
+	int bits = OCTET_ALIGNED ? (num_bits[ft] + 7)&~7 : num_bits[ft];
 
 	if (ft == 14 || ft == 15) /* No data */
 	    goto loop;
