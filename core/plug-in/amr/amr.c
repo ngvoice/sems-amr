@@ -179,6 +179,10 @@ long amr_create(const char* format_parameters, amci_codec_fmt_info_t* format_des
     DBG("amr_create: AMR format parameters: [%s], format description: [id=%d, val=%d]\n", format_parameters, format_description->id, format_description->value);
 
     codec = (struct amr_codec*) malloc(sizeof (struct amr_codec));
+    if(!codec) {
+	ERROR("amr.c: could not create handle array\n");
+	return 0;
+    }
 
     codec->encoder = Encoder_Interface_init(0/*codec->dtx_mode*/);
     codec->decoder = Decoder_Interface_init();
@@ -209,8 +213,10 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     int pbits=0, sbits=0, len, npad;
     const unsigned char xzero = 0;
 
-    if (!h_codec)
+    if (!h_codec) {
+	ERROR("Codec not initialized (h_codec = %li)?!?\n", h_codec);
 	return -1;
+    }
 
     phdr = out_buf;
     pdata = sbuffer;
