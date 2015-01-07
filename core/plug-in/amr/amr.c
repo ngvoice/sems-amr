@@ -281,7 +281,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     }
 
     unsigned char* end_ptr = in_buf + size;
-    int pos = unpack_bits(&in_buf, 7, &cmr, 4);
+    int pos = unpack_bits(&in_buf, 7, &cmr, octed_aligned ? 8 : 4);
     cmr >>= 4;
     
 ERROR("pos = %i\n", pos);
