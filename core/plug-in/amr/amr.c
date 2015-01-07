@@ -286,6 +286,9 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     int pos = unpack_bits(&in_buf, 7, &cmr, octed_aligned ? 8 : 4);
     cmr >>= 4;
     
+ERROR("pos = %i\n", pos);
+	octed_aligned = 1;
+
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
 	unsigned char ch;
@@ -293,6 +296,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	pos = unpack_bits(&src, pos, &ch, octed_aligned ? 8 : 6);
 
 	more_frames = (ch >> 7);
+ERROR("more_frames = %i\n", more_frames);
 	toc[nframes].ft = (ch >> 3) & 0x0F; /* Kill Q bit */
 	toc[nframes].q = (ch >> 2) & 0x01;
 	nframes++;
@@ -303,7 +307,8 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
 	int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
-
+ERROR("bits = %i\n", bits);
+ERROR("ft = %i\n", ft);
 	if (ft == 14 || ft == 15) /* No data */
 	    goto loop;
 
