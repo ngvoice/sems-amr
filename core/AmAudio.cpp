@@ -355,7 +355,7 @@ void AmAudio::stereo2mono(unsigned char* out_buf,unsigned char* in_buf,unsigned 
 int AmAudio::decode(unsigned int size)
 {
   int s = size;
-ERROR("size = s = %i\n", s);
+  DBG("size = s = %i\n", s);
   if(!fmt.get()){
     ERROR("no fmt !\n");
     return s;
@@ -372,7 +372,7 @@ ERROR("size = s = %i\n", s);
   if(codec->decode){
     s = (*codec->decode)(samples.back_buffer(),samples,s,
 			 fmt->channels,getSampleRate(),h_codec);
-ERROR("codec->decode returned %i\n", s);
+    DBG("codec->decode returned %i\n", s);
     if(s<0) return s;
     samples.swap();
   }

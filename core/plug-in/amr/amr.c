@@ -228,7 +228,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     pbits += 0/*octet_aligned */ ? 8 : 4;
 
     len = Encoder_Interface_Encode(codec->encoder, /*context->enc_mode*/7, (int16_t *) in_buf, sbuffer, 0);
-    ERROR("Encoder_Interface_Encode returned %i\n", len);
+    DBG("Encoder_Interface_Encode returned %i\n", len);
 
     mode = (sbuffer[0] >> 3)&0x0F;
     q = (sbuffer[0] >> 2)&0x01;
@@ -251,7 +251,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     pack_bits(&phdr, h_offset, (void *) &xzero, npad); /* zero out the rest of the padding bits. */
     len = (sbits + pbits + npad + 7) / 8; /* Round up to nearest octet. */
-ERROR("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len);
+    DBG("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len);
 
     return len; //out_size;
 }
@@ -291,10 +291,6 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	more_frames = (ch >> 7);
 	toc[nframes].ft = (ch >> 3) & 0x0F; /* Kill Q bit */
 	toc[nframes].q = (ch >> 2) & 0x01;
-//#if 0
-//	DBG("amrtolin_framein: cmr=%02hhx, toc.ft=%02hhx,toc.q=%d more=%d, datalen=%d\n",
-//		cmr, toc[nframes].ft, toc[nframes].q, more_frames, f->datalen);
-//#endif
 	nframes++;
     }
 
@@ -307,13 +303,6 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	if (ft == 14 || ft == 15) /* No data */
 	    goto loop;
 
-//	if (pvt->samples + AMR_SAMPLES > BUFFER_SAMPLES) {
-//	    ast_log(LOG_WARNING, "Out of buffer space\n");
-//	    return -1;
-//	}
-#if 0
-	memset(buffer, 0, sizeof buffer); /* clear it. */
-#endif
 	/* for octet-aligned mode, the speech frames are octet aligned as well */
 	pos = unpack_bits(&src, pos, &buffer[1], bits);
 	buffer[0] = (ft << 3) | (q << 2);
@@ -327,21 +316,17 @@ loop:
 
     }
 
-//    /* Honour the requested codec? */
-//    if (cmr < tmp->enc_mode)
-//	tmp->enc_mode = cmr;
-
-ERROR("datalen = %i\n", datalen);
+    DBG("datalen = %i\n", datalen);
 
     return datalen;
 }
 
 static unsigned int amr_bytes2samples(long h_codec, unsigned int num_bytes) {
-    ERROR("asked how many samples for %d bytes? %d!\n", num_bytes, ((AMR_SAMPLES_PER_FRAME * num_bytes) / AMR_BYTES_PER_FRAME));
+    DBG("asked how many samples for %d bytes? %d!\n", num_bytes, ((AMR_SAMPLES_PER_FRAME * num_bytes) / AMR_BYTES_PER_FRAME));
     return (AMR_SAMPLES_PER_FRAME * num_bytes) / AMR_BYTES_PER_FRAME;
 }
 
 static unsigned int amr_samples2bytes(long h_codec, unsigned int num_samples) {
-    ERROR("asked how many bytes for %d samples? %d!\n", num_samples, (AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME));
+    DBG("asked how many bytes for %d samples? %d!\n", num_samples, (AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME));
     return AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME;
 }
