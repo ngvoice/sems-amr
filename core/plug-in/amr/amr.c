@@ -62,11 +62,9 @@ static void amr_destroy(long h_codec);
 static unsigned int amr_bytes2samples(long, unsigned int);
 static unsigned int amr_samples2bytes(long, unsigned int);
 
-#define AMR_PAYLOAD_ID          118
+#define AMR_PAYLOAD_ID          96
 #define AMR_BYTES_PER_FRAME     10
 #define AMR_SAMPLES_PER_FRAME   160
-
-#define OCTET_ALIGNED 1
 
 #ifndef TEST 
 
@@ -269,7 +267,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     unsigned char *src = in_buf;
     unsigned char cmr, buffer[1024];	//AMR_MAX_FRAME_LEN+1
     int16_t *dst = (int16_t*)out_buf;
-    int octed_aligned = 0;
+    int octed_aligned = 1;
 
     struct {
 	unsigned char ft;
@@ -283,11 +281,10 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     }
 
     unsigned char* end_ptr = in_buf + size;
-    int pos = unpack_bits(&in_buf, 7, &cmr, octed_aligned ? 8 : 4);
+    int pos = unpack_bits(&in_buf, 7, &cmr, 4);
     cmr >>= 4;
     
 ERROR("pos = %i\n", pos);
-	octed_aligned = 1;
 
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
