@@ -228,6 +228,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     pbits += 0/*octet_aligned */ ? 8 : 4;
 
     len = Encoder_Interface_Encode(codec->encoder, /*context->enc_mode*/7, (int16_t *) in_buf, sbuffer, 0);
+    ERROR("Encoder_Interface_Encode returned %li\n", len);
 
     mode = (sbuffer[0] >> 3)&0x0F;
     q = (sbuffer[0] >> 2)&0x01;
@@ -250,6 +251,7 @@ static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     pack_bits(&phdr, h_offset, (void *) &xzero, npad); /* zero out the rest of the padding bits. */
     len = (sbits + pbits + npad + 7) / 8; /* Round up to nearest octet. */
+ERROR("(sbits %i + pbits %i + npad %i + 7) / 8 = %li\n", sbits, pbits, npad, len);
 
     return len; //out_size;
 }
