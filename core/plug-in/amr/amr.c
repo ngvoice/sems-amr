@@ -62,7 +62,7 @@ static void amr_destroy(long h_codec);
 static unsigned int amr_bytes2samples(long, unsigned int);
 static unsigned int amr_samples2bytes(long, unsigned int);
 
-#define AMR_PAYLOAD_ID          96
+#define AMR_PAYLOAD_ID          118
 #define AMR_BYTES_PER_FRAME     10
 #define AMR_SAMPLES_PER_FRAME   160
 
