@@ -177,7 +177,7 @@ static int unpack_bits(unsigned char **src, int s_offset, unsigned char *dst, un
 long amr_create(const char* format_parameters, amci_codec_fmt_info_t* format_description) {
     struct amr_codec *codec;
 
-    ERROR("amr_create: AMR format parameters: [%s], format description: [id=%d, val=%d]\n", format_parameters, format_description->id, format_description->value);
+    DBG("amr_create: AMR format parameters: [%s], format description: [id=%d, val=%d]\n", format_parameters, format_description->id, format_description->value);
 
     codec = (struct amr_codec*) malloc(sizeof (struct amr_codec));
     if(!codec) {
