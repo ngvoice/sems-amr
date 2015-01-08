@@ -15,7 +15,8 @@
 #include <assert.h>
 
 /* Taken from Table 2, of 3GPP TS 26.101, v5.0.0 */
-static int num_bits[16] = {95, 103, 118, 134, 148, 159, 204, 244};
+/* Taken from Table 3, of 3GPP TS 26.101, v5.0.0: Comfort Noise (FT 8) */
+static int num_bits[16] = {95, 103, 118, 134, 148, 159, 204, 244, 39};
 
 typedef enum {
     AMR_OPT_OCTET_ALIGN = (1 << 0),
@@ -289,17 +290,19 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	/* get table of contents. */
 	pos = unpack_bits(&src, pos, &ch, octed_aligned ? 8 : 6);
 
-
+	// More frames: We only want the first bit:
 	more_frames = ch & 1;
+	// Frame Type: Skip the "More-Frames" bit and drop the Q bit:
 	toc[nframes].ft = (ch >> 1) & 0x0f; /* Kill Q bit */
+	// Q: Skip the "More-Frames" bit (1) and the Frame-Type bits (4); we only want the bit left over:
 	toc[nframes].q = (ch >> 5) & 1;
-	nframes++;
 ERROR("=============== FRAME %i ===============\n", nframes);
 ERROR("ch = %x (%u)\n", ch, ch);
 ERROR("pos = %i\n", pos);
 ERROR("more_frames = %i\n", more_frames);
 ERROR("ft = %u\n", toc[nframes].ft);
 ERROR("q = %u\n", toc[nframes].q);
+	nframes++;
     }
 
     /* Now get the speech bits, and decode as we go. */
@@ -315,7 +318,7 @@ ERROR("bits = %i\n", bits);
 
 	/* for octet-aligned mode, the speech frames are octet aligned as well */
 	pos = unpack_bits(&src, pos, &buffer[1], bits);
-	buffer[0] = (ft << 3) | (q << 2);
+	buffer[0] = (ft << 1) | (q << 5);
 	Decoder_Interface_Decode(codec->decoder, buffer, dst + samples, 0);
 
 	samples += AMR_SAMPLES_PER_FRAME;
