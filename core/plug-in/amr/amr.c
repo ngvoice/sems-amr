@@ -176,7 +176,7 @@ static int unpack_bits(unsigned char **src, int s_offset, unsigned char *dst, un
 long amr_create(const char* format_parameters, amci_codec_fmt_info_t* format_description) {
     struct amr_codec *codec;
 
-    DBG("amr_create: AMR format parameters: [%s], format description: [id=%d, val=%d]\n", format_parameters, format_description->id, format_description->value);
+    ERROR("amr_create: AMR format parameters: [%s], format description: [id=%d, val=%d]\n", format_parameters, format_description->id, format_description->value);
 
     codec = (struct amr_codec*) malloc(sizeof (struct amr_codec));
     if(!codec) {
@@ -300,8 +300,8 @@ ERROR("=============== FRAME %i ===============\n", nframes);
 ERROR("ch = %x (%u)\n", ch, ch);
 ERROR("pos = %i\n", pos);
 ERROR("more_frames = %i\n", more_frames);
-ERROR("ft = %i\n", toc[nframes].ft);
-ERROR("q = %i\n", toc[nframes].q);
+ERROR("ft = %u\n", toc[nframes].ft);
+ERROR("q = %u\n", toc[nframes].q);
     }
 
     /* Now get the speech bits, and decode as we go. */
