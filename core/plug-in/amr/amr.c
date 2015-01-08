@@ -263,10 +263,10 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	unsigned int channels, unsigned int rate, long h_codec) {
     /* div_t blocks; */
     int datalen = 0;
-    int x, more_frames = 1, nframes = 0;
+    int x, nframes = 0;
     struct amr_codec *codec = (struct amr_codec *) h_codec;
     unsigned char *src = in_buf;
-    unsigned char cmr, buffer[1024];	//AMR_MAX_FRAME_LEN+1
+    unsigned char more_frames, cmr, buffer[1024];	//AMR_MAX_FRAME_LEN+1
     int16_t *dst = (int16_t*)out_buf;
     int octed_aligned = 1;
 
@@ -287,15 +287,12 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
 	unsigned char ch;
-	/* get table of contents. */
-	pos = unpack_bits(&src, pos, &ch, octed_aligned ? 8 : 6);
-
-	// More frames: We only want the first bit:
-	more_frames = ch & 1;
-	// Frame Type: Skip the "More-Frames" bit and drop the Q bit:
-	toc[nframes].ft = (ch >> 1) & 0x0f; /* Kill Q bit */
-	// Q: Skip the "More-Frames" bit (1) and the Frame-Type bits (4); we only want the bit left over:
-	toc[nframes].q = (ch >> 5) & 1;
+	/* More-Frames Indicator: */
+	pos = unpack_bits(&src, pos, &more_frames, 1);
+	pos = unpack_bits(&src, pos, &toc[nframes].ft, 4);
+	pos = unpack_bits(&src, pos, &toc[nframes].q, 1);
+	if (octed_aligned)
+		pos = unpack_bits(&src, pos, &ch, 2);
 ERROR("=============== FRAME %i ===============\n", nframes);
 ERROR("ch = %x (%u)\n", ch, ch);
 ERROR("pos = %i\n", pos);
