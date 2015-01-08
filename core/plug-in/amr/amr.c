@@ -297,7 +297,7 @@ ERROR("pos = %i\n", pos);
 	toc[nframes].q = (ch >> 2) & 0x01;
 	nframes++;
 ERROR("=============== FRAME %i ===============\n", nframes);
-ERROR("ch = %c\n", ch);
+ERROR("ch = %x (%u)\n", ch, ch);
 ERROR("pos = %i\n", pos);
 ERROR("more_frames = %i\n", more_frames);
 ERROR("ft = %i\n", toc[nframes].ft);
