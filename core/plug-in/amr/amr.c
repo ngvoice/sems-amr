@@ -281,8 +281,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     }
 
     unsigned char* end_ptr = in_buf + size;
-    int pos = unpack_bits(&src, 0, &cmr, octed_aligned ? 8 : 4);
-    cmr >>= 4;
+    int pos = unpack_bits(&src, 7, &cmr, octed_aligned ? 8 : 4);
     
 ERROR("pos = %i\n", pos);
 
@@ -292,25 +291,29 @@ ERROR("pos = %i\n", pos);
 	/* get table of contents. */
 	pos = unpack_bits(&src, pos, &ch, octed_aligned ? 8 : 6);
 
+
 	more_frames = (ch >> 7);
 	toc[nframes].ft = (ch >> 3) & 0x0F; /* Kill Q bit */
 	toc[nframes].q = (ch >> 2) & 0x01;
+	nframes++;
+ERROR("=============== FRAME %i ===============\n", nframes);
+ERROR("ch = %c\n", ch);
+ERROR("pos = %i\n", pos);
 ERROR("more_frames = %i\n", more_frames);
 ERROR("ft = %i\n", toc[nframes].ft);
 ERROR("q = %i\n", toc[nframes].q);
-	nframes++;
     }
 
     /* Now get the speech bits, and decode as we go. */
     int samples = 0;
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
+	if (ft > 8) /* No data or invalid */
+	    goto loop;
+
 	int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
 ERROR("bits = %i\n", bits);
-	bits = num_bits[ft];
-ERROR("bits = %i\n", bits);
-	if (ft == 14 || ft == 15) /* No data */
-	    goto loop;
+
 
 	/* for octet-aligned mode, the speech frames are octet aligned as well */
 	pos = unpack_bits(&src, pos, &buffer[1], bits);
