@@ -289,7 +289,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
 	type = src[0] & 0x3e;
-	ERROR("type & 0x3e = %x (%u)\n", type, type);
+	DBG("type & 0x3e = %x (%u)\n", type, type);
 	/* More-Frames Indicator: */
 	pos = unpack_bits(&src, pos, &more_frames, 1);
 	pos = unpack_bits(&src, pos, &toc[nframes].ft, 4);
