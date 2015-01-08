@@ -322,7 +322,7 @@ ERROR("bits = %i\n", bits);
 
 	/* for octet-aligned mode, the speech frames are octet aligned as well */
 	pos = unpack_bits(&src, pos, &buffer[1], bits);
-	buffer[0] = (ft << 1) | (q << 5);
+	buffer[0] = type; // (ft << 1) | (q << 5);
 
 ERROR("ch = %x (%u)\n", buffer[0], buffer[0]);
 
