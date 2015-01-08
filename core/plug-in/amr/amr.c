@@ -282,8 +282,6 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     unsigned char* end_ptr = in_buf + size;
     int pos = unpack_bits(&src, 7, &cmr, octed_aligned ? 8 : 4);
-    
-ERROR("pos = %i\n", pos);
 
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
@@ -293,8 +291,8 @@ ERROR("pos = %i\n", pos);
 
 
 	more_frames = ch & 1;
-	toc[nframes].ft = (ch & 0x1e) >> 1; /* Kill Q bit */
-	toc[nframes].q = (ch & 0x20) >> 5;
+	toc[nframes].ft = (ch >> 1) & 0x0f; /* Kill Q bit */
+	toc[nframes].q = (ch >> 5) & 1;
 	nframes++;
 ERROR("=============== FRAME %i ===============\n", nframes);
 ERROR("ch = %x (%u)\n", ch, ch);
