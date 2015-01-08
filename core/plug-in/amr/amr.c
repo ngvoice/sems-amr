@@ -289,6 +289,8 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     while (src < end_ptr && more_frames) {
 	type = src[0];
 	ERROR("type = %x (%u)\n", type, type);
+	type &= 0x3e;
+	ERROR("type & 0x3e = %x (%u)\n", type, type);
 	/* More-Frames Indicator: */
 	pos = unpack_bits(&src, pos, &more_frames, 1);
 	pos = unpack_bits(&src, pos, &toc[nframes].ft, 4);
