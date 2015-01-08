@@ -292,9 +292,9 @@ ERROR("pos = %i\n", pos);
 	pos = unpack_bits(&src, pos, &ch, octed_aligned ? 8 : 6);
 
 
-	more_frames = (ch >> 7);
-	toc[nframes].ft = (ch >> 3) & 0x0F; /* Kill Q bit */
-	toc[nframes].q = (ch >> 2) & 0x01;
+	more_frames = ch & 1;
+	toc[nframes].ft = (ch & 0x1e) >> 1; /* Kill Q bit */
+	toc[nframes].q = (ch & 0x20) >> 5;
 	nframes++;
 ERROR("=============== FRAME %i ===============\n", nframes);
 ERROR("ch = %x (%u)\n", ch, ch);
