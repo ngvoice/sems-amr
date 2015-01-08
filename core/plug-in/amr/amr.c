@@ -266,7 +266,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     int x, nframes = 0;
     struct amr_codec *codec = (struct amr_codec *) h_codec;
     unsigned char *src = in_buf;
-    unsigned char more_frames = 1, cmr, buffer[1024];	//AMR_MAX_FRAME_LEN+1
+    unsigned char more_frames = 1, cmr, buffer[1024], type; //AMR_MAX_FRAME_LEN+1
     int16_t *dst = (int16_t*)out_buf;
     int octed_aligned = 1;
 
@@ -287,7 +287,8 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
-	unsigned char ch;
+	type = src[0];
+	ERROR("type = %x (%u)\n", type, type);
 	/* More-Frames Indicator: */
 	pos = unpack_bits(&src, pos, &more_frames, 1);
 	pos = unpack_bits(&src, pos, &toc[nframes].ft, 4);
