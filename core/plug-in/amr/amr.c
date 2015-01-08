@@ -299,7 +299,6 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	toc[nframes].q >>= 7;
 
 ERROR("=============== FRAME %i ===============\n", nframes);
-ERROR("ch = %x (%u)\n", ch, ch);
 ERROR("pos = %i\n", pos);
 ERROR("more_frames = %i\n", more_frames);
 ERROR("ft = %u\n", toc[nframes].ft);
@@ -321,6 +320,9 @@ ERROR("bits = %i\n", bits);
 	/* for octet-aligned mode, the speech frames are octet aligned as well */
 	pos = unpack_bits(&src, pos, &buffer[1], bits);
 	buffer[0] = (ft << 1) | (q << 5);
+
+ERROR("ch = %x (%u)\n", buffer[0], buffer[0]);
+
 	Decoder_Interface_Decode(codec->decoder, buffer, dst + samples, 0);
 
 	samples += AMR_SAMPLES_PER_FRAME;
