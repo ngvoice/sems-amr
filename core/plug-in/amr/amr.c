@@ -266,7 +266,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     int x, nframes = 0;
     struct amr_codec *codec = (struct amr_codec *) h_codec;
     unsigned char *src = in_buf;
-    unsigned char more_frames, cmr, buffer[1024];	//AMR_MAX_FRAME_LEN+1
+    unsigned char more_frames = 1, cmr, buffer[1024];	//AMR_MAX_FRAME_LEN+1
     int16_t *dst = (int16_t*)out_buf;
     int octed_aligned = 1;
 
