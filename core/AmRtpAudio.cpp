@@ -208,8 +208,10 @@ int AmRtpAudio::receive(unsigned long long system_ts)
     }
 
     size = decode(size);
-    if (size == 0)
+    if (size == 0) {
+        playout_buffer->clearLastTs();
 	continue;
+    }
     if(size < 0){
       ERROR("decode() returned %i\n",size);
       return -1;

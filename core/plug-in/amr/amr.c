@@ -277,19 +277,18 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 
 
     if (!h_codec) {
-	ERROR("Codec not initialized (h_codec = %li)?!?\n", h_codec);
+	DBG("Codec not initialized (h_codec = %li)?!?\n", h_codec);
 	return -1;
     }
 
     unsigned char* end_ptr = in_buf + size;
     int pos = unpack_bits(&src, 7, &cmr, octed_aligned ? 8 : 4);
-	ERROR("cmr = %x (%u)\n", cmr, cmr);
+
+    DBG("cmr = %x (%u)\n", cmr, cmr);
 
     /* Get the table of contents first... */
     while (src < end_ptr && more_frames) {
-	type = src[0];
-	ERROR("type = %x (%u)\n", type, type);
-	type &= 0x3e;
+	type = src[0] & 0x3e;
 	ERROR("type & 0x3e = %x (%u)\n", type, type);
 	/* More-Frames Indicator: */
 	pos = unpack_bits(&src, pos, &more_frames, 1);
@@ -301,11 +300,11 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	toc[nframes].ft >>= 4;
 	toc[nframes].q >>= 7;
 
-ERROR("=============== FRAME %i ===============\n", nframes);
-ERROR("pos = %i\n", pos);
-ERROR("more_frames = %i\n", more_frames);
-ERROR("ft = %u\n", toc[nframes].ft);
-ERROR("q = %u\n", toc[nframes].q);
+	DBG("=============== FRAME %i ===============\n", nframes);
+	DBG("pos = %i\n", pos);
+	DBG("more_frames = %i\n", more_frames);
+	DBG("ft = %u\n", toc[nframes].ft);
+	DBG("q = %u\n", toc[nframes].q);
 	nframes++;
     }
 
@@ -313,18 +312,14 @@ ERROR("q = %u\n", toc[nframes].q);
     int samples = 0;
     for (x = 0; x < nframes; x++) {
 	unsigned char ft = toc[x].ft, q = toc[x].q;
-	if (ft > 8) /* No data or invalid */
+	if (ft > 7) /* No data or invalid */
 	    goto loop;
 
 	int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
-ERROR("bits = %i\n", bits);
-
 
 	/* for octet-aligned mode, the speech frames are octet aligned as well */
 	pos = unpack_bits(&src, pos, &buffer[1], bits);
 	buffer[0] = type; // (ft << 1) | (q << 5);
-
-ERROR("ch = %x (%u)\n", buffer[0], buffer[0]);
 
 	Decoder_Interface_Decode(codec->decoder, buffer, dst + samples, 0);
 
@@ -336,7 +331,7 @@ loop:
 
     }
 
-    ERROR("datalen = %i\n", datalen);
+    DBG("datalen = %i\n", datalen);
 
     return datalen;
 }
