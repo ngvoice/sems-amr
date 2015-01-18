@@ -376,14 +376,18 @@ void AmSdp::print(string& body) const
 	    }
 
 	    options += "\r\n";
+
+            if ((pl_it->encoding_name == "amr") && !pl_it->sdp_format_parameters.size()) {
+              options += "a=fmtp:" + int2str(pl_it->payload_type) 
+                + " octet-align=1;mode-change-capability=2;max-red=220\r\n";              
+            }
 	  }
-	  
-	  // "a=fmtp:" line
+
+          // "a=fmtp:" line
 	  if(pl_it->sdp_format_parameters.size()){
 	    options += "a=fmtp:" + int2str(pl_it->payload_type) + " "
 	      + pl_it->sdp_format_parameters + "\r\n";
-	  }
-	  
+	  }	  
 	}
       }
       else {
