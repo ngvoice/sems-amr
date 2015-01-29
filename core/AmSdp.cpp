@@ -1474,6 +1474,8 @@ static TransProt transport_type(string transport)
     return TP_RTPAVP;
   else if(transport_uc == "UDP")
     return TP_UDP;
+  else if(transport_uc == "RTP/AVPF")
+    return TP_RTPAVPF;
   else if(transport_uc == "RTP/SAVP")
     return TP_RTPSAVP;
   else if(transport_uc == "RTP/SAVPF")
