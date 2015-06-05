@@ -100,7 +100,6 @@ inline string transport_p_2_str(int tp)
 {
   switch(tp){
   case TP_RTPAVP: return "RTP/AVP";
-  case TP_RTPAVPF: return "RTP/AVPF";
   case TP_UDP: return "udp";
   case TP_RTPSAVP: return "RTP/SAVP";
   case TP_RTPAVPF: return "RTP/AVPF";
