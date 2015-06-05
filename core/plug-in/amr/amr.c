@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include "amci.h"
 #include "codecs.h"
-#include <amrnb/interf_enc.h>
-#include <amrnb/interf_dec.h>
+#include <opencore-amrnb/interf_enc.h>
+#include <opencore-amrnb/interf_dec.h>
+#include <vo-amrwbenc/enc_if.h>
+#include <opencore-amrwb/dec_if.h>
 #else
 #include <stdio.h>
 #define ERROR  printf
@@ -53,17 +55,26 @@ typedef enum {
 
 static int pcm16_2_amr(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 	unsigned int channels, unsigned int rate, long h_codec);
+static int pcm16_2_amrwb(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
+	unsigned int channels, unsigned int rate, long h_codec);
 
 static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
 	unsigned int channels, unsigned int rate, long h_codec);
+static int amrwb_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
+	unsigned int channels, unsigned int rate, long h_codec);
+
 
 static long amr_create(const char* format_parameters, amci_codec_fmt_info_t* format_description);
+static long amrwb_create(const char* format_parameters, amci_codec_fmt_info_t* format_description);
 static void amr_destroy(long h_codec);
+static void amrwb_destroy(long h_codec);
 
 static unsigned int amr_bytes2samples(long, unsigned int);
 static unsigned int amr_samples2bytes(long, unsigned int);
 
 #define AMR_PAYLOAD_ID          118
+#define AMRWB_PAYLOAD_ID        119
+
 #define AMR_BYTES_PER_FRAME     10
 #define AMR_SAMPLES_PER_FRAME   160
 
@@ -76,10 +87,15 @@ CODEC(CODEC_AMR, pcm16_2_amr, amr_2_pcm16, AMCI_NO_CODEC_PLC,
 	(amci_codec_init_t) amr_create, (amci_codec_destroy_t) amr_destroy,
 	amr_bytes2samples, amr_samples2bytes
 	)
+CODEC(CODEC_AMRWB, pcm16_2_amrwb, amrwb_2_pcm16, AMCI_NO_CODEC_PLC,
+	(amci_codec_init_t) amrwb_create, (amci_codec_destroy_t) amrwb_destroy,
+	amr_bytes2samples, amr_samples2bytes
+	)
 END_CODECS
 
 BEGIN_PAYLOADS
 PAYLOAD(AMR_PAYLOAD_ID, "AMR", 8000, 8000, 1, CODEC_AMR, AMCI_PT_AUDIO_FRAME)
+PAYLOAD(AMRWB_PAYLOAD_ID, "AMR-WB", 16000, 16000, 1, CODEC_AMRWB, AMCI_PT_AUDIO_FRAME)
 END_PAYLOADS
 
 BEGIN_FILE_FORMATS
@@ -191,6 +207,24 @@ long amr_create(const char* format_parameters, amci_codec_fmt_info_t* format_des
     return (long) codec;
 }
 
+
+long amrwb_create(const char* format_parameters, amci_codec_fmt_info_t* format_description) {
+    struct amr_codec *codec;
+
+    DBG("amr_create: AMR format parameters: [%s], format description: [id=%d, val=%d]\n", format_parameters, format_description->id, format_description->value);
+
+    codec = (struct amr_codec*) malloc(sizeof (struct amr_codec));
+    if(!codec) {
+	ERROR("amr.c: could not create handle array\n");
+	return 0;
+    }
+
+    codec->encoder = E_IF_init();
+    codec->decoder = D_IF_init();
+    
+    return (long) codec;
+}
+
 static void
 amr_destroy(long h_codec) {
     struct amr_codec *codec = (struct amr_codec *) h_codec;
@@ -200,6 +234,19 @@ amr_destroy(long h_codec) {
 
     Encoder_Interface_exit(codec->encoder);
     Decoder_Interface_exit(codec->decoder);
+
+    free(codec);
+}
+
+static void
+amrwb_destroy(long h_codec) {
+    struct amr_codec *codec = (struct amr_codec *) h_codec;
+
+    if (!h_codec)
+	return;
+
+    E_IF_exit(codec->encoder);
+    D_IF_exit(codec->decoder);
 
     free(codec);
 }
@@ -322,6 +369,139 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
 	buffer[0] = type; // (ft << 1) | (q << 5);
 
 	Decoder_Interface_Decode(codec->decoder, buffer, dst + samples, 0);
+
+	samples += AMR_SAMPLES_PER_FRAME;
+	datalen += 2 * AMR_SAMPLES_PER_FRAME;
+
+loop:
+	(void) 0;
+
+    }
+
+    DBG("datalen = %i\n", datalen);
+
+    return datalen;
+}
+
+
+static int pcm16_2_amrwb(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
+	unsigned int channels, unsigned int rate, long h_codec) {
+    
+    struct amr_codec *codec = (struct amr_codec *) h_codec;
+    unsigned char cmr, *phdr, *pdata, toc_entry;
+    unsigned char sbuffer[1024];
+    unsigned int d_offset, h_offset, mode, q, bits;
+    int pbits=0, sbits=0, len, npad;
+    const unsigned char xzero = 0;
+    int octed_aligned = 1;
+
+    if (!h_codec) {
+	ERROR("Codec not initialized (h_codec = %li)?!?\n", h_codec);
+	return -1;
+    }
+
+    phdr = out_buf;
+    pdata = sbuffer;
+
+    cmr = 7;
+    cmr <<= 4;
+    h_offset = d_offset = 7;
+    h_offset = pack_bits(&phdr, h_offset, &cmr, octed_aligned ? 8 : 4);
+    pbits += octed_aligned ? 8 : 4;
+
+    len = E_IF_encode(codec->encoder, /*context->enc_mode*/7, (int16_t *) in_buf, sbuffer, 0);
+    DBG("Encoder_Interface_Encode returned %i\n", len);
+
+    mode = (sbuffer[0] >> 3)&0x0F;
+    q = (sbuffer[0] >> 2)&0x01;
+    toc_entry = (mode << 3) | (q << 2);
+    bits = octed_aligned ? (num_bits[mode] + 7)&~7 : num_bits[mode];
+
+    h_offset = pack_bits(&phdr, h_offset, &toc_entry, octed_aligned ? 8 : 6); /* put in the table of contents element. */
+
+    pbits += octed_aligned ? 8 : 6;
+    /* Pack the bits of the speech. */
+    d_offset = pack_bits(&pdata, d_offset, &sbuffer[1], bits);
+    sbits += bits;
+
+    /* CMR+TOC  is already in outbuf. So: Add speech bits */
+    h_offset = pack_bits(&phdr, h_offset, sbuffer/*tmp->speech_bits*/, sbits);
+    npad = (8 - ((sbits + pbits) & 7))&0x7; /* Number of padding bits */
+
+    if (octed_aligned && npad != 0)
+	ERROR("Padding bits cannot be > 0 in octet aligned mode!\n");
+
+    pack_bits(&phdr, h_offset, (void *) &xzero, npad); /* zero out the rest of the padding bits. */
+    len = (sbits + pbits + npad + 7) / 8; /* Round up to nearest octet. */
+    DBG("(sbits %i + pbits %i + npad %i + 7) / 8 = %i\n", sbits, pbits, npad, len);
+
+    return len; //out_size;
+}
+
+/* DECODE */
+static int amrwb_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned int size,
+	unsigned int channels, unsigned int rate, long h_codec) {
+    /* div_t blocks; */
+    int datalen = 0;
+    int x, nframes = 0;
+    struct amr_codec *codec = (struct amr_codec *) h_codec;
+    unsigned char *src = in_buf;
+    unsigned char more_frames = 1, cmr, buffer[1024], type, ch; //AMR_MAX_FRAME_LEN+1
+    int16_t *dst = (int16_t*)out_buf;
+    int octed_aligned = 1;
+
+    struct {
+	unsigned char ft;
+	unsigned char q;
+    } toc[50];	    //(BUFFER_SAMPLES*1000)/(SAMPLES_PER_SEC_NB*20) 8000*1000/8000*20
+
+
+    if (!h_codec) {
+	DBG("Codec not initialized (h_codec = %li)?!?\n", h_codec);
+	return -1;
+    }
+
+    unsigned char* end_ptr = in_buf + size;
+    int pos = unpack_bits(&src, 7, &cmr, octed_aligned ? 8 : 4);
+
+    DBG("cmr = %x (%u)\n", cmr, cmr);
+
+    /* Get the table of contents first... */
+    while (src < end_ptr && more_frames) {
+	type = src[0] & 0x3e;
+	DBG("type & 0x3e = %x (%u)\n", type, type);
+	/* More-Frames Indicator: */
+	pos = unpack_bits(&src, pos, &more_frames, 1);
+	pos = unpack_bits(&src, pos, &toc[nframes].ft, 4);
+	pos = unpack_bits(&src, pos, &toc[nframes].q, 1);
+	if (octed_aligned)
+		pos = unpack_bits(&src, pos, &ch, 2);
+
+	toc[nframes].ft >>= 4;
+	toc[nframes].q >>= 7;
+
+	DBG("=============== FRAME %i ===============\n", nframes);
+	DBG("pos = %i\n", pos);
+	DBG("more_frames = %i\n", more_frames);
+	DBG("ft = %u\n", toc[nframes].ft);
+	DBG("q = %u\n", toc[nframes].q);
+	nframes++;
+    }
+
+    /* Now get the speech bits, and decode as we go. */
+    int samples = 0;
+    for (x = 0; x < nframes; x++) {
+	unsigned char ft = toc[x].ft, q = toc[x].q;
+	if (ft > 7) /* No data or invalid */
+	    goto loop;
+
+	int bits = octed_aligned ? (num_bits[ft] + 7)&~7 : num_bits[ft];
+
+	/* for octet-aligned mode, the speech frames are octet aligned as well */
+	pos = unpack_bits(&src, pos, &buffer[1], bits);
+	buffer[0] = type; // (ft << 1) | (q << 5);
+
+	D_IF_decode(codec->decoder, buffer, dst + samples, 0);
 
 	samples += AMR_SAMPLES_PER_FRAME;
 	datalen += 2 * AMR_SAMPLES_PER_FRAME;

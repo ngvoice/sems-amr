@@ -88,5 +88,6 @@
 #define CODEC_OPUS 50
 
 #define CODEC_AMR 60
+#define CODEC_AMRWB 61
 
 #endif
