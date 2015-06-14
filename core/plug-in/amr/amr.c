@@ -365,7 +365,7 @@ static int amr_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned i
     /* Now get the speech bits, and decode as we go. */
     int samples = 0;
     for (x = 0; x < nframes; x++) {
-	unsigned char ft = toc[x].ft, q = toc[x].q;
+	unsigned char ft = toc[x].ft; // , q = toc[x].q;
 	if (ft > 7) /* No data or invalid */
 	    goto loop;
 
@@ -498,7 +498,7 @@ static int amrwb_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned
     /* Now get the speech bits, and decode as we go. */
     int samples = 0;
     for (x = 0; x < nframes; x++) {
-	unsigned char ft = toc[x].ft, q = toc[x].q;
+	unsigned char ft = toc[x].ft; // , q = toc[x].q;
 	if (ft > 7) /* No data or invalid */
 	    goto loop;
 
