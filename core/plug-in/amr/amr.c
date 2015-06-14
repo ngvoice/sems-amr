@@ -72,6 +72,10 @@ static void amrwb_destroy(long h_codec);
 static unsigned int amr_bytes2samples(long, unsigned int);
 static unsigned int amr_samples2bytes(long, unsigned int);
 
+static unsigned int amrwb_bytes2samples(long, unsigned int);
+static unsigned int amrwb_samples2bytes(long, unsigned int);
+
+
 #define AMR_PAYLOAD_ID          118
 #define AMRWB_PAYLOAD_ID        119
 
