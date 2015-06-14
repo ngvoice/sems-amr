@@ -78,6 +78,9 @@ static unsigned int amr_samples2bytes(long, unsigned int);
 #define AMR_BYTES_PER_FRAME     10
 #define AMR_SAMPLES_PER_FRAME   160
 
+#define AMRWB_BYTES_PER_FRAME   10
+#define AMRWB_SAMPLES_PER_FRAME 320
+
 #ifndef TEST 
 
 BEGIN_EXPORTS("amr", AMCI_NO_MODULEINIT, AMCI_NO_MODULEDESTROY)
@@ -89,7 +92,7 @@ CODEC(CODEC_AMR, pcm16_2_amr, amr_2_pcm16, AMCI_NO_CODEC_PLC,
 	)
 CODEC(CODEC_AMRWB, pcm16_2_amrwb, amrwb_2_pcm16, AMCI_NO_CODEC_PLC,
 	(amci_codec_init_t) amrwb_create, (amci_codec_destroy_t) amrwb_destroy,
-	amr_bytes2samples, amr_samples2bytes
+	amrwb_bytes2samples, amrwb_samples2bytes
 	)
 END_CODECS
 
@@ -524,4 +527,14 @@ static unsigned int amr_bytes2samples(long h_codec, unsigned int num_bytes) {
 static unsigned int amr_samples2bytes(long h_codec, unsigned int num_samples) {
     DBG("asked how many bytes for %d samples? %d!\n", num_samples, (AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME));
     return AMR_BYTES_PER_FRAME * num_samples / AMR_SAMPLES_PER_FRAME;
+}
+
+static unsigned int amrwb_bytes2samples(long h_codec, unsigned int num_bytes) {
+    DBG("asked how many samples for %d bytes? %d!\n", num_bytes, ((AMRWB_SAMPLES_PER_FRAME * num_bytes) / AMRWB_BYTES_PER_FRAME));
+    return (AMRWB_SAMPLES_PER_FRAME * num_bytes) / AMRWB_BYTES_PER_FRAME;
+}
+
+static unsigned int amrwb_samples2bytes(long h_codec, unsigned int num_samples) {
+    DBG("asked how many bytes for %d samples? %d!\n", num_samples, (AMRWB_BYTES_PER_FRAME * num_samples / AMRWB_SAMPLES_PER_FRAME));
+    return AMRWB_BYTES_PER_FRAME * num_samples / AMRWB_SAMPLES_PER_FRAME;
 }
