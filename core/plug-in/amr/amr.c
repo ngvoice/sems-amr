@@ -510,8 +510,8 @@ static int amrwb_2_pcm16(unsigned char* out_buf, unsigned char* in_buf, unsigned
 
 	D_IF_decode(codec->decoder, buffer, dst + samples, 0);
 
-	samples += AMR_SAMPLES_PER_FRAME;
-	datalen += 2 * AMR_SAMPLES_PER_FRAME;
+	samples += AMRWB_SAMPLES_PER_FRAME;
+	datalen += 2 * AMRWB_SAMPLES_PER_FRAME;
 
 loop:
 	(void) 0;
