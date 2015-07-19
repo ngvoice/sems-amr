@@ -44,6 +44,9 @@ AmAudioRtpFormat::~AmAudioRtpFormat()
 int AmAudioRtpFormat::setCurrentPayload(Payload pl)
 {
   if (this->codec_id != pl.codec_id) {
+    DBG("setCurrentPayload({%u, '%s', %u, %u, %u, '%s'})\n",
+	pl.pt, pl.name.c_str(), pl.clock_rate, pl.advertised_clock_rate,
+	pl.codec_id, pl.format_parameters.c_str());
     this->codec_id = pl.codec_id;
     DBG("fmt.codec_id = %d", this->codec_id);
     this->channels = 1;
@@ -52,6 +55,7 @@ int AmAudioRtpFormat::setCurrentPayload(Payload pl)
     this->advertized_rate = pl.advertised_clock_rate;
     DBG("fmt.advertized_rate = %d", this->advertized_rate);
     this->frame_size = 20*this->rate/1000;
+    this->sdp_format_parameters = pl.format_parameters;
     DBG("fmt.sdp_format_parameters = %s", this->sdp_format_parameters.c_str());
     if (this->codec != NULL) {
       destroyCodec();
@@ -62,34 +66,41 @@ int AmAudioRtpFormat::setCurrentPayload(Payload pl)
 
 void AmAudioRtpFormat::initCodec()
 {
-  amci_codec_fmt_info_t fmt_i[4];
-
-  fmt_i[0].id=0;
+  amci_codec_fmt_info_t* fmt_i = NULL;
+  sdp_format_parameters_out = NULL; // reset
 
   if( codec && codec->init ) {
-    if ((h_codec = (*codec->init)(sdp_format_parameters.c_str(), fmt_i)) == -1) {
+    if ((h_codec = (*codec->init)(sdp_format_parameters.c_str(), 
+				  &sdp_format_parameters_out, &fmt_i)) == -1) {
       ERROR("could not initialize codec %i\n",codec->id);
     } else {
-      string s; 
-      int i=0;
-      while (fmt_i[i].id) {
-	switch (fmt_i[i].id) {
-	case AMCI_FMT_FRAME_LENGTH : {
-	  //frame_length=fmt_i[i].value; 
-	} break;
-	case AMCI_FMT_FRAME_SIZE: {
-	  frame_size=fmt_i[i].value; 
-	} break;
-	case AMCI_FMT_ENCODED_FRAME_SIZE: {
-	//   frame_encoded_size=fmt_i[i].value; 
-	} break;
-	default: {
-	  DBG("Unknown codec format descriptor: %d\n", fmt_i[i].id);
-	} break;
-	}
-	i++;
+      if (NULL != sdp_format_parameters_out) {
+	DBG("negotiated fmt parameters '%s'\n", sdp_format_parameters_out);
+	log_demangled_stacktrace(L_DBG, 30);
       }
-    }  
+
+      if (NULL != fmt_i) {	
+	unsigned int i=0;
+	while (i<4 && fmt_i[i].id) {
+	  switch (fmt_i[i].id) {
+	  case AMCI_FMT_FRAME_LENGTH : {
+	    //frame_length=fmt_i[i].value; // ignored 
+	  } break;
+	  case AMCI_FMT_FRAME_SIZE: {
+	    frame_size=fmt_i[i].value; 
+	  } break;
+	  case AMCI_FMT_ENCODED_FRAME_SIZE: {
+	    //   frame_encoded_size=fmt_i[i].value;  // ignored 
+	  } break;
+	  default: {
+	    DBG("Unknown codec format descriptor: %d\n", fmt_i[i].id);
+	  } break;
+	  }
+
+	  i++;
+	}
+      }
+    }
   } 
 }
 
