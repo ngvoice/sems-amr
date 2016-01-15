@@ -4,10 +4,13 @@ DSM quick reference
 Syntax
 ======
 -- comment
-# also comment
+# comment, too
 
 #include "script.dsm"
+#include "script_dir"
 #include "/path/to/anotherscript.dsm"
+#include "/path/to/script_dir"
+
 import(mod_name);
 
 [initial] state name 
@@ -39,6 +42,12 @@ function func_name() {
   } else {
    <actions>
   }
+
+  for ($var in range(start, end)) { action; ... }
+    -- $var gets values from start to end - 1
+  for ($var in $myarray) { action; ... }
+  for ($key,$val in $mystruct) { action; ... }
+  break();
 
   func_name();
   ...
@@ -79,6 +88,8 @@ DSM flow
  stop(<send bye>)
    e.g. stop(false), stop(true)
 
+ break;    # break execution of current action list and for loop
+
  -- reprocess the current event after transition:
  repost()
 
@@ -94,6 +105,11 @@ DSM flow
         sets($var="a single at on a date with a single dollar: @@$$")
  var($dstvar=srcvarname)
   e.g.  var($dstvar=$var_counter)
+        # array member access:
+        set($i = 0);
+        sets($v="a[$i]");
+        var($m=$v);
+
  param($dstvar=srcparamname)
   e.g. param($dstvar=$myparam) (like: #($myparam) )
  eval($var=value) 
@@ -303,6 +319,8 @@ B2B call control
 
   DIgetResult(factory, function, param,...)
     saves result from DI call to DI_res or DI_res0, DI_res1, ...
+    currently result types int, double, string, boolean, invalid. and
+    array are supported
    * sets $errno (arg,config)
 
   Exception handling

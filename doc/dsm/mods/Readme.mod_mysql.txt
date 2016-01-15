@@ -6,6 +6,10 @@ configuration
 DB connection can be configured in dsm.conf: 
 $config.db_url : mysql://user:pwd@host/db
 
+Connection is made over SSL if configuration variable mysql_ca_cert is
+set, for example:
+mysql_ca_cert=/etc/sems/ca-cert.pem
+
 Actions:
 =======
 -- connect connection
@@ -136,6 +140,7 @@ $errno:
 #define DSM_ERRNO_MY_NORESULT   "result"
 #define DSM_ERRNO_MY_NOROW      "result"
 #define DSM_ERRNO_MY_NOCOLUMN   "result"
+#define DSM_ERRNO_MY_NODATA     "result"
 
 Internals
 =========

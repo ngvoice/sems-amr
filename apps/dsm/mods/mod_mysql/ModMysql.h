@@ -39,6 +39,7 @@
 #define DSM_ERRNO_MY_NORESULT   "result"
 #define DSM_ERRNO_MY_NOROW      "result"
 #define DSM_ERRNO_MY_NOCOLUMN   "result"
+#define DSM_ERRNO_MY_NODATA     "result"
 
 class SCMysqlModule 
 : public DSMModule {
@@ -57,9 +58,9 @@ class DSMMyConnection
   public DSMDisposable 
 {
  public:
- DSMMyConnection(const char* db, const char* server, const char* user, const char* password)
-   : mysqlpp::Connection(db, server, user, password)
-  { }
+  DSMMyConnection() : mysqlpp::Connection()
+  {
+  }
   ~DSMMyConnection() { }
 };
 
