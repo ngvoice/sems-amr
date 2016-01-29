@@ -361,11 +361,11 @@ void AmSdp::print(string& body) const
 
       string options;
       // It's a hack for now, but let's add some b=values about bandwith into the SDP:
-      if (media_it->type == MT_AUDIO)  {
+      /*if (media_it->type == MT_AUDIO)  {
      	  options += "b=AS:38\r\nb=RS:375\r\nb=RR:1125\r\n";
       } else if (media_it->type == MT_VIDEO)  {
           options += "b=AS:384\r\nb=RS:4800\r\nb=RR:14400\r\n";
-      }
+      } */
 
       if (media_it->transport == TP_RTPAVP || media_it->transport == TP_RTPAVPF || media_it->transport == TP_RTPSAVP || media_it->transport == TP_RTPSAVPF || media_it->transport == TP_UDPTLSRTPSAVP || media_it->transport == TP_UDPTLSRTPSAVPF) {
 	for(std::vector<SdpPayload>::const_iterator pl_it = media_it->payloads.begin();
