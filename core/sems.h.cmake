@@ -25,14 +25,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 /** @file sems.h */
-#ifndef _ans_machine_h_
-#define _ans_machine_h_
-
-#define SEMS_VERSION "${SEMS_VERSION}"
-#define OS "${CMAKE_SYSTEM_NAME}"
-#define ARCH "${CMAKE_SYSTEM_PROCESSOR}"
-
-#define SEMS_APP_NAME "${SEMS_APP_NAME}"
+#ifndef _sems_h_
+#define _sems_h_
 
 #define CONFIG_FILE         "${SEMS_CFG_PREFIX}/etc/sems/sems.conf"
 #define MOD_CFG_PATH        "${SEMS_CFG_PREFIX}/etc/sems/etc/"
