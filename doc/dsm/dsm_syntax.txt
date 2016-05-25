@@ -105,10 +105,13 @@ DSM flow
         sets($var="a single at on a date with a single dollar: @@$$")
  var($dstvar=srcvarname)
   e.g.  var($dstvar=$var_counter)
-        # array member access:
+        # array member set and access
         set($i = 0);
         sets($v="a[$i]");
-        var($m=$v);
+        # set array member to $value
+        setVar($v=$value)
+        # assign array member value to $var
+        var($var=$v);
 
  param($dstvar=srcparamname)
   e.g. param($dstvar=$myparam) (like: #($myparam) )
@@ -323,6 +326,12 @@ B2B call control
     array are supported
    * sets $errno (arg,config)
 
+  DIgetResultArray(factory, function, param,...)
+    saves result from DI call to DI_res or DI_res[0], DI_res[1], ..., DI_res[N]
+    and N+1 or 0 to DI_res_size; currently result types int, double, string,
+    boolean, invalid, and  array are supported
+   * sets $errno (arg,config)
+
   Exception handling
   ------------------
   throw(<type>[,arg1=val1;arg2=val2;...])
@@ -492,6 +501,17 @@ B2Bevent(expr)
  B2B.otherBye
    BYE on other leg received
     #hdrs    - headers
+
+    set(#processed=true) to handle the BYE in DSM, and e.g. continue the call
+  example:
+    transition "BYE on other leg" conn - B2B.otherBye() / {
+      log(2, "received BYE from callee");
+      set(#processed=true);
+      dlg.relayReply(200, "OK");
+      B2B.sendReinvite(true);
+      connectMedia();
+      playFile("thanks.wav");
+    } -> thanks_for_calling;
 
  sipRequest
    SIP request received - only executed if enable_request_events=="true"

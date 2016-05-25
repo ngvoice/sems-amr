@@ -58,6 +58,7 @@ MOD_ACTIONEXPORT_BEGIN(MOD_CLS_NAME) {
   DEF_CMD("dlg.refer", DLGReferAction);
   DEF_CMD("dlg.info", DLGInfoAction);
   DEF_CMD("dlg.relayError", DLGB2BRelayErrorAction);
+  DEF_CMD("dlg.relayReply", DLGB2BRelayErrorAction); // alias
 
   DEF_CMD("dlg.addReplyBodyPart", DLGAddReplyBodyPartAction);
   DEF_CMD("dlg.deleteReplyBodyPart", DLGDeleteReplyBodyPartAction);
@@ -198,7 +199,7 @@ EXEC_ACTION_START(DLGAcceptInviteAction) {
 } EXEC_ACTION_END;
 
 EXEC_ACTION_START(DLGByeAction) {
-  string hdrs = resolveVars(arg, sess, sc_sess, event_params);
+  string hdrs = replaceLineEnds(resolveVars(arg, sess, sc_sess, event_params));
 
   if (sess->dlg->bye(hdrs)) {
     sc_sess->SET_ERRNO(DSM_ERRNO_GENERAL);
@@ -559,7 +560,7 @@ EXEC_ACTION_START(DLGB2BRelayErrorAction) {
       !(sip_req = dynamic_cast<DSMSipRequest*>(it->second.asObject()))) {
     throw DSMException("dlg", "cause", "no request");
   }
-  GET_B2B_SESSION(dlg.refer);
+  GET_B2B_SESSION(dlg.relayError);
 
   string code = resolveVars(par1, sess, sc_sess, event_params);
   string reason = resolveVars(par2, sess, sc_sess, event_params);
