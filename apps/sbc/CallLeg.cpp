@@ -962,8 +962,20 @@ void CallLeg::onSipRequest(const AmSipRequest& req)
       //    to avoid other confusions...
       dlg->reply(req,200,"OK");
     }
-    else
-      AmB2BSession::onSipRequest(req);
+    else {
+      if (req.method == SIP_METH_INVITE && dlg->getStatus() == AmBasicSipDialog::Connected) {
+        try {
+          ERROR("This is a local re-invite...");
+          dlg->reply(req, 200, "OK", &established_body);
+        }
+        catch(...) {
+          ERROR("exception when handling INVITE in disconnected state");
+          dlg->reply(req, 500, SIP_REPLY_SERVER_INTERNAL_ERROR);
+          // stop the call?
+        }
+      } else
+        AmB2BSession::onSipRequest(req);
+    }
   }
 }
 
